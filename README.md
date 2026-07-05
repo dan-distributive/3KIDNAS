@@ -27,7 +27,7 @@ node bootstrap-job.js --apiKey=0x<identity> [options]
 # Full invocation
 node bootstrap-job.js \
   --apiKey=0x45d7... \
-  --computeGroup=google,95rhwgha \
+  --computeGroup=demo,dcp \
   --bootstraps=1000 \
   --slicePrice=5.24
 
