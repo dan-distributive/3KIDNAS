@@ -2,9 +2,22 @@
 
 DCP job driver for 3KIDNAS bootstrap fitting. Generates N bootstrap realizations of a galaxy kinematic fit in parallel across a DCP worker pool. Each worker sandbox receives one realization index and runs a full `GalaxyFit_Simple` on the corresponding bootstrap cube.
 
-- **Authors:** Dan Desjardins \<dan@distributive.network\>
+This is a JavaScript port of the 3KIDNAS kinematic-fitting pipeline, adapted to run on the Distributive Compute Protocol (DCP). The original pipeline is written in Fortran (see [Attribution](#attribution) below).
+
+- **Port author:** Dan Desjardins \<dan@distributive.network\> — JavaScript / DCP port
 - **Date:** July 2026
 - **Requires:** `Node.js`, `dcp-client`
+
+## Attribution
+
+This project ports the **3KIDNAS** pipeline to JavaScript so it can run distributed on DCP. It does not replace or fork the upstream science code; all credit for the underlying algorithm and its scientific validity belongs to the original authors.
+
+**3KIDNAS** (3D Kinematic Data aNalysis Algorithm for Surveys — pronounced like "echidnas") is an automated pipeline that fits kinematic models of rotating disk galaxies and produces statistically meaningful uncertainties on their rotation curves. It is being developed by WALLABY Technical Working Group 5, led by Kristine Spekkens and Nathan Deg, and is intended to model the kinematics of thousands of galaxies resolved by the WALLABY HI survey.
+
+- Original pipeline (Fortran): <https://github.com/NateDeg/3KIDNAS>
+- Pipeline description and diagnostic plots: <https://wallaby-survey.org/tools/>
+
+The bootstrap uncertainty estimation implemented here mirrors the upstream method; this port's contribution is parallelizing those realizations across a DCP worker pool rather than running them serially.
 
 ## Usage
 
