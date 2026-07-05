@@ -51,8 +51,10 @@ The `--apiKey` is a DCP identity that authorizes job creation and pays for compu
    - **Payment Account:** the bank account to debit when jobs run under this key. Credits are drawn from here on every deployment, so pick the account you intend to fund this work.
    - **Expires in:** choose a lifetime (e.g. `one year`).
 5. Click **Save**.
-6. Back in the **API Keys** table, use the **download** or **copy** icon in the *Actions* column to retrieve the key's `0x...` value. That string is what you pass to `--apiKey`.
+6. Back in the **API Keys** table, click the **copy to clipboard** icon in the *Actions* column to copy the key's `0x...` value. That string is what you pass to `--apiKey`. (The download icon exports the full keystore, not what you want here.)
 
 <!-- ![Add API Key dialog with Purpose, Description, Payment Account and Expires in filled out](docs/img/add-api-key.png) -->
 
 > **Keep the key private.** It can spend the associated account's credits. Don't commit it to the repo or paste it into shared logs; pass it on the command line (or via an environment variable / secrets manager in automated runs). Keys expire, so if deployments start failing on auth, check whether the key has lapsed and issue a new one.
+>
+> **Watch the account balance.** Jobs are paid for in DCC from the key's payment account, and that account can run dry. If a job won't start or stalls with no progress, check the account balance under **Bank** first. If it's low, top it up (buy credits) or earn more by running a worker on the public network.
