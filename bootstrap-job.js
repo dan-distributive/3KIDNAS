@@ -24,11 +24,6 @@
  *     node bootstrap-job.js --apiKey=0x45d7... --computeGroup=demo,dcp --bootstraps=50 --slicePrice=5.24
  *     node bootstrap-job.js --apiKey=0x45d7...
  *     node bootstrap-job.js --apiKey=0x45d7... --computeGroup=public
-node bootstrap-job.js \
-  --apiKey=0x45d77fb82cf7b021580c98512c6103cf23f08dacbb1e5ea604a670b388fef0a0 \
-  --computeGroup=google,95rhwgha \
-  --bootstraps=1000 \
-  --slicePrice=5.24
  *
  * @requires    node.js
  * @requires    dcp-client
