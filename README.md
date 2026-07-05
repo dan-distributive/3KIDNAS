@@ -2,7 +2,7 @@
 
 DCP job driver for **3KIDNAS bootstrap fitting** — the parallel uncertainty-estimation stage of the 3KIDNAS kinematic pipeline, ported to JavaScript and adapted to run distributed on the Distributive Compute Protocol (DCP).
 
-This is **not** a port of the full pipeline. The initial galaxy fit is still performed upstream by the original Fortran 3KIDNAS (see [Attribution](#attribution)). That run is modified to dump its post-fit state to two JSON files:
+This is **not** a port of the full pipeline. The initial galaxy fit is still performed upstream by the original Fortran 3KIDNAS (see [Attribution](#attribution)). That run is modified to dump its initial post-fit state to two JSON files:
 
 - `inputs/diskfit_fixture.json` — the fit configuration, observed cube, beam, and best-fit tilted-ring parameters
 - `inputs/model_cube_bestfit.json` — the best-fit model cube
