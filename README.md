@@ -1,10 +1,17 @@
 # bootstrap-job.js
 
-DCP job driver for 3KIDNAS bootstrap fitting. Generates N bootstrap realizations of a galaxy kinematic fit in parallel across a DCP worker pool. Each worker sandbox receives one realization index and runs a full `GalaxyFit_Simple` on the corresponding bootstrap cube.
+DCP job driver for **3KIDNAS bootstrap fitting** — the parallel uncertainty-estimation stage of the 3KIDNAS kinematic pipeline, ported to JavaScript and adapted to run distributed on the Distributive Compute Protocol (DCP).
 
-This is a JavaScript port of the 3KIDNAS kinematic-fitting pipeline, adapted to run on the Distributive Compute Protocol (DCP). The original pipeline is written in Fortran (see [Attribution](#attribution) below).
+This is **not** a port of the full pipeline. The initial galaxy fit is still performed upstream by the original Fortran 3KIDNAS (see [Attribution](#attribution)). That run is modified to dump its post-fit state to two JSON files:
 
-- **Port author:** Dan Desjardins \<dan@distributive.network\> — JavaScript / DCP port
+- `inputs/diskfit_fixture.json` — the fit configuration, observed cube, beam, and best-fit tilted-ring parameters
+- `inputs/model_cube_bestfit.json` — the best-fit model cube
+
+Both files are shipped to every worker as static arguments, so each sandbox has the full context it needs without fetching anything. Each worker then generates one bootstrap realization (resampling from the best-fit model) and runs a full `GalaxyFit_Simple` on it. A run of N realizations produces N independent fits, from which the script collates per-parameter means, standard deviations, and 16/50/84 percentiles.
+
+Bootstrap realizations are independent, which is what makes this stage worth distributing: with enough workers, 1,000 realizations finish in roughly the time of a single fit rather than 1,000× that. Each realization takes about **8 minutes** (±2 min), so the serial cost of 1,000 fits (~130 hours) collapses to the duration of one slice once you have enough sandboxes.
+
+- **Port author:** Dan Desjardins \<dan@distributive.network\> — JavaScript / DCP port of the bootstrap stage
 - **Date:** July 2026
 - **Requires:** `Node.js`, `dcp-client`
 
