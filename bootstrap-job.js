@@ -367,11 +367,13 @@ async function main() {
 
   // JOB EVENTS
   job.on('readystatechange', (ev) => console.log(`Ready state: ${ev}`));
-  job.on('accepted', () => console.log(`  Job id: ${job.id}\n  Awaiting results...`));
-  job.on('result', (ev) => console.log(`  Realization ${ev.result.realizationIndex}: chi²=${ev.result.chi2.toExponential(4)}`));
-  job.on('error',  (error) => console.error('  Job error:', error));
-  job.on('nofunds', (ev)   => console.log(ev));
-  job.on('stop',    (ev)   => console.log(ev));
+  job.on('accepted', ()   => console.log(`  Job id: ${job.id}\n  Awaiting results...`));
+  job.on('error', (error) => console.error('  Job error:', error));
+  job.on('nofunds', (ev)  => console.log(ev));
+  job.on('result', (ev) => {
+    if (typeof ev?.result?.chi2 !== 'number') return;
+    console.log(`  Realization ${ev.result.realizationIndex}: chi²=${ev.result.chi2.toExponential(4)}`);
+  });
 
 
   // JOB DEPLOYMENT
