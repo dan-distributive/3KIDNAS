@@ -55,7 +55,7 @@ const { tiltedRingModelComparison }     = require('../CompareCubes/FullModelComp
 // Fortran uses 1-indexed arrays: p(nParams+1, nParams), y(nParams+1)
 // JS uses 0-indexed: p[k][i] for vertex k, param i
 // ---------------------------------------------------------------------------
-function amoeba(p, y, nParams, ftol, objFn) {
+function amoeba(p, y, nParams, ftol, objFn, onProgress) {
   const ALPHA = 1.0;    // reflection coefficient
   const BETA  = 0.5;    // contraction coefficient
   const GAMMA = 2.0;    // expansion coefficient
@@ -100,7 +100,7 @@ function amoeba(p, y, nParams, ftol, objFn) {
 
   for (let iter = 0; iter < ITMAX; iter++) {
     // DCP Worker Progress call
-    progress(iter/ITMAX);
+    if (onProgress) onProgress(iter / ITMAX);
 
     // Find highest, second highest, lowest
     let ilo = 0;
@@ -223,12 +223,12 @@ function makeParamGuessArray(pv, rng, lambda, strictEstimate) {
 
 // ---------------------------------------------------------------------------
 // downhillSimplexRun
-// Fortran: DownhillSimplexRun(nParams, paramGuesses, chiArray)
+// Fortran: DownhillSimplexRun(nParams, paramGuesses, chiArray, onProgress)
 //
 // Evaluates chi² at each simplex vertex, then runs amoeba.
 // Updates pvModel with the best result.
 // ---------------------------------------------------------------------------
-function downhillSimplexRun(paramGuesses, chiArray, state) {
+function downhillSimplexRun(paramGuesses, chiArray, state, onProgress) {
   const pv  = state.pvModel;
   const n   = pv.nParams;
 
@@ -242,7 +242,8 @@ function downhillSimplexRun(paramGuesses, chiArray, state) {
 
   // Run Nelder-Mead
   amoeba(paramGuesses, chiArray, n, state.ftol,
-    params => f32(tiltedRingModelComparison(params, state))
+    params => f32(tiltedRingModelComparison(params, state)),
+    onProgress
   );
 
   // Store best result in pvModel
@@ -270,6 +271,18 @@ function downhillSimplexRun(paramGuesses, chiArray, state) {
 // ---------------------------------------------------------------------------
 function galaxyFit_Simple(state) {
   const { pvIni, observedDC, observedBeam } = state;
+
+  // Progress reporting: strictly non-decreasing + throttled to 0.1% steps.
+  // Swallows the pass-1→pass-2 reset (pass 2 restarts at 0, so it stays
+  // silent until it climbs back above pass 1's peak) and avoids firing
+  // on every tight iteration.
+  let progHigh = -1;                        // force the first call through
+  const report = (frac) => {
+    if (frac >= progHigh + 0.001) {         // only if advanced ≥ 0.1%
+      progHigh = frac;
+      progress(frac);
+    }
+  };
 
   // Step 1: calculate beam kernel (if not already done)
   calculate2DBeamKernel(observedBeam, observedDC.dh.pixelSize);
@@ -308,7 +321,7 @@ function galaxyFit_Simple(state) {
   let paramGuesses = makeParamGuessArray(pvModel, state.rng, state.iniGuessWidth, 1);
   let chiArray     = new Float32Array(n + 1);
 
-  downhillSimplexRun(paramGuesses, chiArray, state);
+  downhillSimplexRun(paramGuesses, chiArray, state, report);
 
   // Store pass 1 result
   const pvFirstFit    = state.pvFirstFit;
@@ -324,7 +337,7 @@ function galaxyFit_Simple(state) {
   paramGuesses = makeParamGuessArray(pvModel, state.rng, state.iniGuessWidth, 0);
   chiArray     = new Float32Array(n + 1);
 
-  downhillSimplexRun(paramGuesses, chiArray, state);
+  downhillSimplexRun(paramGuesses, chiArray, state, report);
 
   // Final best-fit is in pvModel (updated by downhillSimplexRun)
   return pvModel;
