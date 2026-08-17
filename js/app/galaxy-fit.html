@@ -386,7 +386,7 @@ const COMPUTE_GROUPS_STORAGE_KEY = 'galaxy-fit:computeGroups';
 
 const apiKeyInput = document.getElementById('apiKeyInput');
 apiKeyInput.value = localStorage.getItem(API_KEY_STORAGE_KEY) || '';
-apiKeyInput.addEventListener('change', () => localStorage.setItem(API_KEY_STORAGE_KEY, apiKeyInput.value.trim()));
+apiKeyInput.addEventListener('change', () => localStorage.setItem(API_KEY_STORAGE_KEY, getApiKey()));
 
 function getApiKey() {
   return apiKeyInput.value.trim();
