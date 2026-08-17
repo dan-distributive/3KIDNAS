@@ -214,8 +214,7 @@
       </div>
     </div>
     <p class="card-sub" id="estimateGeometryStatus" style="margin-top:-8px">
-      Object name and PA/Inc auto-fill from the cube once you pick it above (SoFiA, run locally,
-      instant) &mdash; all three stay freely editable.
+      Object name auto-fills from the cube filename. PA/Inc estimates are manual entry.
     </p>
 
     <details class="advanced" id="advancedPanel">
@@ -312,21 +311,16 @@
 
 </main>
 
-<!-- Browser build of dcp-client, loaded from a local sibling folder (never a CDN -- this only works
-     when the page is opened as a real local file, e.g. `open galaxy-fit.html`, next to its sibling
-     dcp-client-browser/ folder; it can never work from a sandboxed preview that blocks outbound
-     network calls, since dcp-client needs to reach the real DCP scheduler).
-     load-css="false": dcp-client.js's own CSS auto-loader only matches a script path literally ending
-     in ".../dcp-client/dcp-client.js" -- our folder is named dcp-client-browser, so it would silently
-     never find the stylesheet; loaded explicitly below instead. -->
+<!-- dcp-client, loaded from a local sibling folder (must be served, not opened as file://,
+     for the scheduler to be reachable). load-css="false" since our folder isn't named
+     "dcp-client" -- dcp-client.js's own CSS auto-loader wouldn't find the stylesheet. -->
 <script src="dcp-client-browser/dcp-client.js" scheduler="https://scheduler.distributed.computer/" load-css="false"></script>
 <link rel="stylesheet" href="dcp-client-browser/assets/dcp-client.css">
 
-<!-- The fit engine itself and its shared config/payload-builder modules. bootstrap-realization-
-     launcher.js defines runInitialFit/runBootstrapRealization as plain globals when loaded this way
-     (see its own export guard) -- compute.for() never executes them locally, in this page or in
-     Node; it only ships their source to a remote DCP sandbox, so the `require(...)` calls inside
-     their bodies never need to resolve here. -->
+<!-- The fit engine + shared config/payload-builder modules. bootstrap-realization-launcher.js
+     defines runInitialFit/runBootstrapRealization as globals; compute.for() only ships their
+     source to the DCP sandbox, never runs them here, so their require() calls never resolve
+     locally. -->
 <script src="../src/PipelineConfig/defaultFittingOptions.js"></script>
 <script src="../src/PayloadBuilder/buildFitPayloads.js"></script>
 <script src="bootstrap-realization-launcher.js"></script>
@@ -340,25 +334,10 @@
 <script>
 'use strict';
 
-// ---------------------------------------------------------------------------
-// dcp-client readiness -- loads async (fetches real config, then a ~1.7MB
-// bundle), so checking `typeof dcp` at click time races that. Wait properly,
-// with a timeout so a genuine failure (folder missing, no network, or a host
-// that blocks the document.write()-based loader) surfaces as a clear
-// message instead of hanging forever.
-// ---------------------------------------------------------------------------
-const dcpReady = new Promise((resolve, reject) => {
-  if (typeof dcp !== 'undefined') { resolve(); return; }
+// dcp-client.js signals readiness via a window event, not a global promise --
+// wrap it once here so the rest of this page can just `await dcpReady`.
+const dcpReady = new Promise((resolve) => {
   window.addEventListener('dcpclientready', () => resolve(), { once: true });
-  setTimeout(() => {
-    if (typeof dcp === 'undefined') {
-      reject(new Error(
-        'dcp-client did not load within 20s. Likely causes: the dcp-client-browser/ folder isn\'t ' +
-        'sitting next to this HTML file, there\'s no network path to scheduler.distributed.computer, ' +
-        'or this page is open in something other than a normal browser tab.'
-      ));
-    }
-  }, 20000);
 });
 
 function setPill(el, kind, text) {
@@ -375,11 +354,7 @@ function logLine(el, text, kind) {
 }
 
 // ---------------------------------------------------------------------------
-// DCP account settings: API key + compute group(s), persisted locally --
-// same shape/behavior as ~/DCP/ffmpeg-dcp/app.js's own account section,
-// adapted to this page's styling. No hardcoded fallback key (unlike that
-// project's demo key) -- an empty API key field falls back to the wallet
-// picker instead, below.
+// DCP account settings: API key + compute group(s), persisted locally.
 // ---------------------------------------------------------------------------
 const API_KEY_STORAGE_KEY = 'galaxy-fit:apiKey';
 const COMPUTE_GROUPS_STORAGE_KEY = 'galaxy-fit:computeGroups';
@@ -475,17 +450,6 @@ function getComputeGroups() {
   return groups.map((g) => (g.joinSecret ? g : { joinKey: g.joinKey }));
 }
 
-// ---------------------------------------------------------------------------
-// Identity + payment -- two separate DCP calls, established lazily on the
-// first real dispatch. Matches ~/DCP/ffmpeg-dcp/app.js's dispatchJob().
-// ---------------------------------------------------------------------------
-const runInitialFitBtn = document.getElementById('runInitialFitBtn');
-
-async function ensureConnected() {
-  await dcp.identity.set(getApiKey());
-  const pay = await dcp.wallet.get();
-  await dcp.wallet.add(pay);
-}
 
 // ---------------------------------------------------------------------------
 // Advanced panel <-> defaultFittingOptions()
@@ -565,13 +529,12 @@ function drawChart(canvas, xs, ys) {
 }
 
 // ---------------------------------------------------------------------------
-// Job dispatch helper -- shared shape for both steps. ensureConnected()
-// establishes identity + payment on the first call (pops the wallet modal
-// then, if no API key is set) and is a no-op on every call after.
+// Job dispatch helper
 // ---------------------------------------------------------------------------
 async function dispatchJob({ inputSet, workFn, payload, jobName, modules }) {
   await dcpReady;
-  await ensureConnected();
+  await dcp.identity.set(getApiKey());
+  await dcp.wallet.add(await dcp.wallet.get());
   const job = dcp.compute.for(inputSet, workFn, [payload]);
   job.requires(modules || window.INITIAL_FIT_AND_BOOTSTRAP_MODULES);
   job.computeGroups = getComputeGroups();
@@ -580,13 +543,10 @@ async function dispatchJob({ inputSet, workFn, payload, jobName, modules }) {
 }
 
 // ---------------------------------------------------------------------------
-// Object name & PA/Inc prepopulation -- automatic the moment a cube is
-// picked, always local (estimateGeometry runs SoFiA on one un-resampled
-// cube with no fit -- well under a second on a real test cube, so there's
-// no reason this should ever go over the network). Neither ever overwrites
-// a field the user has typed into themselves -- objNameEdited tracks that
-// for the name field; PA/Inc simply get filled once, from empty, and stay
-// freely editable afterward.
+// Object name auto-fill from the cube filename. PA/Inc are manual entry --
+// the initial fit is always a real DCP job, and estimating them locally
+// would mean loading SoFiA/cfitsio wasm into the page just for a guess.
+// objNameEdited stops the guess from clobbering a name the user already typed.
 // ---------------------------------------------------------------------------
 let objNameEdited = false;
 const objNameField = document.getElementById('objName');
@@ -599,116 +559,13 @@ function guessObjectNameFromFilename(filename) {
 const cubeFileInput = document.getElementById('cubeFile');
 const estimateGeometryStatus = document.getElementById('estimateGeometryStatus');
 
-// estimateGeometry's own body is written to run inside a DCP sandbox
-// (require('cfitsio-wasm.js') etc.), which normally only exists there or in
-// Node -- these scripts make it also runnable directly in this page's own
-// JS context. Lazy-loaded (not unconditionally at page load:
-// cfitsio-module.js/sofia-module.js are multi-MB wasm blobs) the first time
-// a cube is picked, then cached. local-testing-wasm/ holds synced copies of
-// the canonical wasm build artifacts (see its own README) -- kept
-// same-directory-tree so this page works fully self-contained under
-// js/app/, however it's served.
-const LOCAL_ESTIMATE_SCRIPTS = [
-  '../src/SoFiACatalog/ParseSoFiACatalog.js',
-  '../src/GeometryEstimates/GeometryEstimates.js',
-  'local-testing-wasm/cfitsio-module.js',
-  'local-testing-wasm/cfitsio-wasm.js',
-  'local-testing-wasm/sofia-module.js',
-  'local-testing-wasm/sofia-wasm.js',
-];
-let localEstimateScriptsLoaded = false;
-
-function loadScriptOnce(src) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = false; // preserve document order -- cfitsio-module.js must run before cfitsio-wasm.js
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('failed to load ' + src));
-    document.head.appendChild(script);
-  });
-}
-
-async function ensureLocalEstimateScriptsLoaded() {
-  if (localEstimateScriptsLoaded) return;
-  for (const src of LOCAL_ESTIMATE_SCRIPTS) {
-    await loadScriptOnce(src);
-  }
-  localEstimateScriptsLoaded = true;
-}
-
-// Temporary, narrowly-scoped `require` shim resolving the same module names
-// a real DCP sandbox would -- installed only for the duration of this one
-// call, then removed, so it can never interfere with dcp-client's own bundle.
-async function runEstimateGeometryLocally(payload) {
-  await ensureLocalEstimateScriptsLoaded();
-  const previousRequire = window.require;
-  window.require = function (name) {
-    switch (name) {
-      case '../src/SoFiACatalog/ParseSoFiACatalog': return window.ParseSoFiACatalog;
-      case '../src/GeometryEstimates/GeometryEstimates': return window.GeometryEstimates;
-      case 'cfitsio-wasm.js':
-      case '../../third_party/cfitsio-4.6.3/wasm/cfitsio-wasm.js': return window.CfitsioWasm;
-      case 'sofia-wasm.js':
-      case '../../third_party/SoFiA-2-master_2_5_1/wasm/sofia-wasm.js': return window.SofiaWasm;
-      default: throw new Error('require: no browser-local shim for module "' + name + '"');
-    }
-  };
-  try {
-    return await estimateGeometry(0, payload);
-  } finally {
-    if (previousRequire === undefined) delete window.require;
-    else window.require = previousRequire;
-  }
-}
-
-cubeFileInput.addEventListener('change', async () => {
+cubeFileInput.addEventListener('change', () => {
   const cubeFile = cubeFileInput.files[0];
-  if (!cubeFile) return;
-  if (!objNameEdited) objNameField.value = guessObjectNameFromFilename(cubeFile.name);
-
-  estimateGeometryStatus.textContent = 'Estimating PA / Inc / object name from cube (SoFiA, local)…';
-  try {
-    let sofiaParTemplateText;
-    try {
-      sofiaParTemplateText = await (await fetch('sofia-template-par-file.par')).text();
-    } catch (fetchError) {
-      throw new Error(location.protocol === 'file:'
-        ? 'Could not load the SoFiA config asset -- browsers block fetch() of local files under file://. Serve this folder over HTTP instead (see the notice at the top of the page) and reload.'
-        : 'Could not load sofia-template-par-file.par: ' + fetchError.message);
-    }
-    const payload = BuildFitPayloads.buildGeometryEstimatePayload({
-      cubeBytes: await fileToBytes(cubeFile),
-      sofiaParTemplateText,
-    });
-
-    const result = await runEstimateGeometryLocally(payload);
-    if (result.sofiaFailed) throw new Error(result.error || 'SoFiA found no usable source in this cube');
-
-    document.getElementById('paEstimate').value = result.paEstDeg.toFixed(3);
-    document.getElementById('incEstimate').value = result.incEstDeg.toFixed(3);
-    if (result.objectName && !objNameEdited) objNameField.value = result.objectName;
-
-    if (result.velocityAxisWarning) {
-      estimateGeometryStatus.textContent = '⚠ ' + result.velocityAxisWarning;
-      estimateGeometryStatus.style.color = 'var(--warn)';
-    } else {
-      estimateGeometryStatus.textContent = 'Estimated from cube (SoFiA) -- edit any of the three fields above freely.';
-      estimateGeometryStatus.style.color = '';
-    }
-  } catch (error) {
-    console.error(error);
-    estimateGeometryStatus.textContent = 'Couldn\'t auto-estimate from this cube (' + error.message + ') -- enter PA/Inc manually.';
-    estimateGeometryStatus.style.color = '';
-  }
+  if (cubeFile && !objNameEdited) objNameField.value = guessObjectNameFromFilename(cubeFile.name);
 });
 
-// Loads the bundled WALLABY_J103538-484832 cube+mask (sample-data/, a
-// self-contained sibling folder like local-testing-wasm/) into the same two
-// <input type=file> elements a real pick would fill, via DataTransfer --
-// so every downstream consumer (the change listener above, and Step 1's
-// own re-read of cubeFile/maskFile at dispatch time) sees this exactly the
-// same as a user-chosen file, no separate code path to keep in sync.
+// Loads the bundled WALLABY_J103538-484832 cube+mask (sample-data/) plus its
+// known PA/Inc into the same fields a manual pick + entry would fill.
 const useSampleDataBtn = document.getElementById('useSampleDataBtn');
 useSampleDataBtn.addEventListener('click', async () => {
   useSampleDataBtn.disabled = true;
@@ -734,6 +591,8 @@ useSampleDataBtn.addEventListener('click', async () => {
     document.getElementById('maskFile').files = maskDT.files;
 
     cubeFileInput.dispatchEvent(new Event('change'));
+    document.getElementById('paEstimate').value = 241.319;
+    document.getElementById('incEstimate').value = 89.0;
   } catch (error) {
     console.error(error);
     estimateGeometryStatus.textContent = 'Could not load sample data (' + error.message + ').';
@@ -977,9 +836,8 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// Individual dispatch buttons already surface dcpReady failures via their
-// own try/catch (ensureConnected() awaits dcpReady first) -- this is just a
-// console breadcrumb for the case where dcp-client never even loads.
+// dispatchJob() awaits dcpReady and surfaces its own failures -- this is
+// just a console breadcrumb for the case where dcp-client never even loads.
 dcpReady.catch((error) => { console.error('dcp-client failed to load:', error); });
 
 if (location.protocol === 'file:') {
