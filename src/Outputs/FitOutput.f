@@ -353,7 +353,7 @@ c     truncating to 2-3 decimal digits here was silently discarding real4
 c     precision (~7 significant digits) before every bootstrap realization's
 c     resample center was computed from it. Confirmed by direct comparison:
 c     a UseDCP=1 run whose own initial fit skips this text file (JS/DCP,
-c     third_party/DCP/bootstrap-realization-launcher.js's runInitialFit)
+c     js/bootstrap-realization-launcher.js's runInitialFit)
 c     seeded its bootstrap loop from full precision while a UseDCP=0 run
 c     seeded from this truncated text -- individual bootstrap realizations'
 c     PA_model diverged by up to 6.6 degrees between the two, an effect size
@@ -492,7 +492,7 @@ c      print*, "Central Position Deg", RA,DEC
         elseif(i .eq. 5) then
             PreambleStr="PA_kin (degrees)"
 c           MIRRORED IN JS: this -90 deg convention offset + [0,360) wrap is
-c           duplicated in third_party/DCP/bootstrap-fit-launcher.js's
+c           duplicated in js/bootstrap-fit-launcher.js's
 c           toKinematicPA() (the JS worker has no Fortran binary available at
 c           runtime, so it can't call back into this routine). If you change
 c           this transform, update that function too.

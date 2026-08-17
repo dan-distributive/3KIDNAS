@@ -80,7 +80,7 @@ let fftw;
 try {
   fftw = require('fftw-wasm.js');
 } catch (e) {
-  fftw = require('../../../fftw-3.3.8/wasm/fftw-wasm.js');
+  fftw = require('../../../third_party/fftw-3.3.8/wasm/fftw-wasm.js');
 }
 
 // ---------------------------------------------------------------------------

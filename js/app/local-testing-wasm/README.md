@@ -1,5 +1,5 @@
 Synced copies, used only by `galaxy-fit.html`'s "run locally (testing)" checkbox for the
-geometry-estimate step, so that page works fully self-contained under `third_party/DCP/` regardless
+geometry-estimate step, so that page works fully self-contained under `js/` regardless
 of where it's served from -- no dependency on a specific server root one level up.
 
 The real dispatch path (Node CLI, real DCP jobs) never reads these -- it always uses the canonical

@@ -322,8 +322,8 @@
      (see its own export guard) -- compute.for() never executes them locally, in this page or in
      Node; it only ships their source to a remote DCP sandbox, so the `require(...)` calls inside
      their bodies never need to resolve here. -->
-<script src="src/PipelineConfig/defaultFittingOptions.js"></script>
-<script src="src/PayloadBuilder/buildFitPayloads.js"></script>
+<script src="../src/PipelineConfig/defaultFittingOptions.js"></script>
+<script src="../src/PayloadBuilder/buildFitPayloads.js"></script>
 <script src="bootstrap-realization-launcher.js"></script>
 <script src="velocityColormap.js"></script>
 <script src="scalingParams.js"></script>
@@ -630,10 +630,10 @@ const estimateGeometryStatus = document.getElementById('estimateGeometryStatus')
 // a cube is picked, then cached. local-testing-wasm/ holds synced copies of
 // the canonical wasm build artifacts (see its own README) -- kept
 // same-directory-tree so this page works fully self-contained under
-// third_party/DCP/, however it's served.
+// js/app/, however it's served.
 const LOCAL_ESTIMATE_SCRIPTS = [
-  'src/SoFiACatalog/ParseSoFiACatalog.js',
-  'src/GeometryEstimates/GeometryEstimates.js',
+  '../src/SoFiACatalog/ParseSoFiACatalog.js',
+  '../src/GeometryEstimates/GeometryEstimates.js',
   'local-testing-wasm/cfitsio-module.js',
   'local-testing-wasm/cfitsio-wasm.js',
   'local-testing-wasm/sofia-module.js',

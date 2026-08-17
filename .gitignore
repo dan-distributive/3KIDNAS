@@ -48,3 +48,16 @@ third_party/fftw-3.3.8/config.log
 # from recurring.
 src/bin/BootStrapSampler
 src/bin/SingleGalaxyFitter
+
+# DCPjobData/ is a live working directory the JS/DCP dispatch path
+# dumps-then-moves fixture/payload/result JSON through on every real run
+# (RunInitialFitDCP.py, os.makedirs(...,exist_ok=True)) -- regenerated
+# fresh every time, not test fixtures or reference data.
+js/app/DCPjobData/*.json
+
+# run_both.js writes these fresh on every invocation (writeConfig/
+# writeCloudDensityOptionsFile) -- not hand-authored config.
+3KIDNASTests/SingleGalaxyTest/run_both_fortran_local_config.py
+3KIDNASTests/SingleGalaxyTest/run_both_fortran_local_config_fitting_options.txt
+3KIDNASTests/SingleGalaxyTest/run_both_js_dcp_config.py
+3KIDNASTests/SingleGalaxyTest/run_both_js_dcp_config_fitting_options.txt

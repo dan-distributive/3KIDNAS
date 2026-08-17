@@ -18,7 +18,7 @@ nProcessors_Bootstraps=8
 
 #   ---- DCP bootstrap distribution ----
 #   FixtureFile/DCPJobDir/DCPBootstrapLauncher are fixed locations under
-#   third_party/DCP/ (see SetFileLocations.py).
+#   js/ (see SetFileLocations.py).
 #   Compute group and slice price are optional and come from the environment
 #   at run time (DCP_COMPUTE_GROUPS, DCP_SLICE_PRICE) -- see RunBootstrapsDCP.py.
 UseDCP = 1

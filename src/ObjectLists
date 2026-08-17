@@ -8,7 +8,7 @@ AllProgs= BootStrapSampler SingleGalaxyFitter
 #	linked instead of Fortran's SIN/COS/LOG/ATANH/ATAN intrinsics (which call
 #	the platform's system libm) so Fortran and the JS port compute
 #	bit-identical transcendental function results -- see
-#	fdlibm_fortran_wrappers.c and third_party/DCP/src/StandardMath/fdlibm.js
+#	fdlibm_fortran_wrappers.c and js/src/StandardMath/fdlibm.js
 StandardMathObj=BasicConstants.o random.o FullCircTrig.o Interpolation.o SortArray.o \
     fdlibm_sin.o fdlibm_cos.o fdlibm_k_sin.o fdlibm_k_cos.o fdlibm_rem_pio2_stub.o \
     fdlibm_log.o fdlibm_log1p.o fdlibm_atanh.o fdlibm_exp.o fdlibm_atan.o \

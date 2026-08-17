@@ -1,4 +1,3 @@
-module.declare(["./DataCube.js"], function (require, exports, module) {
 'use strict';
 
 // =============================================================================
@@ -132,7 +131,7 @@ function unflattenFromFitsOrder(data, nPixX, nPixY, nChan) {
  * @returns {Promise<import('../ObjectDefinitions/DataCube.js').DataCube>}
  */
 async function fitsBytesToDataCube(cfitsio, fitsBytes, refDataCube) {
-  const { DataCube, allocateDataCube } = require('./DataCube.js');
+  const { DataCube, allocateDataCube } = require('../ObjectDefinitions/DataCube.js');
   const { naxes, data } = await cfitsio.readImageDouble(fitsBytes);
   const [nPixX, nPixY, nChan] = naxes;
 
@@ -171,9 +170,9 @@ module.exports = { dataCubeToFitsBytes, fitsBytesToDataCube };
 // ---------------------------------------------------------------------------
 if (require.main === module) {
   (async () => {
-    const cfitsio = require('../../../cfitsio-4.6.3/wasm/cfitsio-wasm.js');
-    const { DataCube, allocateDataCube, flatIndxCalc } = require('./DataCube.js');
-    const { Beam2D } = require('./Beam.js');
+    const cfitsio = require('../../../third_party/cfitsio-4.6.3/wasm/cfitsio-wasm.js');
+    const { DataCube, allocateDataCube, flatIndxCalc } = require('../ObjectDefinitions/DataCube.js');
+    const { Beam2D } = require('../ObjectDefinitions/Beam.js');
     const f32 = Math.fround;
 
     const dc = new DataCube();
@@ -214,5 +213,3 @@ if (require.main === module) {
     console.log('  all', 5 * 4 * 3, 'cells match:', allMatch ? 'OK' : 'FAIL');
   })();
 }
-
-});

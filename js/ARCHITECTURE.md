@@ -48,7 +48,7 @@ else:
     # local path, below
 ```
 
-`DCPJobDir` is `third_party/DCP/DCPjobData/` (see `SetFileLocations.py`).
+`DCPJobDir` is `js/app/DCPjobData/` (see `SetFileLocations.py`).
 
 ## 2. Local/native path (`UseDCP=0`)
 
@@ -142,7 +142,26 @@ sequentially on one laptop.
 | `<Obj>_BootstrapFits.csv` | `Bootstrap_Outputs.StoreBootstrappedModels_CSV` | `TargFolder/<Obj>/` | Final per-realization results (both paths, same format) |
 | `<Obj>_FitTimeCheck.csv` | `FullSingleGalaxyFit.py` | `TargFolder/<Obj>/` | Timing checkpoints (both paths) |
 
-## 5. Running each side yourself
+## 5. Serving `galaxy-fit.html` locally
+
+`js/app/galaxy-fit.html` loads `../src/PipelineConfig/defaultFittingOptions.js`
+and `../src/PayloadBuilder/buildFitPayloads.js` as plain `<script>` tags --
+`src/` is a *sibling* of `app/`, not nested inside it, since the `js/`
+reorg. A static file server rooted at `js/app/` (e.g. `python3 -m
+http.server` run from inside `app/`) refuses to serve anything above its
+own root, so those two script tags 404 silently and every global they
+define (`DefaultFittingOptions`, `PayloadBuilder`) comes up `undefined`.
+
+Root the server one level up, at `js/` itself, and load the page via
+`/app/galaxy-fit.html`:
+
+```bash
+cd /Users/dandesjardins/DCP/3KIDNAS/js
+python3 -m http.server 8000
+# then open http://localhost:8000/app/galaxy-fit.html
+```
+
+## 6. Running each side yourself
 
 Both need a config `.py` file (see `3KIDNASTests/SingleGalaxyTest/Sample_KIDNAS_SingleGalaxyInput*.py`
 for examples) — the only difference that matters here is `UseDCP`.
@@ -181,7 +200,7 @@ concurrently would contend for CPU and corrupt the timing comparison),
 then diffs their per-realization results.
 
 ```bash
-cd /Users/dandesjardins/DCP/3KIDNAS/third_party/DCP
+cd /Users/dandesjardins/DCP/3KIDNAS/js/tools
 export DCP_API_KEY=0x<your identity>
 export DCP_COMPUTE_GROUP=<joinKey>[,<joinSecret>]   # optional
 export DCP_SLICE_PRICE=<price>                       # optional
@@ -199,7 +218,7 @@ Flags:
 | `--skip-wipe` | Don't clear previous `TestFits_RunBoth_*` output first |
 | `--skip-local` / `--skip-dcp` | Run only one side |
 
-## 6. Known open issue: PA double-conversion (local path only)
+## 7. Known open issue: PA double-conversion (local path only)
 
 `MakeBootstrapSample.WriteBootstrapFile` writes the resampling PA already
 converted to radians (its own comment in the file says "PA & INC in

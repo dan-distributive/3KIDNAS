@@ -200,23 +200,23 @@ async function runBootstrapRealization(realizationIndex, payload) {
       // See runInitialFit's identical catch block for why both errors get
       // surfaced on a double failure instead of just the fallback's own.
       try {
-        ({ DataCube, allocateDataCube } = require('./src/ObjectDefinitions/DataCube'));
-        ({ Beam2D, allocate_Beam2D } = require('./src/ObjectDefinitions/Beam'));
-        ({ genFlipBootstrapSample } = require('./src/BootstrapSampler/FlipBootstrap'));
-        ({ makeRng } = require('./src/StandardMath/random'));
-        ({ dataCubeToFitsBytes, fitsBytesToDataCube } = require('./src/BootstrapSampler/DataCubeFits'));
-        ({ parseSoFiACatalog } = require('./src/SoFiACatalog/ParseSoFiACatalog'));
-        ({ getGeometryEstimates } = require('./src/GeometryEstimates/GeometryEstimates'));
-        ({ initialAnalysis } = require('./src/PreAnalysis/InitialAnalysis'));
-        ({ TiltedRingModel, tiltRing_Allocate } = require('./src/ObjectDefinitions/TiltedRing'));
-        ({ ParameterVector, allocateParamVector } = require('./src/ObjectDefinitions/ParameterVector'));
-        ({ calculate2DBeamKernel } = require('./src/ConvolveCube/CalculateBeamKernel'));
-        ({ resetConvolveStats, getConvolveStats, warmUp } = require('./src/ConvolveCube/CubeKernelConvolution'));
-        ({ generalizedParamVectorToTiltedRing } = require('./src/ParameterToTiltedRingInterface/ParameterToTiltedRingVector'));
-        ({ warmUpWasmTrig } = require('./src/TiltedRingModelGeneration/TiltedRingModelGeneration'));
-        ({ galaxyFit_Simple } = require('./src/GalaxyAnalysis/GalaxyFit'));
-        ({ resetEvalStats, getEvalStats } = require('./src/CompareCubes/FullModelComparison'));
-        ({ JyAS_To_MsolPC } = require('./src/StandardMath/BasicConstants'));
+        ({ DataCube, allocateDataCube } = require('../src/ObjectDefinitions/DataCube'));
+        ({ Beam2D, allocate_Beam2D } = require('../src/ObjectDefinitions/Beam'));
+        ({ genFlipBootstrapSample } = require('../src/BootstrapSampler/FlipBootstrap'));
+        ({ makeRng } = require('../src/StandardMath/random'));
+        ({ dataCubeToFitsBytes, fitsBytesToDataCube } = require('../src/BootstrapSampler/DataCubeFits'));
+        ({ parseSoFiACatalog } = require('../src/SoFiACatalog/ParseSoFiACatalog'));
+        ({ getGeometryEstimates } = require('../src/GeometryEstimates/GeometryEstimates'));
+        ({ initialAnalysis } = require('../src/PreAnalysis/InitialAnalysis'));
+        ({ TiltedRingModel, tiltRing_Allocate } = require('../src/ObjectDefinitions/TiltedRing'));
+        ({ ParameterVector, allocateParamVector } = require('../src/ObjectDefinitions/ParameterVector'));
+        ({ calculate2DBeamKernel } = require('../src/ConvolveCube/CalculateBeamKernel'));
+        ({ resetConvolveStats, getConvolveStats, warmUp } = require('../src/ConvolveCube/CubeKernelConvolution'));
+        ({ generalizedParamVectorToTiltedRing } = require('../src/ParameterToTiltedRingInterface/ParameterToTiltedRingVector'));
+        ({ warmUpWasmTrig } = require('../src/TiltedRingModelGeneration/TiltedRingModelGeneration'));
+        ({ galaxyFit_Simple } = require('../src/GalaxyAnalysis/GalaxyFit'));
+        ({ resetEvalStats, getEvalStats } = require('../src/CompareCubes/FullModelComparison'));
+        ({ JyAS_To_MsolPC } = require('../src/StandardMath/BasicConstants'));
       } catch (localFallbackError) {
         throw new Error(`Could not load pipeline modules via the published package OR the local fallback. `
           + `Published-package error: ${publishedPackageError.message}. `
@@ -230,12 +230,12 @@ async function runBootstrapRealization(realizationIndex, payload) {
     try {
       cfitsio = require('cfitsio-wasm.js');
     } catch (e) {
-      cfitsio = require('../cfitsio-4.6.3/wasm/cfitsio-wasm.js');
+      cfitsio = require('../../third_party/cfitsio-4.6.3/wasm/cfitsio-wasm.js');
     }
     try {
       sofia = require('sofia-wasm.js');
     } catch (e) {
-      sofia = require('../SoFiA-2-master_2_5_1/wasm/sofia-wasm.js');
+      sofia = require('../../third_party/SoFiA-2-master_2_5_1/wasm/sofia-wasm.js');
     }
 
     // One-time async wasm instantiation, kicked off now to overlap with
@@ -658,18 +658,18 @@ async function estimateGeometry(inputSetElement, payload) {
     const observedCubeRawFitsB64 = requirePayloadField(payload, 'observedCubeRawFitsB64');
     const sofiaParTemplate = requirePayloadField(payload, 'sofiaParTemplate');
 
-    const { parseSoFiACatalog } = require('./src/SoFiACatalog/ParseSoFiACatalog');
-    const { getGeometryEstimates } = require('./src/GeometryEstimates/GeometryEstimates');
+    const { parseSoFiACatalog } = require('../src/SoFiACatalog/ParseSoFiACatalog');
+    const { getGeometryEstimates } = require('../src/GeometryEstimates/GeometryEstimates');
     let cfitsio, sofia;
     try {
       cfitsio = require('cfitsio-wasm.js');
     } catch (e) {
-      cfitsio = require('../cfitsio-4.6.3/wasm/cfitsio-wasm.js');
+      cfitsio = require('../../third_party/cfitsio-4.6.3/wasm/cfitsio-wasm.js');
     }
     try {
       sofia = require('sofia-wasm.js');
     } catch (e) {
-      sofia = require('../SoFiA-2-master_2_5_1/wasm/sofia-wasm.js');
+      sofia = require('../../third_party/SoFiA-2-master_2_5_1/wasm/sofia-wasm.js');
     }
 
     const b64ToBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -903,21 +903,21 @@ async function runInitialFit(realizationIndex, payload) {
       // what made a real published-package failure look identical to
       // "local file not found" the first time this happened.
       try {
-        ({ DataCube, allocateDataCube, flatIndxCalc } = require('./src/ObjectDefinitions/DataCube'));
-        ({ Beam2D, allocate_Beam2D } = require('./src/ObjectDefinitions/Beam'));
-        ({ makeRng } = require('./src/StandardMath/random'));
-        ({ dataCubeToFitsBytes, fitsBytesToDataCube } = require('./src/BootstrapSampler/DataCubeFits'));
-        ({ initialAnalysis, computeSNDiagnostics } = require('./src/PreAnalysis/InitialAnalysis'));
-        ({ TiltedRingModel, tiltRing_Allocate } = require('./src/ObjectDefinitions/TiltedRing'));
-        ({ ParameterVector, allocateParamVector } = require('./src/ObjectDefinitions/ParameterVector'));
-        ({ calculate2DBeamKernel } = require('./src/ConvolveCube/CalculateBeamKernel'));
-        ({ resetConvolveStats, getConvolveStats, warmUp } = require('./src/ConvolveCube/CubeKernelConvolution'));
-        ({ generalizedParamVectorToTiltedRing } = require('./src/ParameterToTiltedRingInterface/ParameterToTiltedRingVector'));
-        ({ warmUpWasmTrig } = require('./src/TiltedRingModelGeneration/TiltedRingModelGeneration'));
-        ({ galaxyFit_Simple } = require('./src/GalaxyAnalysis/GalaxyFit'));
-        ({ resetEvalStats, getEvalStats, tiltedRingModelComparison } = require('./src/CompareCubes/FullModelComparison'));
-        ({ JyAS_To_MsolPC } = require('./src/StandardMath/BasicConstants'));
-        ({ constructMomentMaps } = require('./src/PreAnalysis/GetMomentMaps'));
+        ({ DataCube, allocateDataCube, flatIndxCalc } = require('../src/ObjectDefinitions/DataCube'));
+        ({ Beam2D, allocate_Beam2D } = require('../src/ObjectDefinitions/Beam'));
+        ({ makeRng } = require('../src/StandardMath/random'));
+        ({ dataCubeToFitsBytes, fitsBytesToDataCube } = require('../src/BootstrapSampler/DataCubeFits'));
+        ({ initialAnalysis, computeSNDiagnostics } = require('../src/PreAnalysis/InitialAnalysis'));
+        ({ TiltedRingModel, tiltRing_Allocate } = require('../src/ObjectDefinitions/TiltedRing'));
+        ({ ParameterVector, allocateParamVector } = require('../src/ObjectDefinitions/ParameterVector'));
+        ({ calculate2DBeamKernel } = require('../src/ConvolveCube/CalculateBeamKernel'));
+        ({ resetConvolveStats, getConvolveStats, warmUp } = require('../src/ConvolveCube/CubeKernelConvolution'));
+        ({ generalizedParamVectorToTiltedRing } = require('../src/ParameterToTiltedRingInterface/ParameterToTiltedRingVector'));
+        ({ warmUpWasmTrig } = require('../src/TiltedRingModelGeneration/TiltedRingModelGeneration'));
+        ({ galaxyFit_Simple } = require('../src/GalaxyAnalysis/GalaxyFit'));
+        ({ resetEvalStats, getEvalStats, tiltedRingModelComparison } = require('../src/CompareCubes/FullModelComparison'));
+        ({ JyAS_To_MsolPC } = require('../src/StandardMath/BasicConstants'));
+        ({ constructMomentMaps } = require('../src/PreAnalysis/GetMomentMaps'));
       } catch (localFallbackError) {
         throw new Error(`Could not load pipeline modules via the published package OR the local fallback. `
           + `Published-package error: ${publishedPackageError.message}. `
@@ -928,7 +928,7 @@ async function runInitialFit(realizationIndex, payload) {
     try {
       cfitsio = require('cfitsio-wasm.js');
     } catch (e) {
-      cfitsio = require('../cfitsio-4.6.3/wasm/cfitsio-wasm.js');
+      cfitsio = require('../../third_party/cfitsio-4.6.3/wasm/cfitsio-wasm.js');
     }
 
     const fftwWarmUpPromise = warmUp();

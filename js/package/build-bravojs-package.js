@@ -34,7 +34,7 @@
  *              isInPackageRequire()'s own comment).
  *
  * @usage       node build-bravojs-package.js
- *              (run from third_party/DCP/package/; reads from ../src/,
+ *              (run from js/package/; reads from ../src/,
  *              writes flat .js files + package.dcp directly into ./)
  */
 'use strict';
@@ -42,8 +42,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const SRC_ROOT = path.join(__dirname, '..'); // third_party/DCP/
-const OUT_ROOT = __dirname;                   // third_party/DCP/package/
+const SRC_ROOT = path.join(__dirname, '..'); // js/
+const OUT_ROOT = __dirname;                   // js/package/
 
 // The verified, self-test-guard-aware transitive closure of runInitialFit's
 // own dependencies (see the plan file for how this was derived and

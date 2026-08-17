@@ -6,14 +6,14 @@ Single-dispatch DCP bootstrap driver: one DCP job, one slice per bootstrap
 realization, each slice running the ENTIRE per-realization pipeline native
 Fortran runs atomically (Bootstrap_Error_Analysis.GetBootstrapModel):
 resample -> SoFiA -> InitialAnalysis -> fit. Mirrors
-third_party/DCP/bootstrap-realization-launcher.js.
+js/app/bootstrap-realization-launcher.js.
 
 Replaces the prior two-round-trip design (bootstrap-resample-launcher.js +
 local RunFixtureOnlyFit + bootstrap-fit-launcher.js): that design existed
 only because the ~2500-line Fortran InitialAnalysis chain (moment maps,
 shape/radial-profile estimation, noise) had no JS port and had to run
 natively, locally, between two separate DCP dispatches. Now that it's
-ported (third_party/DCP/src/PreAnalysis/), that local step -- and the
+ported (js/src/PreAnalysis/), that local step -- and the
 second DCP dispatch -- are both gone.
 
 NOT YET RUN END-TO-END: the JS side (bootstrap-realization-launcher.js and

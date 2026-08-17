@@ -4,7 +4,7 @@
 // Trig.js
 // Faithful JS port of FFTW3's real_cexp (third_party/fftw-3.3.8/kernel/trig.c),
 // part of the hand-port of FFTW3's actual r2c/c2r algorithm to JS (see
-// third_party/DCP/src/FFTW3JS/ and the project plan for why: Fortran calls
+// js/src/FFTW3JS/ and the project plan for why: Fortran calls
 // real FFTW3 directly for beam convolution; the JS port used a different,
 // independent FFT library (ndarray-fft), and that difference -- not any
 // remaining RNG/rounding-order bug -- was proven to be the root cause of the

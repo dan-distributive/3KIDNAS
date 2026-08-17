@@ -4,8 +4,8 @@ RunInitialFitDCP.py
 
 Runs the ONE initial/anchor fit for a galaxy (Fortran's equivalent:
 Programs/SingleGalaxyFitter run with BSSwitch=0, via RunWRKP.py) entirely
-through the JS/DCP pipeline instead -- third_party/DCP/
-bootstrap-realization-launcher.js's runInitialFit(). Mirrors
+through the JS/DCP pipeline instead --
+js/app/bootstrap-realization-launcher.js's runInitialFit(). Mirrors
 RunBootstrapsDCP.py's shape (payload builder / dispatch / result adapter),
 but is a SEPARATE module, not a shared function -- deliberately does not
 modify RunBootstrapsDCP.py (itself still marked "NOT YET RUN END-TO-END,

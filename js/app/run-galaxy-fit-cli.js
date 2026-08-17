@@ -41,8 +41,8 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { buildGeometryEstimatePayload, buildInitialFitPayload, buildBootstrapPayload } = require('./src/PayloadBuilder/buildFitPayloads');
-const { defaultFittingOptions, SOFIA_PAR_TEMPLATE_RELATIVE_PATH } = require('./src/PipelineConfig/defaultFittingOptions');
+const { buildGeometryEstimatePayload, buildInitialFitPayload, buildBootstrapPayload } = require('../src/PayloadBuilder/buildFitPayloads');
+const { defaultFittingOptions, SOFIA_PAR_TEMPLATE_RELATIVE_PATH } = require('../src/PipelineConfig/defaultFittingOptions');
 
 const LAUNCHER = path.join(__dirname, 'bootstrap-realization-launcher.js');
 

@@ -179,7 +179,7 @@
 
 <header class="head">
   <div class="inner">
-    <p class="eyebrow">3KIDNAS · FitDriverScripts + third_party/DCP</p>
+    <p class="eyebrow">3KIDNAS · FitDriverScripts + js</p>
     <h1>What actually runs, in what order, touching which files</h1>
     <p class="lede">
       Traced from current source. Built to show 1:1 correspondence between the fortran-local
@@ -216,7 +216,7 @@
   <section>
     <p class="section-label">run_all_three.js — before dispatch</p>
     <div class="ribbon">
-      <span class="who">third_party/DCP/run_all_three.js</span>
+      <span class="who">js/run_all_three.js</span>
       <span class="desc">writes one config per leg into 3KIDNASTests/SingleGalaxyTest/, wipes each active leg's TargFolder, then shells <span class="f">python3 WRKP_GalaxyFitDriver.py &lt;config&gt;.py</span> once per leg, sequentially, cwd = SingleGalaxyTest.</span>
       <div class="files">
         <span class="f">run_all_three_fortran_local_config.py</span>
@@ -268,7 +268,7 @@
         <div>
           <p class="title">Branch point — only if <span class="fn">UseDCP=1</span></p>
           <p>Moves the two Fortran dumps out of CWD into the DCP job directory.</p>
-          <div class="iorow"><span class="rw">moves</span><span class="f">diskfit_fixture.json</span><span class="f">model_cube_bestfit.json</span> → <span class="f">third_party/DCP/DCPjobData/</span></div>
+          <div class="iorow"><span class="rw">moves</span><span class="f">diskfit_fixture.json</span><span class="f">model_cube_bestfit.json</span> → <span class="f">js/DCPjobData/</span></div>
         </div>
       </div>
       <div class="step">
@@ -574,5 +574,5 @@ model_cube_bestfit.json  <span class="c">(4.7MB — just header + the ENTIRE mod
 </div>
 
 <footer>
-  Traced against the working tree on 2026-07-27 · fortran: src/Inputs/BootstrapRuntimeInputs.f, src/PreAnalysis/EstimateCubeNoise.f, src/ProgramMains/SingleGalaxyFitTests.f, src/GeneralMinimizationRoutines/DownhillSimplex.f · python: FitDriverScripts/*.py, GalaxyFitParameters.OverwriteDefaults · js: third_party/DCP/{bootstrap-realization-launcher,run_all_three,build_partial_report}.js, src/ConvolveCube/{CubeKernelConvolution,FFTW3WasmRank2}.js, src/GalaxyAnalysis/GalaxyFit.js, src/TiltedRingModelGeneration/SingleRingGeneration.js · note: this trace intentionally departs from ARCHITECTURE.md, which documents the prior two-DCP-round design (bootstrap-resample-launcher.js + bootstrap-fit-launcher.js) — both files no longer exist in the tree, replaced by the unified bootstrap-realization-launcher.js described above.
+  Traced against the working tree on 2026-07-27 · fortran: src/Inputs/BootstrapRuntimeInputs.f, src/PreAnalysis/EstimateCubeNoise.f, src/ProgramMains/SingleGalaxyFitTests.f, src/GeneralMinimizationRoutines/DownhillSimplex.f · python: FitDriverScripts/*.py, GalaxyFitParameters.OverwriteDefaults · js: js/{bootstrap-realization-launcher,run_all_three,build_partial_report}.js, src/ConvolveCube/{CubeKernelConvolution,FFTW3WasmRank2}.js, src/GalaxyAnalysis/GalaxyFit.js, src/TiltedRingModelGeneration/SingleRingGeneration.js · note: this trace intentionally departs from ARCHITECTURE.md, which documents the prior two-DCP-round design (bootstrap-resample-launcher.js + bootstrap-fit-launcher.js) — both files no longer exist in the tree, replaced by the unified bootstrap-realization-launcher.js described above.
 </footer>

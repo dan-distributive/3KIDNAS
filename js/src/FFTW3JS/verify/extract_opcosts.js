@@ -41,7 +41,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const FFTW_ROOT = path.resolve(__dirname, '../../../../fftw-3.3.8');
+const FFTW_ROOT = path.resolve(__dirname, '../../../../third_party/fftw-3.3.8');
 const DFT_CODELETS_DIR = path.join(FFTW_ROOT, 'dft/scalar/codelets');
 const R2CF_DIR = path.join(FFTW_ROOT, 'rdft/scalar/r2cf');
 const R2CB_DIR = path.join(FFTW_ROOT, 'rdft/scalar/r2cb');

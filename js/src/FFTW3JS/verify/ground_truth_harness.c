@@ -1,7 +1,7 @@
 /* ground_truth_harness.c
  * ==========================================================================
  * Permanent ground-truth generator for the FFTW3-to-JS port
- * (third_party/DCP/src/FFTW3JS/). Links the project's own vendored,
+ * (js/src/FFTW3JS/). Links the project's own vendored,
  * -ffp-contract=off, fdlibm-patched libfftw3.a (see
  * third_party/fftw-3.3.8/kernel/trig.c and src/makeflags for why those two
  * patches exist) and drives it exactly the way Fortran's TwoDConvolution.f
