@@ -1,0 +1,9 @@
+{
+    "name": "3kidnas-trigprobe",
+    "version": "0.0.1",
+    "files": {
+        "TrigProbe.js": "TrigProbe.js",
+        "fdlibm-wasm.js": "fdlibm-wasm.js",
+        "fdlibm-module.js": "fdlibm-module.js"
+    }
+}

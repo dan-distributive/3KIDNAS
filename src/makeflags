@@ -1,0 +1,66 @@
+##compiler options
+
+ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+PARENT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
+
+LocModLoc=$(ROOT_DIR)/mods
+LocBinLoc=$(ROOT_DIR)/bin
+
+
+## --- Library locations ---------------------------------------------------
+## Native macOS build against the bundled third_party sources.
+## (The Linux system-path variants below are kept commented for reference.)
+##
+## IMPORTANT: third_party/fftw-3.3.8 MUST be built with -ffp-contract=off in
+## every generated Makefile's CFLAGS (all ~51 of them, not just the top-level
+## one -- autotools generates one per subdirectory). Without it, gcc/clang
+## fuse FFTW3's internal accumulation loops (e.g. dft/generic.c's cdot(),
+## rdft/generic.c's cdot_r2hc()) into hardware FMA instructions on arm64
+## (verified via disassembly), which plain JS cannot reproduce (no FMA
+## access) and which isn't even a stable target across FFTW3's own
+## deployment platforms (FMA is mandatory on arm64 but an optional,
+## normally-off x86-64 extension). If FFTW3 is ever rebuilt from a fresh
+## `./configure`, re-patch every generated Makefile's CFLAGS line before
+## running `make`, e.g.:
+##   find third_party/fftw-3.3.8 -name Makefile -exec \
+##     sed -i '' 's/^CFLAGS = .*/& -ffp-contract=off/' {} \;
+
+FFTW_INCL=  -I$(PARENT_DIR)/third_party/fftw-3.3.8/api
+FFTW_LIBS=  $(PARENT_DIR)/third_party/fftw-3.3.8/.libs
+FFTW_LIB = $(FFTW_LIBS)/libfftw3.a
+
+FitsLibLoc=$(PARENT_DIR)/third_party/cfitsio-4.6.3/.libs/libcfitsio.a
+
+## --- Previous configurations (inactive) ----------------------------------
+## MacPorts:
+#FFTW_INCL=  -I/opt/local/include
+#FFTW_LIBS=  /opt/local/lib
+#FFTW_LIB = $(FFTW_LIBS)/libfftw3.a
+#FitsLibLoc=$(PARENT_DIR)/third_party/cfitsio-4.6.3/.libs/libcfitsio.a
+##
+## Linux (x86_64) system libs:
+#FFTW_INCL=  -I/usr/include/
+#FFTW_LIBS=  /usr/lib/x86_64-linux-gnu/
+#FFTW_LIB = $(FFTW_LIBS)/libfftw3.a
+#FitsLibLoc=$(FFTW_LIBS)/libcfitsio.a
+## -------------------------------------------------------------------------
+
+locObj=$(ROOT_DIR)/ObjectLists
+
+include $(locObj)
+
+.f.o:
+	$(F77) $(FLAGS) -c -I$(LocModLoc) $(FFTW_INCL) *.f
+
+.c.o:
+	$(CC) $(CFLAGS) -c *.c
+
+
+F77=gfortran
+CC=gcc
+FLAGS=-O0 -funroll-loops -cpp -fbounds-check -Wl,-ld_classic
+CFLAGS= -O -DRINGASCII -DASCII
+
+
+
+MakeFObj=$(F77) $(FLAGS) -c -I$(LocModLoc) $(FFTW_INCL)

@@ -1,0 +1,262 @@
+{
+  "rows": [
+    {
+      "x": 0,
+      "xBits": "0000000000000000",
+      "nativeSin": 0,
+      "nativeSinBits": "0000000000000000",
+      "nativeCos": 1,
+      "nativeCosBits": "000000000000f03f",
+      "wasmSin": 0,
+      "wasmSinBits": "0000000000000000",
+      "wasmCos": 1,
+      "wasmCosBits": "000000000000f03f"
+    },
+    {
+      "x": 0.1,
+      "xBits": "9a9999999999b93f",
+      "nativeSin": 0.09983341664682815,
+      "nativeSinBits": "2ccb8bcbae8eb93f",
+      "nativeCos": 0.9950041652780257,
+      "nativeCosBits": "c017a8f912d7ef3f",
+      "wasmSin": 0.09983341664682815,
+      "wasmSinBits": "2ccb8bcbae8eb93f",
+      "wasmCos": 0.9950041652780258,
+      "wasmCosBits": "c117a8f912d7ef3f"
+    },
+    {
+      "x": 0.5,
+      "xBits": "000000000000e03f",
+      "nativeSin": 0.479425538604203,
+      "nativeSinBits": "f0054b74e8aede3f",
+      "nativeCos": 0.8775825618903728,
+      "nativeCosBits": "507d5b062815ec3f",
+      "wasmSin": 0.479425538604203,
+      "wasmSinBits": "f0054b74e8aede3f",
+      "wasmCos": 0.8775825618903728,
+      "wasmCosBits": "507d5b062815ec3f"
+    },
+    {
+      "x": 1,
+      "xBits": "000000000000f03f",
+      "nativeSin": 0.8414709848078965,
+      "nativeSinBits": "ee0c098f54edea3f",
+      "nativeCos": 0.5403023058681398,
+      "nativeCosBits": "8c06b50f284ae13f",
+      "wasmSin": 0.8414709848078965,
+      "wasmSinBits": "ee0c098f54edea3f",
+      "wasmCos": 0.5403023058681398,
+      "wasmCosBits": "8c06b50f284ae13f"
+    },
+    {
+      "x": 0.5235987755982988,
+      "xBits": "65732d3852c1e03f",
+      "nativeSin": 0.49999999999999994,
+      "nativeSinBits": "ffffffffffffdf3f",
+      "nativeCos": 0.8660254037844387,
+      "nativeCosBits": "ab4c58e87ab6eb3f",
+      "wasmSin": 0.49999999999999994,
+      "wasmSinBits": "ffffffffffffdf3f",
+      "wasmCos": 0.8660254037844387,
+      "wasmCosBits": "ab4c58e87ab6eb3f"
+    },
+    {
+      "x": 0.7853981633974483,
+      "xBits": "182d4454fb21e93f",
+      "nativeSin": 0.7071067811865475,
+      "nativeSinBits": "cc3b7f669ea0e63f",
+      "nativeCos": 0.7071067811865476,
+      "nativeCosBits": "cd3b7f669ea0e63f",
+      "wasmSin": 0.7071067811865475,
+      "wasmSinBits": "cc3b7f669ea0e63f",
+      "wasmCos": 0.7071067811865476,
+      "wasmCosBits": "cd3b7f669ea0e63f"
+    },
+    {
+      "x": 1.0471975511965976,
+      "xBits": "65732d3852c1f03f",
+      "nativeSin": 0.8660254037844386,
+      "nativeSinBits": "aa4c58e87ab6eb3f",
+      "nativeCos": 0.5000000000000001,
+      "nativeCosBits": "010000000000e03f",
+      "wasmSin": 0.8660254037844386,
+      "wasmSinBits": "aa4c58e87ab6eb3f",
+      "wasmCos": 0.5000000000000001,
+      "wasmCosBits": "010000000000e03f"
+    },
+    {
+      "x": 1.5707963267948966,
+      "xBits": "182d4454fb21f93f",
+      "nativeSin": 1,
+      "nativeSinBits": "000000000000f03f",
+      "nativeCos": 6.123233995736766e-17,
+      "nativeCosBits": "075c143326a6913c",
+      "wasmSin": 1,
+      "wasmSinBits": "000000000000f03f",
+      "wasmCos": 6.123233995736766e-17,
+      "wasmCosBits": "075c143326a6913c"
+    },
+    {
+      "x": 3.141592653589793,
+      "xBits": "182d4454fb210940",
+      "nativeSin": 1.2246467991473532e-16,
+      "nativeSinBits": "075c143326a6a13c",
+      "nativeCos": -1,
+      "nativeCosBits": "000000000000f0bf",
+      "wasmSin": 1.2246467991473532e-16,
+      "wasmSinBits": "075c143326a6a13c",
+      "wasmCos": -1,
+      "wasmCosBits": "000000000000f0bf"
+    },
+    {
+      "x": 4.71238898038469,
+      "xBits": "d221337f7cd91240",
+      "nativeSin": -1,
+      "nativeSinBits": "000000000000f0bf",
+      "nativeCos": -1.8369701987210297e-16,
+      "nativeCosBits": "0a8a9e4c3979aabc",
+      "wasmSin": -1,
+      "wasmSinBits": "000000000000f0bf",
+      "wasmCos": -1.8369701987210297e-16,
+      "wasmCosBits": "0a8a9e4c3979aabc"
+    },
+    {
+      "x": 6.283185307179586,
+      "xBits": "182d4454fb211940",
+      "nativeSin": -2.4492935982947064e-16,
+      "nativeSinBits": "075c143326a6b1bc",
+      "nativeCos": 1,
+      "nativeCosBits": "000000000000f03f",
+      "wasmSin": -2.4492935982947064e-16,
+      "wasmSinBits": "075c143326a6b1bc",
+      "wasmCos": 1,
+      "wasmCosBits": "000000000000f03f"
+    },
+    {
+      "x": -1.234567,
+      "xBits": "87889b53c9c0f3bf",
+      "nativeSin": -0.9440054313672885,
+      "nativeSinBits": "0a01dfe04a35eebf",
+      "nativeCos": 0.3299299100552412,
+      "nativeCosBits": "f6346a57921dd53f",
+      "wasmSin": -0.9440054313672885,
+      "wasmSinBits": "0a01dfe04a35eebf",
+      "wasmCos": 0.3299299100552412,
+      "wasmCosBits": "f6346a57921dd53f"
+    },
+    {
+      "x": 4.276057,
+      "xBits": "d653abafae1a1140",
+      "nativeSin": -0.9063079276053049,
+      "nativeSinBits": "4373a57b7900edbf",
+      "nativeCos": -0.4226179602901154,
+      "nativeCosBits": "4b7d89332c0cdbbf",
+      "wasmSin": -0.9063079276053049,
+      "wasmSinBits": "4373a57b7900edbf",
+      "wasmCos": -0.4226179602901154,
+      "wasmCosBits": "4b7d89332c0cdbbf"
+    },
+    {
+      "x": 12.9834,
+      "xBits": "d6c56d3480f72940",
+      "nativeSin": 0.40504622278174784,
+      "nativeSinBits": "ead10dfe46ecd93f",
+      "nativeCos": 0.9142962087913515,
+      "nativeCosBits": "58b3731fea41ed3f",
+      "wasmSin": 0.40504622278174784,
+      "wasmSinBits": "ead10dfe46ecd93f",
+      "wasmCos": 0.9142962087913515,
+      "wasmCosBits": "58b3731fea41ed3f"
+    },
+    {
+      "x": 1.5707963267948966,
+      "xBits": "182d4454fb21f93f",
+      "nativeSin": 1,
+      "nativeSinBits": "000000000000f03f",
+      "nativeCos": 6.123233995736766e-17,
+      "nativeCosBits": "075c143326a6913c",
+      "wasmSin": 1,
+      "wasmSinBits": "000000000000f03f",
+      "wasmCos": 6.123233995736766e-17,
+      "wasmCosBits": "075c143326a6913c"
+    },
+    {
+      "x": 100.123456789,
+      "xBits": "59ce4db7e6075940",
+      "nativeSin": -0.3963227431311373,
+      "nativeSinBits": "0b311a115a5dd9bf",
+      "nativeCos": 0.9181112586593253,
+      "nativeCosBits": "95ffc0dc2a61ed3f",
+      "wasmSin": -0.3963227431311373,
+      "wasmSinBits": "0b311a115a5dd9bf",
+      "wasmCos": 0.9181112586593253,
+      "wasmCosBits": "95ffc0dc2a61ed3f"
+    }
+  ],
+  "atanhRows": [
+    {
+      "x": 0,
+      "xBits": "0000000000000000",
+      "nativeAtanh": 0,
+      "nativeAtanhBits": "0000000000000000",
+      "wasmAtanh": 0,
+      "wasmAtanhBits": "0000000000000000"
+    },
+    {
+      "x": 0.1,
+      "xBits": "9a9999999999b93f",
+      "nativeAtanh": 0.10033534773107558,
+      "nativeAtanhBits": "124423cd93afb93f",
+      "wasmAtanh": 0.10033534773107558,
+      "wasmAtanhBits": "124423cd93afb93f"
+    },
+    {
+      "x": -0.1,
+      "xBits": "9a9999999999b9bf",
+      "nativeAtanh": -0.10033534773107558,
+      "nativeAtanhBits": "124423cd93afb9bf",
+      "wasmAtanh": -0.10033534773107558,
+      "wasmAtanhBits": "124423cd93afb9bf"
+    },
+    {
+      "x": 0.5,
+      "xBits": "000000000000e03f",
+      "nativeAtanh": 0.5493061443340548,
+      "nativeAtanhBits": "0a03ad7aea93e13f",
+      "wasmAtanh": 0.5493061443340548,
+      "wasmAtanhBits": "0a03ad7aea93e13f"
+    },
+    {
+      "x": -0.5,
+      "xBits": "000000000000e0bf",
+      "nativeAtanh": -0.5493061443340548,
+      "nativeAtanhBits": "0a03ad7aea93e1bf",
+      "wasmAtanh": -0.5493061443340548,
+      "wasmAtanhBits": "0a03ad7aea93e1bf"
+    },
+    {
+      "x": 0.9,
+      "xBits": "cdccccccccccec3f",
+      "nativeAtanh": 1.4722194895832204,
+      "nativeAtanhBits": "2db30406368ef73f",
+      "wasmAtanh": 1.4722194895832204,
+      "wasmAtanhBits": "2db30406368ef73f"
+    },
+    {
+      "x": -0.9,
+      "xBits": "cdccccccccccecbf",
+      "nativeAtanh": -1.4722194895832204,
+      "nativeAtanhBits": "2db30406368ef7bf",
+      "wasmAtanh": -1.4722194895832204,
+      "wasmAtanhBits": "2db30406368ef7bf"
+    },
+    {
+      "x": 0.999,
+      "xBits": "2b8716d9cef7ef3f",
+      "nativeAtanh": 3.8002011672501994,
+      "nativeAtanhBits": "2d7c9cdecf660e40",
+      "wasmAtanh": 3.8002011672501994,
+      "wasmAtanhBits": "2d7c9cdecf660e40"
+    }
+  ]
+}

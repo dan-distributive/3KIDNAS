@@ -1,0 +1,231 @@
+/* =========================================
+   SECTION WRAPPER (inherits site layout)
+========================================= */
+
+.toc-section {
+  width: 100%;
+  padding: 80px 0;
+}
+
+/* =========================================
+   PANEL LAYOUT (INSIDE .container)
+========================================= */
+
+.toc-panel {
+  display: flex;
+  gap: 5%;
+  align-items: flex-start;
+}
+
+/* Sticky TOC column */
+.toc {
+  width: 25%;
+  position: sticky;
+  top: 120px;
+  align-self: flex-start;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+
+/* Content column */
+.doc-content {
+  width: 70%;
+}
+
+/* =========================================
+   TOC STRUCTURE
+========================================= */
+
+.toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toc a:hover {
+	opacity: 1.0;
+	font-weight: 600;
+}
+
+/* =========================================
+   H2 ITEMS (GRID-BASED ALIGNMENT)
+========================================= */
+
+.toc-item {
+  margin-bottom: 4px;
+}
+
+/* H2 row */
+.toc-h2 {
+  display: grid;
+  grid-template-columns: 20px 1fr; /* ← fixed arrow column */
+  align-items: center;
+  gap: 0;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #888;
+  text-decoration: none;
+}
+
+/* Arrow column */
+.toc-h2::before {
+  content: "▸";
+  display: flex;
+  justify-content: center;
+  font-size: 0.9rem;
+  opacity: 0.6;
+  transition: transform 0.2s ease;
+}
+
+/* Rotate arrow when open */
+.toc-item.open > .toc-h2::before {
+  transform: rotate(90deg);
+}
+
+/* H2 without children — KEEP SPACE but remove arrow */
+.toc-item.no-children > .toc-h2::before {
+  content: "";
+}
+
+/* Active H2 */
+.toc-h2.active {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* =========================================
+   H3 SUBLIST (40px INDENT)
+========================================= */
+
+.toc-sublist {
+  display: none;
+  margin-top: 4px;
+}
+
+/* Open state */
+.toc-item.open > .toc-sublist {
+  display: block;
+}
+
+/* H3 items */
+.toc-h3 {
+  padding: 4px 0 4px 40px; /* ← 40px indent */
+  font-size: 0.8rem;
+  color: #777;
+  text-decoration: none;
+  display: block;
+}
+
+/* Active H3 */
+.toc-h3.active {
+  color: #fff;
+}
+
+
+/* =========================================
+   CONTENT TYPOGRAPHY
+========================================= */
+
+.doc-content h2 {
+  margin-top: 64px;
+  font-size: 1.6rem;
+}
+
+.doc-content h3 {
+  margin-top: 32px;
+  font-size: 1.2rem;
+}
+
+.doc-content p {
+  margin-top: 16px;
+  line-height: 1.6;
+  max-width: 85ch;
+}
+
+.doc-content li {
+  padding-bottom: 7px;
+}
+
+
+.inset {
+  font-family: Consolas, "Andale Mono", "Lucida Console", "Lucida Sans Typewriter", Monaco, "Courier New", "monospace";
+	border: solid 1px #222;
+  background:#040404;
+	color: #EEE;
+  width: 100%;
+  padding: 30px;"
+}
+
+.grid-container4 {
+    display: grid;
+    /* Defines 4 columns of equal width */
+    grid-template-columns: repeat(4, 1fr);
+    /* Defines 5 rows with a minimum height of 100px */
+    grid-template-rows: repeat(5, minmax(20px, auto));
+    /* Adds spacing between cells */
+    gap: 0px;
+}
+.grid-container3 {
+    display: grid;
+    /* Defines 4 columns of equal width */
+    grid-template-columns: repeat(3, 1fr);
+    /* Defines 5 rows with a minimum height of 100px */
+    grid-template-rows: repeat(5, minmax(20px, auto));
+    /* Adds spacing between cells */
+    gap: 0px;
+}
+
+.grid-container2 {
+    display: grid;
+    /* Defines 4 columns of equal width */
+    grid-template-columns: repeat(2, 1fr);
+    /* Defines 5 rows with a minimum height of 100px */
+    grid-template-rows: repeat(5, minmax(20px, auto));
+    /* Adds spacing between cells */
+    gap: 0px;
+}
+
+.grid-item {
+    padding: 10px 10px 10px 0px;
+    border-bottom: 1px solid #222;
+    text-align: left;
+}
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 900px) {
+  .toc-panel {
+    flex-direction: column;
+  }
+
+  .toc,
+  .doc-content {
+    width: 100%;
+  }
+
+  .toc {
+    position: relative;
+    top: auto;
+    max-height: none;
+  }
+  .toc-item {
+    margin-bottom: 0px;
+  }
+	
+}
+
+/* =========================================
+   PRINT MODE
+========================================= */
+
+@media print {
+  .toc {
+    display: none;
+  }
+
+  .doc-content {
+    width: 100%;
+  }
+}

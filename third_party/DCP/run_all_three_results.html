@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>3KIDNAS — Fortran vs JS/DCP Fidelity &amp; Performance</title>
+<style>
+  :root {
+    --bg: #f5f5f3;
+    --surface: #ffffff;
+    --surface-2: #fafaf8;
+    --text: #1b1e24;
+    --muted: #6b7280;
+    --border: #e3e4e0;
+    --accent: #0d7a6c;
+    --accent-soft: #e3f3ef;
+    --good: #1f8a5f;
+    --good-soft: #e5f5ed;
+    --warn: #b3690e;
+    --warn-soft: #fbf0e2;
+    --neutral-chip: #eef0f4;
+    --neutral-chip-text: #4b5563;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    --shadow: 0 1px 2px rgba(20, 24, 30, 0.04), 0 4px 16px rgba(20, 24, 30, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b; --surface: #1b1e25; --surface-2: #20232b; --text: #e7e9ed;
+      --muted: #9aa1ac; --border: #2b2f38; --accent: #5fd9c7; --accent-soft: rgba(95, 217, 199, 0.12);
+      --good: #4ade9b; --good-soft: rgba(74, 222, 155, 0.12);
+      --warn: #f0a94e; --warn-soft: rgba(240, 169, 78, 0.12);
+      --neutral-chip: #2a2e37; --neutral-chip-text: #b7bdc7;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161b; --surface: #1b1e25; --surface-2: #20232b; --text: #e7e9ed;
+    --muted: #9aa1ac; --border: #2b2f38; --accent: #5fd9c7; --accent-soft: rgba(95, 217, 199, 0.12);
+    --good: #4ade9b; --good-soft: rgba(74, 222, 155, 0.12);
+    --warn: #f0a94e; --warn-soft: rgba(240, 169, 78, 0.12);
+    --neutral-chip: #2a2e37; --neutral-chip-text: #b7bdc7;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f5f3; --surface: #ffffff; --surface-2: #fafaf8; --text: #1b1e24;
+    --muted: #6b7280; --border: #e3e4e0; --accent: #0d7a6c; --accent-soft: #e3f3ef;
+    --good: #1f8a5f; --good-soft: #e5f5ed;
+    --warn: #b3690e; --warn-soft: #fbf0e2;
+    --neutral-chip: #eef0f4; --neutral-chip-text: #4b5563;
+    --shadow: 0 1px 2px rgba(20, 24, 30, 0.04), 0 4px 16px rgba(20, 24, 30, 0.05);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    padding: 2.5rem 1.5rem 4rem;
+  }
+  .page {
+    max-width: 1040px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  header.top {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  header.top .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  h1 {
+    font-size: 1.6rem;
+    margin: 0;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.92rem;
+    margin: 0;
+  }
+
+  .page-footnote {
+    margin: 48px 0 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+  .page-footnote strong { color: var(--text); }
+  .page-footnote code {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  /* ---- Drop zone ---- */
+  #dropzone {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 3.5rem 2rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  #dropzone:hover, #dropzone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  #dropzone .icon {
+    width: 2.75rem; height: 2.75rem;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem;
+  }
+  #dropzone h2 { margin: 0; font-size: 1.05rem; }
+  #dropzone p { margin: 0; color: var(--muted); font-size: 0.85rem; max-width: 32rem; }
+  #dropzone code {
+    font-family: var(--mono);
+    background: var(--neutral-chip);
+    padding: 0.05rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.82rem;
+  }
+  #fileInput { display: none; }
+  #parseError {
+    color: var(--warn);
+    font-size: 0.82rem;
+    font-family: var(--mono);
+    display: none;
+  }
+
+  section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  section > .head {
+    padding: 1rem 1.25rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+  }
+  section > .head h2 {
+    margin: 0 0 0.2rem;
+    font-size: 1.02rem;
+    letter-spacing: -0.005em;
+  }
+  section > .head p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.83rem;
+  }
+
+  .table-scroll { overflow-x: auto; }
+  details.table-scroll > summary {
+    cursor: pointer;
+    padding: 0.7rem 1.25rem;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--accent);
+    list-style: none;
+    user-select: none;
+  }
+  details.table-scroll > summary::-webkit-details-marker { display: none; }
+  details.table-scroll > summary::before {
+    content: '▸';
+    display: inline-block;
+    margin-right: 0.4rem;
+    transition: transform 0.15s ease;
+  }
+  details.table-scroll[open] > summary::before { transform: rotate(90deg); }
+  details.table-scroll > summary:hover { text-decoration: underline; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.86rem;
+  }
+  th, td {
+    padding: 0.6rem 1.1rem;
+    text-align: right;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  th:first-child, td:first-child { text-align: left; }
+  thead th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 600;
+    background: var(--surface-2);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-2); }
+  tbody tr.group-start td { border-top: 2px solid var(--border); }
+  tbody tr.group-start:first-child td { border-top: none; }
+  td.num, th.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  td.leg { font-weight: 600; }
+  .leg-dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-right: 0.5rem; }
+  .leg-dot.fortranLocal { background: #9ca3af; }
+  .leg-dot.jsLocal { background: #b98a2e; }
+  .leg-dot.jsDcp { background: var(--accent); }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 6px;
+    background: var(--neutral-chip);
+    color: var(--neutral-chip-text);
+  }
+  .badge.stale { background: var(--accent-soft); color: var(--accent); }
+
+  .diff-zero { color: var(--good); font-weight: 600; }
+  .diff-noise { color: var(--muted); }
+  .diff-warn { color: var(--warn); font-weight: 600; }
+
+  .dash { color: var(--muted); }
+
+  #results { display: none; flex-direction: column; gap: 1.75rem; }
+
+  /* ---- Global leg filter bar -- controls every table/plot below ---- */
+  .leg-filter-bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 1.1rem;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 0.7rem 1.1rem; box-shadow: var(--shadow);
+  }
+  .leg-filter-label {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); font-weight: 600;
+  }
+  .leg-filter-item {
+    display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer;
+    user-select: none; font-size: 0.86rem;
+  }
+  .leg-filter-item input[type="checkbox"] { accent-color: var(--accent); }
+  .leg-filter-item.dimmed { color: var(--muted); }
+
+  /* ---- Hero banner: headline DCP-vs-fortran performance stats ---- */
+  .hero { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .hero-stat {
+    flex: 1 1 260px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 1.1rem 1.3rem;
+  }
+  .hero-label {
+    font-size: 0.76rem; color: var(--muted); margin-bottom: 0.3rem;
+    letter-spacing: 0.01em;
+  }
+  .hero-value {
+    font-family: var(--mono); font-size: 2.1rem; font-weight: 700;
+    line-height: 1.1; font-variant-numeric: tabular-nums;
+  }
+  .hero-value.good { color: var(--good); }
+  .hero-value.warn { color: var(--warn); }
+  .hero-unit { font-size: 1.1rem; font-weight: 500; margin-left: 0.15rem; color: var(--muted); }
+  .hero-sub { margin-top: 0.3rem; font-size: 0.8rem; color: var(--muted); }
+
+  /* ---- Uncertainty cells (median ± 1.4825*MAD, matching the pipeline's
+     own Bootstrap_Error_Analysis.py convention) ---- */
+  .unc { color: var(--muted); font-size: 0.9em; }
+
+  /* ---- Geometry & profiles (adapted from geo-box-plot-template.html) ---- */
+  .gbp-legend {
+    display: flex; flex-wrap: wrap; gap: 1.1rem;
+    padding: 0 1.25rem 0.9rem;
+    font-size: 0.8rem; color: var(--muted);
+  }
+  .gbp-legend label { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; user-select: none; }
+  .gbp-legend input[type="checkbox"] { accent-color: var(--accent); }
+  .gbp-swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; }
+  .gbp-swatch.fortranLocal { background: #9ca3af; }
+  .gbp-swatch.jsLocal { background: #b98a2e; }
+  .gbp-swatch.jsDcp { background: var(--accent); }
+
+  .gbp-layout { display: flex; flex-direction: column; gap: 1.1rem; padding: 0 1.25rem 1.25rem; }
+  .gbp-corner-scroll { overflow-x: auto; max-width: 100%; }
+  .gbp-side { display: flex; flex-direction: row; gap: 0.9rem; overflow-x: auto; max-width: 100%; }
+  .gbp-panel-card { flex: 0 0 auto; }
+  .gbp-panel-card h4 {
+    margin: 0 0 0.4rem; font-size: 0.72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+  }
+  .gbp-frame { fill: none; stroke: var(--border); stroke-width: 1; }
+  .gbp-axis-label { fill: var(--muted); font-size: 9.5px; }
+  .gbp-dot { opacity: 0.55; }
+  .gbp-dot.fortranLocal { fill: #9ca3af; }
+  .gbp-dot.jsLocal { fill: #b98a2e; }
+  .gbp-dot.jsDcp { fill: var(--accent); }
+  .gbp-mean { stroke: var(--surface); stroke-width: 1; }
+  .gbp-mean.fortranLocal { fill: #9ca3af; }
+  .gbp-mean.jsLocal { fill: #b98a2e; }
+  .gbp-mean.jsDcp { fill: var(--accent); }
+  .gbp-bar { opacity: 0.35; stroke-width: 0.75; }
+  .gbp-bar.fortranLocal { fill: #9ca3af; stroke: #9ca3af; }
+  .gbp-bar.jsLocal { fill: #b98a2e; stroke: #b98a2e; }
+  .gbp-bar.jsDcp { fill: var(--accent); stroke: var(--accent); }
+  .gbp-meanline { stroke-width: 1.6; opacity: 0.9; }
+  .gbp-meanline.fortranLocal { stroke: #9ca3af; }
+  .gbp-meanline.jsLocal { stroke: #b98a2e; }
+  .gbp-meanline.jsDcp { stroke: var(--accent); }
+  .gbp-profile-line { fill: none; stroke-width: 1.2; opacity: 0.22; }
+  .gbp-profile-line.fortranLocal { stroke: #9ca3af; }
+  .gbp-profile-line.jsLocal { stroke: #b98a2e; }
+  .gbp-profile-line.jsDcp { stroke: var(--accent); }
+  .gbp-mean-line { fill: none; stroke-width: 2.2; }
+  .gbp-mean-line.fortranLocal { stroke: #9ca3af; }
+  .gbp-mean-line.jsLocal { stroke: #b98a2e; }
+  .gbp-mean-line.jsDcp { stroke: var(--accent); }
+  .gbp-mean-dot.fortranLocal { fill: #9ca3af; }
+  .gbp-mean-dot.jsLocal { fill: #b98a2e; }
+  .gbp-mean-dot.jsDcp { fill: var(--accent); }
+  .gbp-errorbar { stroke-width: 1.3; opacity: 0.55; }
+  .gbp-errorbar.fortranLocal { stroke: #9ca3af; }
+  .gbp-errorbar.jsLocal { stroke: #b98a2e; }
+  .gbp-errorbar.jsDcp { stroke: var(--accent); }
+  .gbp-tick { stroke: var(--border); stroke-width: 1; }
+  .gbp-tick-label { fill: var(--muted); font-size: 8px; font-variant-numeric: tabular-nums; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <div class="eyebrow">3KIDNAS &middot; run_all_three</div>
+    <h1>Fortran vs JS/DCP — fidelity &amp; performance</h1>
+    <p class="subtitle" id="subtitle">Drop a <code>run_all_three_report.json</code> to view its results.</p>
+  </header>
+
+  <div id="dropzone">
+    <div class="icon">&#8595;</div>
+    <h2>Drag &amp; drop a results file</h2>
+    <p>Drop the <code>run_all_three_report.json</code> written by <code>run_all_three.js</code> here, or click to browse. Nothing leaves your browser — this reads the file locally.</p>
+    <div id="parseError"></div>
+  </div>
+  <input type="file" id="fileInput" accept="application/json,.json" />
+
+  <div id="results"></div>
+
+  <p class="page-footnote">
+    <strong>On the residual ~0.1–1% fortran-vs-JS/DCP gap</strong> (PA, Inc, Rₕᵢ, Vₕᵢ, etc.,
+    after the PA-conversion and noise-corner-sampling fixes): traced with matched-seed,
+    per-realization tracing on both sides. The resampled cube, SoFiA catalogue
+    (<code>ellMaj</code>/<code>ellMin</code>/<code>kin_pa</code>), geometry estimate
+    (<code>paEst</code>/<code>incEst</code>), and noise RMS all matched to 7–9 significant
+    figures between languages for the same realization — i.e. everything the optimizer
+    receives as input is effectively identical. The remaining gap therefore accumulates inside
+    the ~400+ iteration Nelder-Mead optimization itself: ordinary floating-point
+    non-associativity between a compiled-Fortran and a JIT-compiled JS/WASM pipeline, amplified
+    on the way out by the well-known inclination/PA degeneracy in tilted-ring fitting (which is
+    also why RHI/VHI, which inherit that degeneracy, show the largest residual % while
+    well-conditioned parameters like Vsys and Y stay tight). Not a discovered bug — expected
+    cross-language floating-point noise, pending a full per-evaluation trace diff if a tighter
+    bound is ever needed.
+  </p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var dropzone = document.getElementById('dropzone');
+  var fileInput = document.getElementById('fileInput');
+  var resultsEl = document.getElementById('results');
+  var subtitleEl = document.getElementById('subtitle');
+  var parseErrorEl = document.getElementById('parseError');
+
+  var LEG_ORDER = ['fortranLocal', 'jsLocal', 'jsDcp'];
+  var LEG_LABEL = { fortranLocal: 'fortran-local', jsLocal: 'js-local', jsDcp: 'js-dcp' };
+  var SCALAR_FIELDS = [
+    { key: 'PA_model', label: 'PA (°)' },
+    { key: 'Inc_model', label: 'Inc (°)' },
+    { key: 'Vsys_model', label: 'VSys' },
+    { key: 'X_model', label: 'Xᴄ' },
+    { key: 'Y_model', label: 'Yᴄ' },
+    { key: 'RHI_AS', label: 'Rₕᵢ (″)' },
+    { key: 'VHI', label: 'Vₕᵢ' },
+  ];
+  // "Fit" = fixtureFitMs + fitMs, matching fortran-local's single native Fit
+  // call -- NOT + convolveMs, which is already counted INSIDE fitMs
+  // (cubeBeamConvolution is called repeatedly from inside the optimizer's
+  // own objective-function evaluations, so it's not an independent phase --
+  // confirmed directly: a realization's own totalMs only reconciles against
+  // resample+sofia+fixtureFit+fit, never +convolve on top).
+  var BREAKDOWN_FIELDS = [
+    { key: 'resampleMs', label: 'Resample' },
+    { key: 'sofiaMs', label: 'SoFiA' },
+    { key: 'fitTotalMs', label: 'Fit', derived: true },
+  ];
+
+  // ---------------------------------------------------------------------
+  // Statistics: median + 1.4825*MAD, matching Bootstrap_Error_Analysis.py's
+  // own BootsrapErrors_ForParam exactly (median/MAD chosen there over
+  // mean/std specifically for outlier resilience; 1.4825 scales MAD to be
+  // comparable to RMS for a normal distribution) -- so the uncertainties
+  // shown here are the same statistic the real pipeline's own _BSModel.txt
+  // output uses, not a different, viewer-invented one.
+  // ---------------------------------------------------------------------
+  function median(vals) {
+    var v = vals.filter(function (x) { return typeof x === 'number' && isFinite(x); }).slice().sort(function (a, b) { return a - b; });
+    if (!v.length) return NaN;
+    var mid = Math.floor(v.length / 2);
+    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+  }
+  function medianAbsDev(vals, med) {
+    var v = vals.filter(function (x) { return typeof x === 'number' && isFinite(x); });
+    if (!v.length) return NaN;
+    var m = med == null ? median(v) : med;
+    var devs = v.map(function (x) { return Math.abs(x - m); });
+    return 1.4825 * median(devs);
+  }
+  // Decimal places needed to show x with `sig` significant figures -- used to
+  // round an uncertainty to 2 sig figs and then round its paired mean/median
+  // to the SAME number of decimals, so e.g. 248.708 +/- 3.222 reads as
+  // 248.7 +/- 3.2, not 248.708 +/- 3.2 (mismatched precision).
+  function sigFigDecimals(x, sig) {
+    if (!isFinite(x) || x === 0) return 0;
+    var intDigits = Math.floor(Math.log10(Math.abs(x))) + 1;
+    return Math.max(0, sig - intDigits);
+  }
+
+  // Persisted across re-renders (checkbox toggles trigger a full re-render
+  // rather than DOM patching -- table rows can't cheaply hide/show like the
+  // SVG geometry plots do, so treating every leg-visibility change as "re-run
+  // render() with a different leg list" keeps every section, table and plot
+  // alike, honoring the same filter from one source of truth).
+  var legVisible = { fortranLocal: true, jsLocal: true, jsDcp: true };
+  var currentReport = null;
+
+  // ---------------------------------------------------------------------
+  // Geometry & profiles -- adapted from a standalone single-dataset
+  // "reveal animation" tool (3KIDNAS-nosofia/assets/geo-box-plot-template.html)
+  // into a static MULTI-LEG OVERLAY: instead of one bootstrap distribution
+  // animating in over time, all legs present in the loaded report are drawn
+  // simultaneously, each in its own color (matching the leg-dot colors used
+  // elsewhere on this page), so fortran/js-local/js-dcp distributions can be
+  // compared directly. The corner-plot/profile-panel SVG geometry (scaleFor,
+  // adjustPA, starPath, the corner-plot layout math) is carried over as-is;
+  // the drawing functions are rewritten to take an array of per-leg datasets
+  // instead of one, and the animation driver is dropped entirely (a static
+  // comparison isn't "revealing" any one dataset over time).
+  // ---------------------------------------------------------------------
+  // Shared across the geometry/profile outlier filter below and the
+  // Performance table's realization-timing stats further down: a value more
+  // than this many scaled-MADs from its own median counts as an outlier.
+  var OUTLIER_MAD_THRESHOLD = 5;
+  var GBP_PARAMS = ['INCLINATION', 'POSITIONANGLE', 'VSYS', 'VDISP', 'XCENTER', 'YCENTER', 'RHI_AS', 'VHI'];
+  var GBP_LABELS = {
+    INCLINATION: 'Inc (°)', POSITIONANGLE: 'PA (°)', VSYS: 'Vsys (km/s)',
+    VDISP: 'Vdisp (km/s)', XCENTER: 'X (pix)', YCENTER: 'Y (pix)',
+    RHI_AS: 'R_HI (″)', VHI: 'V_HI (km/s)',
+  };
+  var GBP_CORNER_CELL = 104, GBP_CORNER_GAP = 4;
+  var GBP_CORNER_PAD = { l: 62, t: 10, r: 10, b: 52 };
+  var GBP_CORNER_WIDTH = GBP_CORNER_PAD.l + GBP_PARAMS.length * (GBP_CORNER_CELL + GBP_CORNER_GAP) - GBP_CORNER_GAP + GBP_CORNER_PAD.r;
+  var GBP_SIDE_GAP = 14;
+  var GBP_PROFILE_WIDTH = Math.floor((GBP_CORNER_WIDTH - GBP_SIDE_GAP) / 2);
+  var SVGNS = 'http://www.w3.org/2000/svg';
+
+  function gbpEl(tag, attrs) {
+    var e = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // Parses a run_all_three CSV row (X_model, Vrot_model as a comma-separated
+  // string, etc.) into the {XCENTER, VROT: [...], ...} shape the plotting
+  // code below expects -- the shape a real per-realization model dict
+  // (RunBootstrapsDCP.AdaptResults) already uses natively; run_all_three's
+  // simplified CSV round-trip just needs unparsing back into numbers/arrays.
+  // Number('') is 0, not NaN -- a trap here specifically, since a failed
+  // bootstrap realization is written to the CSV as a row of EMPTY scalar
+  // fields (confirmed directly: 7 of 1000 realizations in a real js-dcp run,
+  // marked only by RHI_flag/RHI_AS/VHI == "[nan]"). Left as plain Number(),
+  // those rows silently become XCENTER=0, VSYS=0, etc -- values wildly
+  // outside any real fit, not "0" as a legitimate measurement.
+  function numOrNaN(s) {
+    if (s === '' || s == null) return NaN;
+    return Number(s);
+  }
+  function parseNumList(s) {
+    if (!s) return [];
+    return String(s).split(',').map(function (x) { return numOrNaN(x.trim()); });
+  }
+  function toBoxPlotRow(csvRow) {
+    var x = numOrNaN(csvRow.X_model);
+    return {
+      XCENTER: x, YCENTER: numOrNaN(csvRow.Y_model),
+      INCLINATION: numOrNaN(csvRow.Inc_model), POSITIONANGLE: numOrNaN(csvRow.PA_model),
+      VSYS: numOrNaN(csvRow.Vsys_model), VDISP: numOrNaN(csvRow.Vdisp_model),
+      RHI_AS: numOrNaN(csvRow.RHI_AS), VHI: numOrNaN(csvRow.VHI),
+      R: parseNumList(csvRow.Rad), VROT: parseNumList(csvRow.Vrot_model),
+      R_SD: parseNumList(csvRow.Rad_SD), SURFDENS_FACEON: parseNumList(csvRow.SD_model),
+      // The CSV carries no explicit FITAchieved column -- a failed
+      // realization is only distinguishable by its scalar fields being
+      // blank, so that's the flag: a row is "achieved" iff its own center
+      // position actually parsed to a real number.
+      FITAchieved: isFinite(x),
+    };
+  }
+
+  // "Nice" round-number tick values within [lo, hi] (~targetCount of them) --
+  // classic step-snapping to 1/2/5x10^n so labels read like 240, not 239.73.
+  // Returns {step, values} -- step is needed by gbpFmtTick to pick enough
+  // decimal places to keep consecutive ticks distinct (a value's own
+  // magnitude isn't enough: e.g. step=0.2 around 22 needs "22.0"/"22.2", not
+  // "22"/"22", even though 22 itself would round to 0 decimals in isolation).
+  function gbpNiceTicks(lo, hi, targetCount) {
+    if (!(hi > lo)) return { step: 1, values: [lo] };
+    var rawStep = (hi - lo) / targetCount;
+    var mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    var norm = rawStep / mag;
+    var step = norm < 1.5 ? mag : norm < 3 ? 2 * mag : norm < 7 ? 5 * mag : 10 * mag;
+    var start = Math.ceil(lo / step) * step;
+    var values = [];
+    for (var v = start; v <= hi + step * 1e-6; v += step) values.push(Math.round(v / step) * step);
+    return { step: step, values: values };
+  }
+  function gbpFmtTick(v, step) {
+    var decimals = Math.max(0, Math.min(3, -Math.floor(Math.log10(step) + 1e-9)));
+    return v.toFixed(decimals);
+  }
+  function gbpDrawXTicks(g, sx, cell) {
+    var ticks = gbpNiceTicks(sx.lo, sx.hi, 3);
+    ticks.values.forEach(function (v) {
+      var x = sx.map(v) * cell;
+      if (x < -1 || x > cell + 1) return;
+      g.appendChild(gbpEl('line', { x1: x, x2: x, y1: cell, y2: cell + 4, class: 'gbp-tick' }));
+      var t = gbpEl('text', { class: 'gbp-tick-label', x: x, y: cell + 15, 'text-anchor': 'middle' });
+      t.textContent = gbpFmtTick(v, ticks.step);
+      g.appendChild(t);
+    });
+  }
+  function gbpDrawYTicks(g, sy, cell) {
+    var ticks = gbpNiceTicks(sy.lo, sy.hi, 3);
+    ticks.values.forEach(function (v) {
+      var y = cell - sy.map(v) * cell;
+      if (y < -1 || y > cell + 1) return;
+      g.appendChild(gbpEl('line', { x1: -4, x2: 0, y1: y, y2: y, class: 'gbp-tick' }));
+      var t = gbpEl('text', { class: 'gbp-tick-label', x: -7, y: y + 3, 'text-anchor': 'end' });
+      t.textContent = gbpFmtTick(v, ticks.step);
+      g.appendChild(t);
+    });
+  }
+
+  function gbpAdjustPA(pa, paRef) {
+    var diff = paRef - pa;
+    if (diff <= -180) return pa - 360;
+    if (diff >= 180) return pa + 360;
+    return pa;
+  }
+
+  function gbpScaleFor(values, padFrac) {
+    // Hard filter, not just a fallback: a single NaN mixed into `values`
+    // (real example: a stuck-optimizer realization's NaN Vrot_model ring,
+    // seen directly in a real js-dcp run) poisons Math.min/max for the
+    // WHOLE array, not just that one entry -- this is what made Rotation
+    // curve/Surface density render as empty canvases for every leg sharing
+    // the scale, not just the leg that actually had the NaN.
+    var finite = values.filter(function (v) { return typeof v === 'number' && isFinite(v); });
+    var lo = finite.length ? Math.min.apply(null, finite) : 0;
+    var hi = finite.length ? Math.max.apply(null, finite) : 1;
+    if (lo === hi) { lo -= 1; hi += 1; }
+    var p = (hi - lo) * padFrac;
+    lo -= p; hi += p;
+    return { lo: lo, hi: hi, map: function (v) { return (v - lo) / (hi - lo); } };
+  }
+
+  function gbpMean(vals) {
+    var v = vals.filter(function (x) { return typeof x === 'number' && isFinite(x); });
+    if (!v.length) return NaN;
+    return v.reduce(function (a, b) { return a + b; }, 0) / v.length;
+  }
+
+  // datasets: [{ key, rows }] -- one per leg, rows already parsed via toBoxPlotRow.
+  function gbpDrawScatter(g, datasets, xKey, yKey, cell, showXTicks, showYTicks) {
+    var allX = [], allY = [];
+    datasets.forEach(function (d) {
+      d.rows.forEach(function (r) {
+        allX.push(xKey === 'POSITIONANGLE' ? gbpAdjustPA(r[xKey], datasets[0].rows[0] ? datasets[0].rows[0][xKey] : r[xKey]) : r[xKey]);
+        allY.push(yKey === 'POSITIONANGLE' ? gbpAdjustPA(r[yKey], datasets[0].rows[0] ? datasets[0].rows[0][yKey] : r[yKey]) : r[yKey]);
+      });
+    });
+    var sx = gbpScaleFor(allX, 0.12), sy = gbpScaleFor(allY, 0.12);
+    var paRefX = datasets[0].rows[0] ? datasets[0].rows[0][xKey] : 0;
+    var paRefY = datasets[0].rows[0] ? datasets[0].rows[0][yKey] : 0;
+
+    if (showXTicks) gbpDrawXTicks(g, sx, cell);
+    if (showYTicks) gbpDrawYTicks(g, sy, cell);
+
+    datasets.forEach(function (d) {
+      d.rows.forEach(function (r) {
+        var xv = xKey === 'POSITIONANGLE' ? gbpAdjustPA(r[xKey], paRefX) : r[xKey];
+        var yv = yKey === 'POSITIONANGLE' ? gbpAdjustPA(r[yKey], paRefY) : r[yKey];
+        var px = sx.map(xv) * cell, py = cell - sy.map(yv) * cell;
+        g.appendChild(gbpEl('circle', { cx: px, cy: py, r: 2.4, class: 'gbp-dot ' + d.key }));
+      });
+      var mx = gbpMean(d.rows.map(function (r) { return xKey === 'POSITIONANGLE' ? gbpAdjustPA(r[xKey], paRefX) : r[xKey]; }));
+      var my = gbpMean(d.rows.map(function (r) { return yKey === 'POSITIONANGLE' ? gbpAdjustPA(r[yKey], paRefY) : r[yKey]; }));
+      if (isFinite(mx) && isFinite(my)) {
+        g.appendChild(gbpEl('circle', { cx: sx.map(mx) * cell, cy: cell - sy.map(my) * cell, r: 4.5, class: 'gbp-mean ' + d.key }));
+      }
+    });
+  }
+
+  function gbpDrawHist(g, datasets, key, cell, showXTicks) {
+    var paRef = datasets[0].rows[0] ? datasets[0].rows[0][key] : 0;
+    var allVals = [];
+    datasets.forEach(function (d) {
+      d.rows.forEach(function (r) {
+        var v = key === 'POSITIONANGLE' ? gbpAdjustPA(r[key], paRef) : r[key];
+        if (isFinite(v)) allVals.push(v);
+      });
+    });
+    var sx = gbpScaleFor(allVals, 0.12);
+    if (showXTicks) gbpDrawXTicks(g, sx, cell);
+    var nbins = 16;
+    var binw = (sx.hi - sx.lo) / nbins;
+
+    function binCounts(vals) {
+      var counts = new Array(nbins).fill(0);
+      vals.forEach(function (v) {
+        var bi = Math.floor((v - sx.lo) / binw);
+        if (bi < 0) bi = 0;
+        if (bi >= nbins) bi = nbins - 1;
+        counts[bi]++;
+      });
+      return counts;
+    }
+
+    var maxCount = 1;
+    var perLeg = datasets.map(function (d) {
+      var vals = d.rows.map(function (r) { return key === 'POSITIONANGLE' ? gbpAdjustPA(r[key], paRef) : r[key]; }).filter(isFinite);
+      var counts = binCounts(vals);
+      maxCount = Math.max(maxCount, Math.max.apply(null, counts));
+      return { key: d.key, counts: counts, mean: gbpMean(vals) };
+    });
+
+    var barW = cell / nbins;
+    perLeg.forEach(function (leg) {
+      for (var i = 0; i < nbins; i++) {
+        var bh = (leg.counts[i] / maxCount) * (cell - 4);
+        if (bh <= 0) continue;
+        g.appendChild(gbpEl('rect', {
+          x: i * barW, y: cell - bh, width: Math.max(barW - 1, 0.5), height: bh, class: 'gbp-bar ' + leg.key,
+        }));
+      }
+      if (isFinite(leg.mean)) {
+        var bx = sx.map(leg.mean) * cell;
+        g.appendChild(gbpEl('line', { x1: bx, x2: bx, y1: 0, y2: cell, class: 'gbp-meanline ' + leg.key }));
+      }
+    });
+  }
+
+  function gbpBuildCorner(datasets) {
+    var n = GBP_PARAMS.length, cell = GBP_CORNER_CELL, gap = GBP_CORNER_GAP, pad = GBP_CORNER_PAD;
+    var w = GBP_CORNER_WIDTH, h = pad.t + n * (cell + gap) - gap + pad.b;
+    var svg = gbpEl('svg', { width: w, height: h, viewBox: '0 0 ' + w + ' ' + h });
+    var goodDatasets = datasets.map(function (d) { return { key: d.key, rows: d.rows.filter(function (r) { return r.FITAchieved; }) }; });
+
+    for (var row = 0; row < n; row++) {
+      var yKey = GBP_PARAMS[row];
+      for (var col = 0; col <= row; col++) {
+        var xKey = GBP_PARAMS[col];
+        var cx = pad.l + col * (cell + gap), cy = pad.t + row * (cell + gap);
+        var g = gbpEl('g', { transform: 'translate(' + cx + ',' + cy + ')' });
+        svg.appendChild(g);
+        g.appendChild(gbpEl('rect', { class: 'gbp-frame', x: 0, y: 0, width: cell, height: cell }));
+
+        if (row === col) gbpDrawHist(g, goodDatasets, xKey, cell, row === n - 1);
+        else gbpDrawScatter(g, goodDatasets, xKey, yKey, cell, row === n - 1, col === 0);
+
+        if (row === n - 1) {
+          var t = gbpEl('text', { class: 'gbp-axis-label', x: cell / 2, y: cell + 33, 'text-anchor': 'middle' });
+          t.textContent = GBP_LABELS[xKey];
+          g.appendChild(t);
+        }
+        if (col === 0) {
+          var t2 = gbpEl('text', {
+            class: 'gbp-axis-label', x: -38, y: cell / 2, 'text-anchor': 'middle',
+            transform: 'rotate(-90 -38 ' + (cell / 2) + ')',
+          });
+          t2.textContent = row === col ? 'N' : GBP_LABELS[yKey];
+          g.appendChild(t2);
+        }
+      }
+    }
+    return svg;
+  }
+
+  function gbpBuildProfile(datasets, key, xKey, label) {
+    var w = GBP_PROFILE_WIDTH, h = 224;
+    var pad = { l: 58, t: 10, r: 12, b: 46 };
+    var svg = gbpEl('svg', { width: w, height: h, viewBox: '0 0 ' + w + ' ' + h });
+    var goodDatasets = datasets.map(function (d) { return { key: d.key, rows: d.rows.filter(function (r) { return r.FITAchieved; }) }; });
+
+    var allR = [], allY = [0];
+    goodDatasets.forEach(function (d) {
+      d.rows.forEach(function (r) {
+        if (r[xKey]) allR.push.apply(allR, r[xKey]);
+        if (r[key]) allY.push.apply(allY, r[key]);
+      });
+    });
+    var sx = gbpScaleFor(allR.length ? allR : [0, 1], 0.06);
+    var sy = gbpScaleFor(allY, 0.1);
+    var iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+    var X = function (v) { return pad.l + sx.map(v) * iw; };
+    var Y = function (v) { return pad.t + ih - sy.map(v) * ih; };
+
+    svg.appendChild(gbpEl('rect', { class: 'gbp-frame', x: pad.l, y: pad.t, width: iw, height: ih }));
+
+    var xTicks = gbpNiceTicks(sx.lo, sx.hi, 4);
+    xTicks.values.forEach(function (v) {
+      var x = X(v);
+      if (x < pad.l - 1 || x > pad.l + iw + 1) return;
+      svg.appendChild(gbpEl('line', { x1: x, x2: x, y1: pad.t + ih, y2: pad.t + ih + 4, class: 'gbp-tick' }));
+      var t = gbpEl('text', { class: 'gbp-tick-label', x: x, y: pad.t + ih + 15, 'text-anchor': 'middle' });
+      t.textContent = gbpFmtTick(v, xTicks.step);
+      svg.appendChild(t);
+    });
+    var yTicks = gbpNiceTicks(sy.lo, sy.hi, 4);
+    yTicks.values.forEach(function (v) {
+      var y = Y(v);
+      if (y < pad.t - 1 || y > pad.t + ih + 1) return;
+      svg.appendChild(gbpEl('line', { x1: pad.l - 4, x2: pad.l, y1: y, y2: y, class: 'gbp-tick' }));
+      var t = gbpEl('text', { class: 'gbp-tick-label', x: pad.l - 7, y: y + 3, 'text-anchor': 'end' });
+      t.textContent = gbpFmtTick(v, yTicks.step);
+      svg.appendChild(t);
+    });
+
+    goodDatasets.forEach(function (d) {
+      d.rows.forEach(function (row) {
+        var R = row[xKey], V = row[key];
+        if (!R || !V || R.length < 2) return;
+        var dstr = R.map(function (r, i) { return (i === 0 ? 'M' : 'L') + X(r) + ',' + Y(V[i]); }).join('');
+        svg.appendChild(gbpEl('path', { d: dstr, class: 'gbp-profile-line ' + d.key }));
+      });
+      if (d.rows.length && d.rows[0][xKey]) {
+        // Median +/- 1.4825*MAD per ring, matching the Radial profiles table
+        // directly above this plot -- pairing the same center (median) with
+        // the same spread (MAD) statistic used everywhere else on this page,
+        // rather than an arithmetic mean with no error bars.
+        var R0 = d.rows[0][xKey];
+        var centerV = R0.map(function (_, i) { return median(d.rows.map(function (r) { return r[key] && r[key][i]; })); });
+        var uncV = R0.map(function (_, i) { return medianAbsDev(d.rows.map(function (r) { return r[key] && r[key][i]; }), centerV[i]); });
+        R0.forEach(function (r, i) {
+          if (!isFinite(centerV[i]) || !isFinite(uncV[i]) || uncV[i] <= 0) return;
+          var x = X(r);
+          svg.appendChild(gbpEl('line', {
+            x1: x, x2: x, y1: Y(centerV[i] - uncV[i]), y2: Y(centerV[i] + uncV[i]),
+            class: 'gbp-errorbar ' + d.key,
+          }));
+        });
+        var dstr2 = R0.map(function (r, i) { return (i === 0 ? 'M' : 'L') + X(r) + ',' + Y(centerV[i]); }).join('');
+        svg.appendChild(gbpEl('path', { d: dstr2, class: 'gbp-mean-line ' + d.key }));
+        R0.forEach(function (r, i) { if (isFinite(centerV[i])) svg.appendChild(gbpEl('circle', { cx: X(r), cy: Y(centerV[i]), r: 2.6, class: 'gbp-mean-dot ' + d.key })); });
+      }
+    });
+
+    svg.appendChild(Object.assign(gbpEl('text', { class: 'gbp-axis-label', x: pad.l + iw / 2, y: h - 4, 'text-anchor': 'middle' }), { textContent: "R ('')" }));
+    svg.appendChild(Object.assign(gbpEl('text', {
+      class: 'gbp-axis-label', x: 12, y: pad.t + ih / 2, 'text-anchor': 'middle',
+      transform: 'rotate(-90 12 ' + (pad.t + ih / 2) + ')',
+    }), { textContent: label }));
+    return svg;
+  }
+
+  // A realization can be an extreme outlier in its own parameter space --
+  // the optimizer landing in the Inc/PA degeneracy, or (observed directly in
+  // a real js-dcp run) a handful of NaN Vrot_model rings -- without that
+  // showing up in the Performance table's timing-based outlier check above,
+  // since that only looks at totalMs. Left in, one such row can wreck these
+  // plots: gbpScaleFor's axis auto-ranges off Math.min/max over every row,
+  // so a NaN or a wildly-off-track fit either poisons the shared scale
+  // (confirmed: a few NaN Vrot_model entries rendered BOTH legs' rotation
+  // curves as empty, not just the leg that had them) or squeezes the real
+  // cluster into a sliver of the corner plot. Checked per-leg (never across
+  // legs -- fortran/js-dcp can have real, non-outlier differences in their
+  // own typical values), against each field's OWN median within that leg;
+  // ring arrays (VROT/SURFDENS_FACEON) are checked per ring index, since
+  // ring 0's typical value/spread isn't ring 4's.
+  function filterGeometryOutliers(rows) {
+    if (rows.length < 5) return { kept: rows, excluded: 0 };
+    var isFieldOutlier = {};
+    GBP_PARAMS.forEach(function (f) {
+      var vals = rows.map(function (r) { return r[f]; });
+      var med = median(vals), mad = medianAbsDev(vals, med);
+      isFieldOutlier[f] = function (v) {
+        return !isFinite(v) || (mad > 0 && Math.abs(v - med) / mad > OUTLIER_MAD_THRESHOLD);
+      };
+    });
+    function ringStats(key) {
+      var n = 0;
+      rows.forEach(function (r) { if (r[key]) n = Math.max(n, r[key].length); });
+      var meds = [], mads = [];
+      for (var i = 0; i < n; i++) {
+        var vals = rows.map(function (r) { return r[key] && r[key].length > i ? r[key][i] : NaN; });
+        var med = median(vals);
+        meds.push(med);
+        mads.push(medianAbsDev(vals, med));
+      }
+      return { meds: meds, mads: mads };
+    }
+    function isRingOutlier(arr, stats) {
+      if (!arr) return false;
+      for (var i = 0; i < arr.length; i++) {
+        if (!isFinite(arr[i])) return true;
+        if (stats.mads[i] > 0 && Math.abs(arr[i] - stats.meds[i]) / stats.mads[i] > OUTLIER_MAD_THRESHOLD) return true;
+      }
+      return false;
+    }
+    var vrotStats = ringStats('VROT'), sdStats = ringStats('SURFDENS_FACEON');
+    var kept = rows.filter(function (r) {
+      if (GBP_PARAMS.some(function (f) { return isFieldOutlier[f](r[f]); })) return false;
+      if (isRingOutlier(r.VROT, vrotStats)) return false;
+      if (isRingOutlier(r.SURFDENS_FACEON, sdStats)) return false;
+      return true;
+    });
+    return { kept: kept, excluded: rows.length - kept.length };
+  }
+
+  function renderGeometrySection(report, legs) {
+    var host = document.getElementById('gbpHost');
+    if (!host) return;
+    var totalExcluded = 0;
+    var datasets = legs.map(function (key) {
+      var rows = (report.runs[key].results || []).map(toBoxPlotRow).filter(function (r) { return r.FITAchieved; });
+      var filtered = filterGeometryOutliers(rows);
+      totalExcluded += filtered.excluded;
+      return { key: key, rows: filtered.kept };
+    }).filter(function (d) { return d.rows.length > 0; });
+    if (!datasets.length) { host.innerHTML = '<p class="dash">No realization rows to plot.</p>'; return; }
+
+    var cornerScroll = document.createElement('div');
+    cornerScroll.className = 'gbp-corner-scroll';
+    cornerScroll.appendChild(gbpBuildCorner(datasets));
+
+    var side = document.createElement('div');
+    side.className = 'gbp-side';
+    var rcCard = document.createElement('div');
+    rcCard.className = 'gbp-panel-card';
+    rcCard.innerHTML = '<h4>Rotation curve</h4>';
+    rcCard.appendChild(gbpBuildProfile(datasets, 'VROT', 'R', 'V (km/s)'));
+    var sdCard = document.createElement('div');
+    sdCard.className = 'gbp-panel-card';
+    sdCard.innerHTML = '<h4>Surface density</h4>';
+    sdCard.appendChild(gbpBuildProfile(datasets, 'SURFDENS_FACEON', 'R_SD', 'Σ (M☉ pc⁻²)'));
+    side.appendChild(rcCard);
+    side.appendChild(sdCard);
+
+    var layout = document.createElement('div');
+    layout.className = 'gbp-layout';
+    layout.appendChild(cornerScroll);
+    layout.appendChild(side);
+
+    host.innerHTML = '';
+    if (totalExcluded) {
+      var note = document.createElement('p');
+      note.className = 'dash';
+      note.style.marginBottom = '10px';
+      note.textContent = totalExcluded + ' realization(s) excluded from the plots below as outliers (non-finite, or a plotted value more than '
+        + OUTLIER_MAD_THRESHOLD + '× MAD from that leg\'s own median).';
+      host.appendChild(note);
+    }
+    host.appendChild(layout);
+  }
+
+  function fmtSeconds(ms) {
+    if (ms == null || !isFinite(ms)) return null;
+    return (ms / 1000).toFixed(1) + 's';
+  }
+  function fmtMs(ms) {
+    if (ms == null || !isFinite(ms)) return null;
+    return Math.round(ms) + 'ms';
+  }
+  function fmtNum(v, digits) {
+    if (v == null || v === '' || isNaN(Number(v))) return v == null ? null : String(v);
+    return Number(v).toFixed(digits == null ? 4 : digits);
+  }
+  function activeLegs(report) {
+    return LEG_ORDER.filter(function (k) { return report.runs && report.runs[k]; });
+  }
+
+  // Global filter bar: every leg PRESENT in the report gets a checkbox here
+  // (regardless of legVisible state), so unchecking one never removes its
+  // own control. Every section below is built from the FILTERED leg list.
+  function renderLegFilterBar(report, allLegs) {
+    var bits = ['<div class="leg-filter-bar"><span class="leg-filter-label">Show</span>'];
+    allLegs.forEach(function (key) {
+      var checked = legVisible[key];
+      bits.push('<label class="leg-filter-item' + (checked ? '' : ' dimmed') + '">'
+        + '<input type="checkbox" class="legToggle" data-leg="' + key + '"' + (checked ? ' checked' : '') + '>'
+        + '<span class="gbp-swatch ' + key + '"></span>' + LEG_LABEL[key] + '</label>');
+    });
+    bits.push('</div>');
+    return bits.join('');
+  }
+
+  // Per-realization/breakdown stats, computed HERE client-side straight from
+  // each leg's raw run.timings array (already shipped in the report JSON),
+  // using the same median/MAD convention as "Overall fit results" below --
+  // not the report's own avgRealizationMs/avgBreakdownMs (plain means),
+  // which a handful of stuck-optimizer realizations (10-20x the typical
+  // time -- observed directly: a 1000-bootstrap fortran-local run with a
+  // ~65s median had a 937s max) drag far from what most realizations
+  // actually cost. Realizations whose totalMs sits more than
+  // OUTLIER_MAD_THRESHOLD scaled-MADs from the median are excluded from
+  // every stat below (median itself, breakdown fields) so they stay
+  // mutually consistent. Falls back to the report's own avg* fields when
+  // timings isn't present (older report files), so this works retroactively.
+  function perfStats(run) {
+    var p = (run && run.perf) || {};
+    var timings = (run && run.timings) || null;
+    if (!timings || !timings.length) {
+      return { totalWallSeconds: p.totalWallSeconds, wallTimeSource: p.wallTimeSource, perReal: p.avgRealizationMs, breakdown: p.avgBreakdownMs || {}, nOutliers: 0 };
+    }
+    // Flagging by raw totalMs conflates two different things: genuine
+    // algorithmic difficulty (the optimizer needed more evaluations) and
+    // DCP worker hardware/scheduling variance (same evaluations, slower or
+    // contended machine). For js-dcp specifically these are NOT the same --
+    // confirmed directly: of 110 realizations flagged as totalMs outliers
+    // in one real run, 101 had a completely normal evalCount (they just
+    // landed on a slow worker; their fit is fine) and only 9 had evalCount
+    // ~5000-5250, i.e. actually hitting the optimizer's ITMAX=5000 cap
+    // (GalaxyFit.js). Excluding those 101 misrepresents js-dcp's real
+    // performance (that variance is inherent to a heterogeneous distributed
+    // system, not a data/fit problem) and wrongly implies their results are
+    // suspect. So: key the outlier test off evalCount when the leg reports
+    // it (js-dcp/js-local); fall back to totalMs only for legs without it
+    // (fortran-local runs on one machine, so totalMs isn't confounded by
+    // worker heterogeneity the same way).
+    var evalCounts = timings.map(function (t) { return t.evalCount; }).filter(function (v) { return typeof v === 'number' && isFinite(v); });
+    var useEvalCount = evalCounts.length === timings.length;
+    var key = useEvalCount ? 'evalCount' : 'totalMs';
+    var vals = timings.map(function (t) { return t[key]; });
+    var med = median(vals), mad = medianAbsDev(vals, med);
+    var clean = timings.filter(function (t) {
+      return !(mad > 0 && typeof t[key] === 'number' && isFinite(t[key]) && Math.abs(t[key] - med) / mad > OUTLIER_MAD_THRESHOLD);
+    });
+    return {
+      totalWallSeconds: p.totalWallSeconds,
+      wallTimeSource: p.wallTimeSource,
+      perReal: median(clean.map(function (t) { return t.totalMs; })),
+      breakdown: {
+        resampleMs: median(clean.map(function (t) { return t.resampleMs; })),
+        sofiaMs: median(clean.map(function (t) { return t.sofiaMs; })),
+        fixtureFitMs: median(clean.map(function (t) { return t.fixtureFitMs; })),
+        fitMs: median(clean.map(function (t) { return t.fitMs; })),
+      },
+      nOutliers: timings.length - clean.length,
+      outlierBasis: useEvalCount ? 'evalCount' : 'totalMs',
+    };
+  }
+
+  // "X% faster/slower" as a genuine speed(rate) comparison, NOT "% of the
+  // other one's time" -- those aren't the same thing except for small
+  // changes. Example from a real run: fortran 11808.8s, dcp 3495.9s. DCP
+  // took 29.6% OF fortran's time, but that is a 11808.8/3495.9 = 3.38x
+  // speedup -- i.e. DCP is 238% faster, not 70% faster (100 - 29.6). The
+  // old code conflated the two (computed |100 - pctOfOriginal|), which
+  // understates any speedup bigger than 2x and gets worse the bigger the
+  // speedup is. Correct, sign-symmetric formula: divide the time
+  // difference by whichever side is SMALLER (i.e. faster) -- this is the
+  // standard "Nx faster"/"N% faster" convention (twice as fast = 100%
+  // faster, matching "2x"), and is its own inverse in the sense that
+  // labeling is always relative to the faster side, regardless of whether
+  // that happens to be fortran or dcp.
+  function pctFasterSlower(fortranSeconds, dcpSeconds) {
+    var faster = dcpSeconds <= fortranSeconds;
+    var lo = Math.min(fortranSeconds, dcpSeconds), hi = Math.max(fortranSeconds, dcpSeconds);
+    return { pct: lo > 0 ? ((hi - lo) / lo) * 100 : null, faster: faster };
+  }
+
+  // Headline stats: DCP's total job time and per-realization time, each as a
+  // genuine %-faster/slower figure vs fortran-local (see pctFasterSlower).
+  // Both silently omit themselves if either leg is hidden/missing/stale-
+  // without-a-fresh-wall-time -- a ratio against absent data isn't a number,
+  // it's a guess, and this banner is meant to be read as fact at a glance.
+  function renderHero(report, legs) {
+    if (legs.indexOf('fortranLocal') === -1 || legs.indexOf('jsDcp') === -1) return '';
+    var fp = perfStats(report.runs.fortranLocal);
+    var dp = perfStats(report.runs.jsDcp);
+    var bits = ['<div class="hero">'];
+    var any = false;
+
+    if (fp.totalWallSeconds != null && dp.totalWallSeconds != null && fp.totalWallSeconds > 0) {
+      any = true;
+      var total = pctFasterSlower(fp.totalWallSeconds, dp.totalWallSeconds);
+      bits.push('<div class="hero-stat"><div class="hero-label">DCP total job time, vs fortran-local</div>'
+        + '<div class="hero-value ' + (total.faster ? 'good' : 'warn') + '">' + total.pct.toFixed(0) + '<span class="hero-unit">% ' + (total.faster ? 'faster' : 'slower') + '</span></div>'
+        + '<div class="hero-sub">' + fmtSeconds(fp.totalWallSeconds * 1000) + ' &rarr; ' + fmtSeconds(dp.totalWallSeconds * 1000)
+        + ((fp.wallTimeSource || dp.wallTimeSource) ? ' <span class="badge stale">estimated</span>' : '') + '</div></div>');
+    }
+
+    if (fp.perReal != null && dp.perReal != null && fp.perReal > 0) {
+      any = true;
+      var perReal = pctFasterSlower(fp.perReal, dp.perReal);
+      bits.push('<div class="hero-stat"><div class="hero-label">DCP per-realization time, vs fortran-local</div>'
+        + '<div class="hero-value ' + (perReal.faster ? 'good' : 'warn') + '">' + perReal.pct.toFixed(0) + '<span class="hero-unit">% ' + (perReal.faster ? 'faster' : 'slower') + '</span></div>'
+        + '<div class="hero-sub">' + fmtSeconds(fp.perReal) + ' &rarr; ' + fmtSeconds(dp.perReal) + ' per realization (median)</div></div>');
+    }
+
+    bits.push('</div>');
+    return any ? bits.join('') : '';
+  }
+
+  function render(report) {
+    currentReport = report;
+    parseErrorEl.style.display = 'none';
+    dropzone.style.display = 'none';
+    resultsEl.style.display = 'flex';
+    resultsEl.innerHTML = '';
+
+    var allLegs = activeLegs(report);
+    var legs = allLegs.filter(function (k) { return legVisible[k]; });
+    var bits = [];
+
+    subtitleEl.textContent = 'seed ' + (report.seed != null ? report.seed : '(none)')
+      + ' · ' + (report.nBootstraps != null ? report.nBootstraps : '?') + ' realization(s)';
+
+    // ---- global leg filter -- applies to every table/plot below ----
+    bits.push(renderLegFilterBar(report, allLegs));
+
+    // ---- hero: headline DCP-vs-fortran performance stats ----
+    var heroHtml = renderHero(report, legs);
+    if (heroHtml) bits.push(heroHtml);
+
+    // ---- run parameters: reproducibility metadata (seed/nBootstraps/CPU
+    //      count/cloud density) per leg, from each leg's own RunMeta.json --
+    //      written by whichever invocation actually produced its results, so
+    //      this stays correct even when legs come from different
+    //      invocations (one stale, one fresh) or predate this file
+    //      (runMeta null -- shown as unknown, not an error). js-dcp's CPU
+    //      count is never reported: that work runs on real DCP workers over
+    //      the network, not a local process pool, so there's no local core
+    //      count to attribute it to. ----
+    var hasAnyRunMeta = legs.some(function (k) { return report.runs[k].runMeta; });
+    if (hasAnyRunMeta) {
+      bits.push('<section><div class="head"><h2>Run parameters</h2><p>Reproducibility metadata for each leg, recorded at the time it ran.</p></div>'
+        + '<div class="table-scroll"><table><thead><tr><th>Leg</th><th class="num">Seed</th><th class="num">Bootstraps</th>'
+        + '<th class="num">CPUs used</th><th class="num">Cloud density</th></tr></thead><tbody>');
+      legs.forEach(function (key) {
+        var rm = report.runs[key].runMeta;
+        bits.push('<tr><td class="leg"><span class="leg-dot ' + key + '"></span>' + LEG_LABEL[key]
+          + (rm && rm.backfilled ? ' <span class="badge stale" title="recorded after the fact from known values, not captured live by this run">reconstructed</span>' : '') + '</td>');
+        if (!rm) {
+          bits.push('<td class="num" colspan="4"><span class="dash">&mdash;</span> <span style="font-weight:400">(predates run-parameter recording)</span></td></tr>');
+          return;
+        }
+        bits.push('<td class="num">' + (rm.seed != null ? rm.seed : '<span class="dash">&mdash;</span>') + '</td>');
+        bits.push('<td class="num">' + (rm.nBootstraps != null ? rm.nBootstraps : '<span class="dash">&mdash;</span>') + '</td>');
+        var cpuStr = rm.nProcessors != null
+          ? rm.nProcessors + (rm.totalLogicalCores != null ? ' <span class="unc">/ ' + rm.totalLogicalCores + ' cores</span>' : '')
+          : '<span class="dash" title="dispatched to real DCP workers over the network -- their CPU counts aren\'t knowable here">n/a (remote)</span>';
+        bits.push('<td class="num">' + cpuStr + '</td>');
+        bits.push('<td class="num">' + (rm.cloudDensity != null ? rm.cloudDensity : '<span class="dash">&mdash;</span>') + '</td>');
+        bits.push('</tr>');
+      });
+      bits.push('</tbody></table></div></section>');
+    }
+
+    // ---- performance table ----
+    var hasAnyBreakdown = legs.some(function (k) {
+      var ps = perfStats(report.runs[k]);
+      return ps.breakdown && Object.keys(ps.breakdown).some(function (bk) { return ps.breakdown[bk] != null && isFinite(ps.breakdown[bk]); });
+    });
+    bits.push('<section><div class="head"><h2>Performance</h2><p>Total wall time and per-realization breakdown, by run. '
+      + 'Per-realization/breakdown figures are the median across realizations, excluding any realization whose '
+      + 'evalCount (or, for legs that don\'t report it, totalMs) sits more than ' + OUTLIER_MAD_THRESHOLD + '&times; MAD from the median -- '
+      + 'evalCount is preferred where available since it isolates genuine algorithmic difficulty (the optimizer needing '
+      + 'far more evaluations) from a realization simply landing on a slow/contended worker, which is not the same thing '
+      + 'and shouldn\'t be treated as an outlier.</p></div><div class="table-scroll"><table><thead><tr>');
+    bits.push('<th>Leg</th><th class="num">Total wall</th><th class="num">Per-realization</th>');
+    if (hasAnyBreakdown) BREAKDOWN_FIELDS.forEach(function (f) { bits.push('<th class="num">' + f.label + '</th>'); });
+    bits.push('</tr></thead><tbody>');
+    legs.forEach(function (key) {
+      var run = report.runs[key];
+      var ps = perfStats(run);
+      bits.push('<tr><td class="leg"><span class="leg-dot ' + key + '"></span>' + LEG_LABEL[key]
+        + (run.stale ? ' <span class="badge stale">from a prior invocation</span>' : '') + '</td>');
+      bits.push('<td class="num">' + (fmtSeconds(ps.totalWallSeconds != null ? ps.totalWallSeconds * 1000 : null) || '<span class="dash">&mdash;</span>')
+        + (ps.wallTimeSource ? ' <span class="badge stale" title="no live process to measure this leg\'s real wall time -- approximated from its output folder\'s earliest-to-latest file timestamps">est.</span>' : '') + '</td>');
+      bits.push('<td class="num">' + (fmtSeconds(ps.perReal) || '<span class="dash">&mdash;</span>')
+        + (ps.nOutliers ? ' <span class="badge stale" title="' + ps.nOutliers + ' realization(s) excluded: ' + ps.outlierBasis + ' more than ' + OUTLIER_MAD_THRESHOLD + '&times; MAD from median">' + ps.nOutliers + ' excl.</span>' : '') + '</td>');
+      if (hasAnyBreakdown) {
+        BREAKDOWN_FIELDS.forEach(function (f) {
+          var bd = ps.breakdown || {};
+          var v;
+          if (f.derived) {
+            var hasEither = typeof bd.fixtureFitMs === 'number' && isFinite(bd.fixtureFitMs) || typeof bd.fitMs === 'number' && isFinite(bd.fitMs);
+            v = hasEither ? (isFinite(bd.fixtureFitMs) ? bd.fixtureFitMs : 0) + (isFinite(bd.fitMs) ? bd.fitMs : 0) : null;
+          } else {
+            v = bd[f.key];
+          }
+          bits.push('<td class="num">' + (fmtMs(v) || '<span class="dash">&mdash;</span>') + '</td>');
+        });
+      }
+      bits.push('</tr>');
+    });
+    bits.push('</tbody></table></div></section>');
+
+    // ---- fit results: an "overall" summary (median +/- 1.4825*MAD per leg
+    //      per parameter) and a collapsible "individual" table with every
+    //      realization, interleaved by realization index (f0,j0,d0,f1,j1,
+    //      d1,...) so corresponding realizations sit next to each other. ----
+    var maxRealizations = legs.reduce(function (m, k) { return Math.max(m, (report.runs[k].results || []).length); }, 0);
+
+    // ---- overall: one row per leg, median +/- uncertainty per parameter.
+    //      Uncertainty rounded to 2 significant figures (more precision than
+    //      that isn't meaningful for a bootstrap MAD); the median is rounded
+    //      to match its own uncertainty's decimal places, e.g. 248.708 +/-
+    //      3.222 displays as 248.7 +/- 3.2, not mismatched precision. ----
+    bits.push('<section><div class="head"><h2>Overall fit results</h2><p>Median &plusmn; 1.4825&times;MAD across all realizations, same statistic '
+      + 'Bootstrap_Error_Analysis.py itself uses. Uncertainty to 2 significant figures; median rounded to match.</p></div>');
+    bits.push('<div class="table-scroll"><table><thead><tr><th>Leg</th><th class="num">n</th>');
+    SCALAR_FIELDS.forEach(function (f) { bits.push('<th class="num">' + f.label + '</th>'); });
+    bits.push('</tr></thead><tbody>');
+    legs.forEach(function (key) {
+      var rows = report.runs[key].results || [];
+      bits.push('<tr><td class="leg"><span class="leg-dot ' + key + '"></span>' + LEG_LABEL[key] + '</td><td class="num">' + rows.length + '</td>');
+      SCALAR_FIELDS.forEach(function (f) {
+        var vals = rows.map(function (r) { return numOrNaN(r[f.key]); }).filter(function (v) { return isFinite(v); });
+        if (!vals.length) { bits.push('<td class="num"><span class="dash">&mdash;</span></td>'); return; }
+        var med = median(vals), unc = medianAbsDev(vals, med);
+        var uncDecimals = sigFigDecimals(unc, 2);
+        bits.push('<td class="num">' + fmtNum(med, uncDecimals) + '<span class="unc"> &plusmn; ' + fmtNum(unc, uncDecimals) + '</span></td>');
+      });
+      bits.push('</tr>');
+    });
+    bits.push('</tbody></table></div></section>');
+
+    // ---- individual: every realization, interleaved (f0,j0,d0,f1,j1,d1,...).
+    //      Collapsed by default behind a native <details> -- this table gets
+    //      long fast (nLegs x nBootstraps rows), and the overall table above
+    //      is what actually gets read day to day; the full detail is there
+    //      to drill into, not to scroll past every time. ----
+    bits.push('<section><div class="head"><h2>Individual fit results</h2><p>Every realization, grouped by realization index.</p></div>');
+    bits.push('<details class="table-scroll"><summary>Show all ' + maxRealizations + ' realization(s)</summary><table><thead><tr><th>Leg</th><th class="num">#</th>');
+    SCALAR_FIELDS.forEach(function (f) { bits.push('<th class="num">' + f.label + '</th>'); });
+    bits.push('</tr></thead><tbody>');
+    if (maxRealizations === 0) {
+      legs.forEach(function (key) {
+        bits.push('<tr><td class="leg"><span class="leg-dot ' + key + '"></span>' + LEG_LABEL[key] + '</td><td colspan="' + (SCALAR_FIELDS.length + 1) + '"><span class="dash">no BootstrapFits.csv rows</span></td></tr>');
+      });
+    } else {
+      for (var ri = 0; ri < maxRealizations; ri++) {
+        legs.forEach(function (key, legIdx) {
+          var row = (report.runs[key].results || [])[ri];
+          if (!row) return;
+          bits.push('<tr class="' + (legIdx === 0 ? 'group-start' : '') + '"><td class="leg"><span class="leg-dot ' + key + '"></span>' + LEG_LABEL[key] + '</td><td class="num">' + ri + '</td>');
+          SCALAR_FIELDS.forEach(function (f) {
+            bits.push('<td class="num">' + (fmtNum(row[f.key]) || '<span class="dash">&mdash;</span>') + '</td>');
+          });
+          bits.push('</tr>');
+        });
+      }
+    }
+    bits.push('</tbody></table></details></section>');
+
+    // ---- radial profiles: median +/- 1.4825*MAD per ring, across every
+    //      realization of each run (not just realization 0) -- the ring
+    //      grid itself is pinned identically across all bootstrap
+    //      realizations (RunWRKP.WriteWRKPOptionsFile's BootstrapSwitch==1
+    //      branch / RunBootstrapsDCP.py's radGridArcsec), so bin i means the
+    //      same physical ring for every row and it's safe to summarize
+    //      column-wise straight off the first available row's own Rad list. ----
+    var anyProfiles = legs.some(function (k) { return (report.runs[k].results || [])[0] && report.runs[k].results[0].Rad; });
+    if (anyProfiles) {
+      bits.push('<section><div class="head"><h2>Radial profiles</h2><p>V<sub>rot</sub> and &Sigma; per ring (arcsec radius) &mdash; median &plusmn; 1.4825&times;MAD across all realizations of each run.</p></div><div class="table-scroll"><table><thead><tr><th>Leg</th><th class="num">R (″)</th><th class="num">V<sub>rot</sub></th><th class="num">&Sigma;</th></tr></thead><tbody>');
+      legs.forEach(function (key) {
+        var rows = (report.runs[key].results || []).filter(function (r) { return r.Rad; });
+        if (!rows.length) {
+          bits.push('<tr><td class="leg"><span class="leg-dot ' + key + '"></span>' + LEG_LABEL[key] + '</td><td class="num" colspan="3"><span class="dash">&mdash;</span></td></tr>');
+          return;
+        }
+        var radii = parseNumList(rows[0].Rad);
+        function ringSummary(listField, radKey, digits) {
+          var refR = parseNumList(rows[0][radKey]);
+          return refR.map(function (_, i) {
+            var vals = rows.map(function (row) { return parseNumList(row[listField])[i]; }).filter(function (v) { return isFinite(v); });
+            if (!vals.length) return '&mdash;';
+            var med = median(vals);
+            return fmtNum(med, digits) + '<span class="unc">&plusmn;' + fmtNum(medianAbsDev(vals, med), digits) + '</span>';
+          }).join(', ');
+        }
+        bits.push('<tr><td class="leg"><span class="leg-dot ' + key + '"></span>' + LEG_LABEL[key] + '</td>');
+        bits.push('<td class="num">' + radii.map(function (r) { return r.toFixed(2); }).join(', ') + '</td>');
+        bits.push('<td class="num">' + ringSummary('Vrot_model', 'Rad', 1) + '</td>');
+        bits.push('<td class="num">' + ringSummary('SD_model', 'Rad_SD', 2) + '</td>');
+        bits.push('</tr>');
+      });
+      bits.push('</tbody></table></div></section>');
+    }
+
+    // ---- geometry & profiles: overlaid corner plot (scatter + histogram
+    //      matrix across Inc/PA/VSys/VDisp/X/Y) and rotation-curve/Σ
+    //      profile panels, one color per leg, all realizations from every
+    //      leg drawn simultaneously. Populated by renderGeometrySection()
+    //      below, after this string-based markup is inserted into the DOM
+    //      (the plots themselves are real SVG DOM nodes, appendChild'd in,
+    //      not string-templated). ----
+    if (legs.some(function (k) { return (report.runs[k].results || []).length > 0; })) {
+      bits.push('<section><div class="head"><h2>Geometry &amp; profiles</h2><p>Bootstrap realization distributions, overlaid by leg (use the Show filter above to isolate one). Small dots are individual realizations; the larger outlined dot/line per leg is that leg\'s own <b>mean across its realizations</b> (not a separate single best-fit — run_all_three only dispatches bootstrap realizations, no distinct reference fit is captured).</p></div>');
+      bits.push('<div id="gbpHost"></div></section>');
+    }
+
+    // ---- numerical agreement: fortran vs the real (js-dcp) result --
+    //      js-local vs js-dcp is always bit-identical (same code/seed,
+    //      IEEE754 float32 is deterministic across hardware) so it's not a
+    //      useful comparison to show, and showing it alongside
+    //      fortran-vs-js-local would just duplicate the same numbers twice.
+    //      Falls back to js-local if js-dcp wasn't run this invocation.
+    //      Compares the MEDIAN of each leg's own bootstrap realizations for
+    //      a parameter (same statistic, same outlier-robustness, as
+    //      "Overall fit results" above -- previously this used a plain
+    //      mean, which could disagree with Overall fit results' own median
+    //      for the SAME leg/field whenever real outliers were present, e.g.
+    //      R_HI realizations pinned to a fixed ring radius) -- NOT a
+    //      realization-by-realization paired diff. Bootstrap realizations
+    //      are independent stochastic resamples on each side (that's the
+    //      whole point of bootstrapping), so "fortran realization #47" and
+    //      "js-dcp realization #47" aren't a matched pair to compare
+    //      individually; what actually matters for fidelity is whether the
+    //      two legs' aggregate bootstrap estimate for a parameter agrees,
+    //      which is exactly what's shown here. ----
+    var jsCompareKey = legs.indexOf('jsDcp') !== -1 ? 'jsDcp' : (legs.indexOf('jsLocal') !== -1 ? 'jsLocal' : null);
+    if (legs.indexOf('fortranLocal') !== -1 && jsCompareKey) {
+      var fRows = report.runs.fortranLocal.results || [];
+      var jRows = report.runs[jsCompareKey].results || [];
+      if (fRows.length > 0 && jRows.length > 0) {
+        bits.push('<section><div class="head"><h2>Numerical agreement</h2><p>fortran-local vs ' + LEG_LABEL[jsCompareKey]
+          + ' &mdash; median of all bootstrap realizations per parameter for each leg (' + fRows.length + ' vs ' + jRows.length + ' realization(s)), '
+          + 'same statistic as Overall fit results, and the absolute/percent difference between those two medians.</p></div>'
+          + '<div class="table-scroll"><table><thead><tr><th>Field</th><th class="num">fortran-local median</th><th class="num">'
+          + LEG_LABEL[jsCompareKey] + ' median</th><th class="num">|diff|</th><th class="num">% diff</th></tr></thead><tbody>');
+        SCALAR_FIELDS.forEach(function (f) {
+          var aVals = fRows.map(function (r) { return numOrNaN(r[f.key]); }).filter(function (v) { return isFinite(v); });
+          var bVals = jRows.map(function (r) { return numOrNaN(r[f.key]); }).filter(function (v) { return isFinite(v); });
+          if (!aVals.length || !bVals.length) { bits.push('<tr><td>' + f.label + '</td><td class="num"><span class="dash">&mdash;</span></td><td class="num"><span class="dash">&mdash;</span></td><td class="num"><span class="dash">&mdash;</span></td><td class="num"><span class="dash">&mdash;</span></td></tr>'); return; }
+          var aMed = median(aVals), bMed = median(bVals);
+          var d = Math.abs(aMed - bMed);
+          var pct = aMed !== 0 ? (d / Math.abs(aMed)) * 100 : null;
+          var cls = d === 0 ? 'diff-zero' : (pct == null || pct < 1 ? 'diff-noise' : 'diff-warn');
+          bits.push('<tr><td>' + f.label + '</td><td class="num">' + fmtNum(aMed, 3) + '</td><td class="num">' + fmtNum(bMed, 3) + '</td><td class="num ' + cls + '">' + d.toPrecision(d === 0 ? 1 : 4) + '</td>'
+            + '<td class="num ' + cls + '">' + (pct == null ? '<span class="dash">&mdash;</span>' : pct.toPrecision(pct === 0 ? 1 : 3) + '%') + '</td></tr>');
+        });
+        bits.push('</tbody></table></div></section>');
+      }
+    }
+
+    resultsEl.innerHTML = bits.join('');
+    resultsEl.querySelectorAll('.legToggle').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        legVisible[cb.getAttribute('data-leg')] = cb.checked;
+        render(currentReport);
+      });
+    });
+    renderGeometrySection(report, legs);
+  }
+
+  function handleFile(file) {
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var report;
+      try {
+        report = JSON.parse(reader.result);
+      } catch (e) {
+        parseErrorEl.textContent = 'Could not parse "' + file.name + '" as JSON: ' + e.message;
+        parseErrorEl.style.display = 'block';
+        return;
+      }
+      if (!report || typeof report !== 'object' || !report.runs) {
+        parseErrorEl.textContent = 'That file doesn’t look like a run_all_three_report.json (no "runs" key found).';
+        parseErrorEl.style.display = 'block';
+        return;
+      }
+      render(report);
+    };
+    reader.onerror = function () {
+      parseErrorEl.textContent = 'Could not read "' + file.name + '".';
+      parseErrorEl.style.display = 'block';
+    };
+    reader.readAsText(file);
+  }
+
+  dropzone.addEventListener('click', function () { fileInput.click(); });
+  dropzone.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+  dropzone.setAttribute('tabindex', '0');
+  dropzone.setAttribute('role', 'button');
+  dropzone.setAttribute('aria-label', 'Drop or choose a run_all_three_report.json file');
+
+  fileInput.addEventListener('change', function () { handleFile(fileInput.files[0]); });
+
+  ['dragenter', 'dragover'].forEach(function (evt) {
+    dropzone.addEventListener(evt, function (e) {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.add('drag-over');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (evt) {
+    dropzone.addEventListener(evt, function (e) {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.remove('drag-over');
+    });
+  });
+  dropzone.addEventListener('drop', function (e) {
+    var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    handleFile(file);
+  });
+  // Prevent the browser from navigating to the file if a drop lands outside the zone.
+  ['dragover', 'drop'].forEach(function (evt) {
+    window.addEventListener(evt, function (e) { e.preventDefault(); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+##compiler options
+
+ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+PARENT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
+
+LocModLoc=$(ROOT_DIR)/mods
+LocBinLoc=$(ROOT_DIR)/bin
+
+
+
+#FitsLibLoc=$(PARENT_DIR)/third_party/cfitsio-4.6.3/.libs/libcfitsio.a
+
+
+#FFTW_INCL=  -I/opt/local/include
+#FFTW_LIBS=  /opt/local/lib
+#FFTW_LIB = $(FFTW_LIBS)/libfftw3.a
+
+
+#FFTW_INCL=  -I$(PARENT_DIR)/third_party/fftw-3.3.8/api
+#FFTW_LIBS=  $(PARENT_DIR)/third_party/fftw-3.3.8/.libs
+#FFTW_LIB = $(FFTW_LIBS)/libfftw3.a
+
+FFTW_INCL=  -I/usr/include/
+FFTW_LIBS=  /usr/lib/x86_64-linux-gnu/
+FFTW_LIB = $(FFTW_LIBS)/libfftw3.a
+FitsLibLoc=$(FFTW_LIBS)/libcfitsio.a
+
+locObj=$(ROOT_DIR)/ObjectLists
+
+include $(locObj)
+
+.f.o:
+	$(F77) $(FLAGS) -c -I$(LocModLoc) $(FFTW_INCL) *.f
+
+.c.o:
+	$(CC) $(CFLAGS) -c *.c
+
+
+F77=gfortran
+CC=gcc
+FLAGS=-O0 -funroll-loops -cpp -fbounds-check
+CFLAGS= -O -DRINGASCII -DASCII
+
+
+
+MakeFObj=$(F77) $(FLAGS) -c -I$(LocModLoc) $(FFTW_INCL)
+

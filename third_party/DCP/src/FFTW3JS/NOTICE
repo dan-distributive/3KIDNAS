@@ -1,0 +1,29 @@
+FFTW3JS -- hand-ported JavaScript re-implementation of FFTW3 (scalar,
+FFTW_ESTIMATE-mode decomposition and codelet arithmetic)
+
+This directory is a derivative work of FFTW3 3.3.8:
+
+    Copyright (c) 2003, 2007-14 Matteo Frigo
+    Copyright (c) 2003, 2007-14 Massachusetts Institute of Technology
+
+FFTW3 is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 2 of the License, or (at your option) any later
+version. See the vendored original source and its own COPYRIGHT file at
+../../../fftw-3.3.8/COPYRIGHT for the full license text and upstream project
+details (https://www.fftw.org/).
+
+Every file in this directory is a line-for-line or structure-for-structure
+translation of specific FFTW3 C source -- codelet arithmetic, planner
+solver-selection logic, and ops-cost tables -- carried over into JavaScript,
+including FFTW3's internal algorithm structure, variable naming, and
+explanatory comments where useful for cross-referencing the original. As a
+derivative work, this directory is licensed under the GNU General Public
+License v2 (or, at your option, any later version), the same as FFTW3
+itself -- NOT under the MIT license that covers the rest of the 3KIDNAS
+repository at its root. If this code is ever extracted into a standalone
+repository or redistributed independently of 3KIDNAS, it must carry this
+same GPLv2+ licensing forward.
+
+This is an independent hand-port and is not affiliated with, endorsed by, or
+supported by the FFTW3 project or its authors.

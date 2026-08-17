@@ -1,0 +1,58 @@
+Object:	 WALLABY_J103538-484832
+Date: 	2026-7-23
+KINVER: 	 3KIDNASv1.1
+
+nBootstraps	5
+nBootstrap_Fits	5
+Max_NOutliers	1
+
+Cube Noise
+RMS (mJy/beam) 	1.42
+SN_Int 	22.74
+SN_Peak 	9.27
+SN_Avg 	1.06
+SN_Median 	0.74
+
+Geometry Parameters
+Param Name	 Value 	 Error 
+X_model (pixels) 	22.01		0.0536
+Y_model (pixels) 	19.33		0.0912
+RA_model (degrees) 	158.908863		0.000122
+DEC_model (degrees) 	-48.809326		0.000159
+Inc_model (degrees) 	80.8		3.6
+PA_model (degrees) 	249.2		4.6
+PA_model_g (degrees) 	257.4		4.6
+VSys_model (km/s) 	5739.8		1.9
+VDisp_model (km/s) 	10.0		0.0
+
+Rotation Curve
+nR=	5
+Rad 		 VROT_model 	 e_VRot_model  
+('') 		 (km/s) 		    (km/s) 
+7.49		36.9		8.0
+22.48		121.5		6.5
+37.46		117.9		7.5
+52.44		201.8		70.3
+67.43		166.5		24.0
+
+Surface Density Profile
+nR=	5
+Rad  		 SD_FO_model 	 e_SD_FO_inc_model 
+('')		 (Msol/pc^2) 	 (Msol/pc^2)  
+7.49		3.1		1.28
+22.48		2.3		2.44
+37.46		4.6		1.14
+52.44		0.47		0.39
+67.43		0.2		0.14
+
+RHI Extraction Method (0==3D profile, -1==Failure) and flags (0==fine, -1==failure) 
+0		0
+RHI and limits (arcsec) 
+50.52		49.34		51.69
+RHI and limits (kpc) 
+20.08		19.62		20.55
+
+VHI Extraction flag (0==no issues, -1==failure)
+0
+VHI and error (km/s) 
+191.03		57.41

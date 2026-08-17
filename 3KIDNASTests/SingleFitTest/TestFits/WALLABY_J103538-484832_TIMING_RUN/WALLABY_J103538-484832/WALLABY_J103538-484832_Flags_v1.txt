@@ -1,0 +1,12 @@
+# Goodness Of Fit 
+   237600.062    
+# RMS noise 
+   5.04766467E-05
+# Total cube Cells 
+      179520
+# Normalized Goodness Of Fit 
+   1.32352972    
+# Size Flag (1-> <2beams, 2-> >10 beams)
+           0
+# Pre-analysis center Flag (1-> no convergence)
+           0

@@ -1,0 +1,7 @@
+{
+    "name": "fftw3wasm-v3",
+    "version": "3.3.9",
+    "files": {
+        "fftw-wasm.js": "fftw-wasm.js"
+    }
+}

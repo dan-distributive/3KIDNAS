@@ -1,0 +1,18 @@
+=== r2c plan for 43x43 ===
+(rdft2-rank>=2/1
+  (rdft2-rdft-r2hc-43-x43/43-3
+    (rdft-vrank>=1-x43/1
+      (rdft-generic-r2hc-43))
+    (rdft2-nop))
+  (dft-vrank>=1-x22/1
+    (dft-generic-43)))
+
+=== c2r plan for 43x43 ===
+(rdft2-rank>=2/1
+  (rdft2-rdft-hc2r-43-x43/43-3
+    (rdft-vrank>=1-x43/1
+      (rdft-generic-hc2r-43))
+    (rdft2-nop))
+  (dft-vrank>=1-x22/1
+    (dft-generic-43)))
+

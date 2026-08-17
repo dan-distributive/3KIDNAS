@@ -1,0 +1,7 @@
+{
+    "name": "sofia2wasm",
+    "version": "2.5.1+wcslib.8.9",
+    "files": {
+        "sofia-wasm.js": "sofia-wasm.js"
+    }
+}

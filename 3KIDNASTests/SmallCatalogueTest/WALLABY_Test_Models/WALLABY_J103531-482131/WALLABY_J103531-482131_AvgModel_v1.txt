@@ -1,0 +1,26 @@
+Object:  WALLABY_J103531-482131
+Source:  MCGSuite
+Date:    11-06-2025
+Version: 1
+  
+RMS (mJy/beam)            1.33
+SN_Integrated             6.07
+SN_Peak                   5.34
+SN_Avg                    0.47
+SN_Median                 0.44
+  
+Geometry Paramters
+Param Name            Value    Error
+X_kin (pixels)           19.92  0.00
+Y_kin (pixels)           15.42  0.00
+RA_kin (degrees)	158.8795296	0.00
+DEC_kin (degrees)	-48.361565	0.00
+Inc_kin (degrees)     79.80     0.00
+PA_kin (degrees)        60.561    0.000
+VSys_kin (km/s)       16178.54     0.00
+VDisp_kin (km/s)         11.87     0.00
+  
+ Radial Profiles
+ Rad        VROT_kin    e_VRot_kin       e_VROT_kin,inc      SD_kin      e_SD_kin
+('')       (km/s)         (km/s)     (km/s)             (Msol/pc^2)      (Msol/pc^2)
+    7.49               44.75             0.00                0.00                 3.5                0.00

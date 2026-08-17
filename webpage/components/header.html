@@ -1,0 +1,52 @@
+<header class="site-header" role="banner">
+  <div class="header-inner container">
+    <a class="logo-link" href="/index.html" aria-label="Distributive home">
+      <img src="/assets/logo.png" alt="Distributive logo" class="logo-img" />
+    </a>
+    
+    <!-- Add this hamburger button -->
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+      <ul class="nav-list" id="navList">
+        <!--<li class="dropdown"><a href="platform.html" class="nav-item" data-key="platform">PLATFORM</a></li>-->
+        <li class="dropdown"><a href="/suitability.html" class="nav-item" data-key="suitability">SUITABILITY</a></li>
+        <li class="dropdown"><a href="#" class="nav-item" data-key="jobs">JOBS</a>
+		  <ul class="dropdown-menu">
+			<li><a href="https://docs.dcp.dev" target="_blank">Compute API</a></li>
+			<li><a href="/docs/security-job-data.html">Job Data Secutity</a></li>
+		  </ul></li>
+        <li class="dropdown"><a href="#" class="nav-item" data-key="workers">WORKERS</a>
+		  <ul class="dropdown-menu">
+			<li><a href="/docs/security-worker.html">Architecture</a></li>
+			<li><a href="/docs/worker-browser.html">Browser Worker</a></li>
+			<li><a href="/docs/worker-windows.html">Windows Screensaver</a></li>
+			<li><a href="/docs/worker-docker.html">Docker Worker</a></li>
+			<li><a href="/docs/worker-linux.html">Linux Worker</a></li>
+		  </ul></li>
+        <li class="dropdown"><a href="/docs/compute-economics.html" class="nav-item" data-key="economics">ECONOMICS</a></li>
+        <li class="dropdown"><a href="/about.html" class="nav-item" data-key="about">ABOUT</a>
+		  <ul class="dropdown-menu">
+			<li><a href="/about.html">About Distributive</a></li>
+			<li><a href="/docs/privacy-policy.html">Privacy Policy</a></li>
+		  </ul></li>
+      </ul>
+    </nav>
+      
+    <div class="header-actions">
+<a href="https://dcp.cloud" target="_blank" style="text-decoration: none;">
+  <button id="portal-btn" class="crosshair-btn" type="button">
+    <span class="btn-text">PORTAL</span>
+    <svg width="16" height="16" viewBox="0 0 200 350" fill="currentColor">
+      <path d="M189.1406 348.75 L41.9062 348.75 L21.2344 328.0781 L153.7031 328.0781 L21.0938 195.4688 L35.8594 180.7031 L168.3281 313.3125 L168.3281 180.8438 L189.1406 201.6562 L189.1406 348.75 Z"/>
+    </svg>
+    <span class="c1"></span>
+    <span class="c2"></span>
+  </button>
+</a>    </div>
+  </div>
+</header>

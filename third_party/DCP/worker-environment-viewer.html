@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DCP Worker Environment — Capability Matrix</title>
+<!-- Loads dcp-client into window.dcp -- real browser dispatch, not the Node
+     CLI path. Pattern (Keystore + identity.set, job.computeGroups, job.on)
+     verified against dcp-client's own examples/vanilla-web/simple-job.html
+     and a known-working reference (bell-surface-plot.html). -->
+<script src="https://scheduler.distributed.computer/dcp-client/dcp-client.js"></script>
+<style>
+  :root {
+    --bg: #f5f5f3;
+    --surface: #ffffff;
+    --surface-2: #fafaf8;
+    --text: #1b1e24;
+    --muted: #6b7280;
+    --border: #e3e4e0;
+    --accent: #0d7a6c;
+    --accent-soft: #e3f3ef;
+    --good: #1f8a5f;
+    --good-soft: #e5f5ed;
+    --warn: #b3690e;
+    --warn-soft: #fbf0e2;
+    --bad: #b3402e;
+    --bad-soft: #fbe6e2;
+    --neutral-chip: #eef0f4;
+    --neutral-chip-text: #4b5563;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    --shadow: 0 1px 2px rgba(20, 24, 30, 0.04), 0 4px 16px rgba(20, 24, 30, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b; --surface: #1b1e25; --surface-2: #20232b; --text: #e7e9ed;
+      --muted: #9aa1ac; --border: #2b2f38; --accent: #5fd9c7; --accent-soft: rgba(95, 217, 199, 0.12);
+      --good: #4ade9b; --good-soft: rgba(74, 222, 155, 0.12);
+      --warn: #f0a94e; --warn-soft: rgba(240, 169, 78, 0.12);
+      --bad: #f0716a; --bad-soft: rgba(240, 113, 106, 0.12);
+      --neutral-chip: #2a2e37; --neutral-chip-text: #b7bdc7;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161b; --surface: #1b1e25; --surface-2: #20232b; --text: #e7e9ed;
+    --muted: #9aa1ac; --border: #2b2f38; --accent: #5fd9c7; --accent-soft: rgba(95, 217, 199, 0.12);
+    --good: #4ade9b; --good-soft: rgba(74, 222, 155, 0.12);
+    --warn: #f0a94e; --warn-soft: rgba(240, 169, 78, 0.12);
+    --bad: #f0716a; --bad-soft: rgba(240, 113, 106, 0.12);
+    --neutral-chip: #2a2e37; --neutral-chip-text: #b7bdc7;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f5f3; --surface: #ffffff; --surface-2: #fafaf8; --text: #1b1e24;
+    --muted: #6b7280; --border: #e3e4e0; --accent: #0d7a6c; --accent-soft: #e3f3ef;
+    --good: #1f8a5f; --good-soft: #e5f5ed;
+    --warn: #b3690e; --warn-soft: #fbf0e2;
+    --bad: #b3402e; --bad-soft: #fbe6e2;
+    --neutral-chip: #eef0f4; --neutral-chip-text: #4b5563;
+    --shadow: 0 1px 2px rgba(20, 24, 30, 0.04), 0 4px 16px rgba(20, 24, 30, 0.05);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    padding: 2.5rem 1.5rem 4rem;
+  }
+  .page { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.75rem; }
+
+  header.top { display: flex; flex-direction: column; gap: 0.5rem; }
+  header.top .eyebrow {
+    font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+  }
+  h1 { font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { color: var(--muted); font-size: 0.92rem; margin: 0; }
+
+  section {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  section > .head { padding: 1rem 1.25rem 0.85rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+  section > .head h2 { margin: 0 0 0.2rem; font-size: 1.02rem; letter-spacing: -0.005em; }
+  section > .head p { margin: 0; color: var(--muted); font-size: 0.83rem; }
+  section > .head label { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; cursor: pointer; user-select: none; }
+  section > .head input[type="checkbox"] { accent-color: var(--accent); }
+
+  /* ---- Deploy form ---- */
+  #deployForm { padding: 1.25rem; display: flex; flex-direction: column; gap: 1.1rem; }
+  .field { display: flex; flex-direction: column; gap: 0.3rem; }
+  .field label { font-size: 0.78rem; color: var(--muted); letter-spacing: 0.02em; }
+  .field input[type="text"], .field input[type="password"], .field input[type="number"] {
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--mono); font-size: 0.86rem; padding: 0.5rem 0.7rem; border-radius: 8px; outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .row > .field { flex: 1 1 160px; }
+  .cg-row { display: flex; gap: 0.6rem; align-items: flex-end; }
+  .cg-row .field { flex: 1; }
+  .cg-remove {
+    appearance: none; background: var(--neutral-chip); border: 1px solid var(--border); color: var(--muted);
+    border-radius: 8px; width: 2.3rem; height: 2.3rem; cursor: pointer; font-size: 1rem; line-height: 1;
+    flex: none;
+  }
+  .cg-remove:hover { color: var(--bad); border-color: var(--bad); }
+  #computeGroupRows { display: flex; flex-direction: column; gap: 0.6rem; }
+  button.link-btn {
+    appearance: none; background: none; border: none; color: var(--accent); font-family: var(--sans);
+    font-size: 0.82rem; font-weight: 600; cursor: pointer; padding: 0.3rem 0; align-self: flex-start;
+  }
+  button.link-btn:hover { text-decoration: underline; }
+  .checkbox-field { display: flex; align-items: center; gap: 0.5rem; font-size: 0.86rem; }
+  .checkbox-field input { accent-color: var(--accent); width: 1rem; height: 1rem; }
+  .checkbox-field .hint { color: var(--muted); font-size: 0.78rem; }
+
+  button.deploy-btn {
+    appearance: none; background: var(--accent); color: var(--surface); border: none;
+    border-radius: 10px; padding: 0.75rem 1.3rem; font-size: 0.92rem; font-weight: 700;
+    cursor: pointer; align-self: flex-start; font-family: var(--sans);
+  }
+  button.deploy-btn:hover { filter: brightness(1.08); }
+  button.deploy-btn:disabled { background: var(--neutral-chip); color: var(--muted); cursor: not-allowed; }
+
+  #parseError { color: var(--bad); font-size: 0.82rem; font-family: var(--mono); display: none; white-space: pre-wrap; }
+
+  /* ---- Status ---- */
+  .meta-row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.35rem; background: var(--neutral-chip);
+    color: var(--neutral-chip-text); font-family: var(--mono); font-size: 0.78rem;
+    padding: 0.28rem 0.6rem; border-radius: 999px; border: 1px solid var(--border);
+  }
+  .chip b { color: var(--text); font-weight: 600; }
+  .status-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .status-dot.active { background: var(--warn); animation: pulse 1.4s infinite; }
+  .status-dot.done { background: var(--good); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .log {
+    font-family: var(--mono); font-size: 0.76rem; color: var(--muted); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.9rem; max-height: 9rem;
+    overflow-y: auto; white-space: pre-wrap; line-height: 1.5;
+  }
+
+  .banner {
+    background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 12px; padding: 0.9rem 1.15rem; font-size: 0.86rem; line-height: 1.5;
+  }
+  .banner b { color: var(--accent); }
+  .banner .note { color: var(--muted); font-size: 0.78rem; margin-top: 0.3rem; }
+
+  #results { display: none; flex-direction: column; gap: 1.75rem; }
+
+  .table-scroll { overflow: auto; max-height: 70vh; }
+  details.table-scroll {
+    max-height: none; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  details.table-scroll > summary {
+    cursor: pointer; padding: 0.6rem 0.9rem; font-size: 0.84rem; font-weight: 600;
+    color: var(--accent); list-style: none; user-select: none; background: var(--surface-2);
+  }
+  details.table-scroll > summary::-webkit-details-marker { display: none; }
+  details.table-scroll > summary::before {
+    content: '▸'; display: inline-block; margin-right: 0.4rem; transition: transform 0.15s ease;
+  }
+  details.table-scroll[open] > summary::before { transform: rotate(90deg); }
+  details.table-scroll > summary:hover { text-decoration: underline; }
+  details.table-scroll > table { width: 100%; }
+  details.table-scroll td { border-bottom: 1px solid var(--border); vertical-align: top; }
+  details.table-scroll tbody tr:last-child td { border-bottom: none; }
+  table { border-collapse: separate; border-spacing: 0; font-size: 0.82rem; width: 100%; }
+  th, td { padding: 0.45rem 0.8rem; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  td.num, th.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: center; }
+  thead th {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted);
+    font-weight: 600; background: var(--surface-2); position: sticky; top: 0; z-index: 2;
+    border-bottom: 1px solid var(--border);
+  }
+  .matrix-table th.rowlabel, .matrix-table td.rowlabel {
+    position: sticky; left: 0; z-index: 1; background: var(--surface); text-align: left;
+    font-family: var(--sans); font-size: 0.82rem; max-width: 22rem; white-space: normal;
+    border-right: 1px solid var(--border);
+  }
+  .matrix-table thead th.rowlabel { z-index: 3; background: var(--surface-2); }
+  .matrix-table tbody tr:hover td { background: var(--surface-2); }
+  .matrix-table tbody tr.varies td.rowlabel, .matrix-table tbody tr.varies { background: var(--warn-soft); }
+  .matrix-table tbody tr.varies:hover td { background: var(--warn-soft); filter: brightness(0.97); }
+  .category-row td {
+    background: var(--neutral-chip); color: var(--neutral-chip-text); font-weight: 700;
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; left: 0;
+  }
+
+  .mark { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 6px; font-size: 0.85rem; font-weight: 700; }
+  .mark.yes { color: var(--good); background: var(--good-soft); }
+  .mark.no { color: var(--muted); background: transparent; }
+  .mark.err { color: var(--bad); background: var(--bad-soft); cursor: help; }
+  .mark.na { color: var(--muted); }
+
+  .worker-th { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-width: 3.4rem; }
+  .worker-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; }
+  .wt-browser .worker-dot { background: #3d7dd6; }
+  .wt-evaluator .worker-dot { background: var(--accent); }
+  .wt-node .worker-dot { background: #b98a2e; }
+  .wt-unknown .worker-dot { background: var(--muted); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 1rem; padding: 0.7rem 1.25rem; font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--border); background: var(--surface-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+  .id-table td { white-space: normal; }
+  .id-table .ua-cell { max-width: 26rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
+  .id-table td.leg { font-weight: 600; }
+
+  .dash { color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <div class="eyebrow">DCP &middot; discover-worker-environment</div>
+    <h1>Worker environment capability matrix</h1>
+    <p class="subtitle" id="subtitle">Deploy a small read-only probe to real DCP workers and watch the matrix fill in as results arrive.</p>
+  </header>
+
+  <section id="deploySection">
+    <div class="head">
+      <div>
+        <h2>Deploy</h2>
+        <p>Runs entirely in this browser tab via dcp-client -- no server, no upload. Only checks whether an API/module exists; never reads real files, env vars, or calls out to other hosts.</p>
+      </div>
+    </div>
+    <form id="deployForm">
+      <div class="field">
+        <label for="apiKey">API key (0x...)</label>
+        <input type="password" id="apiKey" placeholder="0x..." autocomplete="off" />
+      </div>
+
+      <div class="field">
+        <label>Compute groups</label>
+        <div id="computeGroupRows"></div>
+        <button type="button" class="link-btn" id="addGroupBtn">+ Add compute group</button>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="nSlices">Number of workers to sample (n)</label>
+          <input type="number" id="nSlices" value="5" min="1" max="200" />
+        </div>
+        <div class="field" style="justify-content:flex-end;">
+          <label class="checkbox-field"><input type="checkbox" id="discreteFlag" checked />
+            One slice per unique worker (discrete)</label>
+          <div class="hint">On by default -- without it, the scheduler may hand several/all slices to the same worker, and this tool exists specifically to sample distinct workers.</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="checkbox-field"><input type="checkbox" id="gpuFlag" checked />
+          Request GPU/WebGPU capability (job.requirements.environment)</label>
+        <div class="hint">On by default -- WebGPU is opt-in per job, not ambient: without declaring `job.requirements.environment = &#123;webgpu: true&#125;`, DCP has no reason to enable WebGPU in the sandbox at all, regardless of the worker's real hardware. This is why earlier runs found nothing.</div>
+      </div>
+
+      <div id="parseError"></div>
+      <button type="submit" class="deploy-btn" id="deployBtn">Deploy job</button>
+    </form>
+  </section>
+
+  <div id="statusPanel"></div>
+  <div id="results"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var resultsEl = document.getElementById('results');
+  var statusPanelEl = document.getElementById('statusPanel');
+  var subtitleEl = document.getElementById('subtitle');
+  var parseErrorEl = document.getElementById('parseError');
+  var deployForm = document.getElementById('deployForm');
+  var deployBtn = document.getElementById('deployBtn');
+  var computeGroupRows = document.getElementById('computeGroupRows');
+  var addGroupBtn = document.getElementById('addGroupBtn');
+
+  var liveResults = [];
+  var arrivalByIndex = {};
+  var dispatchStart = null;
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Compute-group rows: dynamic joinKey/joinSecret pairs, "as many as
+  // desired" -- add/remove rows, at least one always stays on screen.
+  // ---------------------------------------------------------------------
+  function addGroupRow(key, secret) {
+    var row = document.createElement('div');
+    row.className = 'cg-row';
+    row.innerHTML =
+      '<div class="field"><label>Join key</label><input type="text" class="cg-key" placeholder="public" /></div>'
+      + '<div class="field"><label>Join secret (optional)</label><input type="password" class="cg-secret" placeholder="" /></div>'
+      + '<button type="button" class="cg-remove" title="Remove this group">&times;</button>';
+    row.querySelector('.cg-key').value = key || '';
+    row.querySelector('.cg-secret').value = secret || '';
+    row.querySelector('.cg-remove').addEventListener('click', function () {
+      if (computeGroupRows.children.length > 1) row.remove();
+    });
+    computeGroupRows.appendChild(row);
+  }
+  addGroupRow('public', '');
+  addGroupBtn.addEventListener('click', function () { addGroupRow('', ''); });
+
+  function collectComputeGroups() {
+    var groups = [];
+    computeGroupRows.querySelectorAll('.cg-row').forEach(function (row) {
+      var key = row.querySelector('.cg-key').value.trim();
+      var secret = row.querySelector('.cg-secret').value.trim();
+      if (!key) return;
+      groups.push(secret ? { joinKey: key, joinSecret: secret } : { joinKey: key });
+    });
+    return groups.length ? groups : [{ joinKey: 'public' }];
+  }
+
+  // ---------------------------------------------------------------------
+  // Worker "type" classification -- purely a display heuristic based on
+  // what the sandbox itself reported (userAgent/isNode), not a guarantee.
+  // ---------------------------------------------------------------------
+  function classifyWorker(r) {
+    var ua = r.userAgent || '';
+    if (r.isNode) return { label: 'Node', cls: 'wt-node' };
+    if (/^Mozilla\//.test(ua)) return { label: 'Browser', cls: 'wt-browser' };
+    if (/dcp-evaluator/i.test(ua)) return { label: 'dcp-evaluator', cls: 'wt-evaluator' };
+    return { label: 'Unknown', cls: 'wt-unknown' };
+  }
+
+  // Pivots every result's report.checks into one row per (category, name),
+  // keyed by worker INDEX so gaps don't misalign columns. "Uniform" means
+  // every worker landed in the SAME bucket (yes/no/error) -- a check that
+  // throws on every worker is consistent, not a "varies" case.
+  function buildMatrix(results) {
+    var byKey = {};
+    var order = [];
+    results.forEach(function (r) {
+      (r.checks || []).forEach(function (c) {
+        var key = c.category + '||' + c.name;
+        if (!byKey[key]) { byKey[key] = { category: c.category, name: c.name, byIndex: {} }; order.push(key); }
+        byKey[key].byIndex[r.index] = c.value;
+      });
+    });
+    function bucketOf(v) {
+      if (v === true) return 'yes';
+      if (v === false) return 'no';
+      return 'error';
+    }
+    return order.map(function (key) {
+      var row = byKey[key];
+      var vals = Object.keys(row.byIndex).map(function (k) { return row.byIndex[k]; });
+      var buckets = vals.map(bucketOf);
+      var allSame = buckets.length > 0 && buckets.every(function (b) { return b === buckets[0]; });
+      row.uniform = allSame;
+      row.allTrue = allSame && buckets[0] === 'yes';
+      row.allFalse = allSame && buckets[0] === 'no';
+      row.allError = allSame && buckets[0] === 'error';
+      row.nTrue = vals.filter(function (v) { return v === true; }).length;
+      row.nTotal = vals.length;
+      return row;
+    });
+  }
+
+  function categoriesInOrder(rows) {
+    var cats = [];
+    rows.forEach(function (row) { if (cats.indexOf(row.category) === -1) cats.push(row.category); });
+    return cats;
+  }
+
+  function versionEstimate(rows) {
+    var vRows = rows.filter(function (r) { return r.category === 'Engine version fingerprint'; });
+    var floor = null, ceiling = null;
+    vRows.forEach(function (row) {
+      if (row.allTrue) floor = row.name;
+      else if (ceiling === null) ceiling = row.name;
+    });
+    return { floor: floor, ceiling: ceiling };
+  }
+
+  function renderMark(v) {
+    if (v === true) return '<span class="mark yes" title="present">&#10003;</span>';
+    if (v === false) return '<span class="mark no" title="absent">&ndash;</span>';
+    if (v && typeof v === 'object') {
+      var msg = v.error ? String(v.error) : JSON.stringify(v);
+      return '<span class="mark err" title="' + esc(msg) + '">!</span>';
+    }
+    return '<span class="mark na" title="no data">&middot;</span>';
+  }
+
+  function fmtMs(ms) { return typeof ms === 'number' ? ms.toFixed(0) + 'ms' : '<span class="dash">&mdash;</span>'; }
+
+  var onlyVaries = false;
+
+  function renderResults(nExpected) {
+    resultsEl.style.display = 'flex';
+    resultsEl.innerHTML = '';
+    var results = liveResults.slice().sort(function (a, b) { return (a.index || 0) - (b.index || 0); });
+
+    subtitleEl.textContent = results.length + ' / ' + nExpected + ' worker(s) reported';
+
+    var bits = [];
+    bits.push('<div class="meta-row">');
+    bits.push('<span class="chip">workers reported: <b>' + results.length + ' / ' + nExpected + '</b></span>');
+    var withGpu = results.filter(function (r) { return r.gpuAdapterFound; }).length;
+    bits.push('<span class="chip">GPU adapter found: <b>' + withGpu + '/' + results.length + '</b></span>');
+    bits.push('</div>');
+
+    var matrix = buildMatrix(results);
+    var categories = categoriesInOrder(matrix);
+
+    var est = versionEstimate(matrix);
+    if (est.floor || est.ceiling) {
+      bits.push('<div class="banner"><b>Engine version estimate</b> (from feature-shipping history, not an exact build number)<br>'
+        + 'Every worker supports at least: <b>' + esc(est.floor || '(none confirmed uniformly)') + '</b><br>'
+        + 'At least one worker lacks: <b>' + esc(est.ceiling || '(all probed features present everywhere)') + '</b>'
+        + '<div class="note">"Worker" here = whatever dcp-evaluator/browser/Node instance actually ran that slice -- see the Workers table for identity detail.</div></div>');
+    }
+
+    bits.push('<section><div class="head"><h2>Workers</h2><p>One row per slice/worker, in the order results arrived. Full engine/GPU detail is in the section below -- this is just identity at a glance.</p></div>');
+    bits.push('<div class="table-scroll"><table class="id-table"><thead><tr>'
+      + '<th>#</th><th>Type</th><th>User agent</th><th class="num">Full version</th><th class="num">Globals</th><th class="num">Node / V8</th>'
+      + '<th class="num">Origin</th><th class="num">Framed</th>'
+      + '<th class="num">GPU</th><th class="num">Arrived</th></tr></thead><tbody>');
+    results.forEach(function (r) {
+      var wt = classifyWorker(r);
+      var nodeV8 = r.processVersions ? (r.processVersions.node + ' / ' + r.processVersions.v8) : '<span class="dash">&mdash;</span>';
+      var fullVersion = (r.uaHighEntropy && r.uaHighEntropy.uaFullVersion) ? esc(r.uaHighEntropy.uaFullVersion) : '<span class="dash">&mdash;</span>';
+      var gpuSummary = r.gpuComputeTest
+        ? (r.gpuComputeTest.ran
+          ? (r.gpuComputeTest.correct ? '<span class="mark yes">&#10003;</span> works' : '<span class="mark err">!</span> wrong output')
+          : '<span class="mark err">!</span> failed @ ' + esc(r.gpuComputeTest.failedAtStep))
+        : (r.hasNavigatorGpu === true ? 'present, not tested' : '<span class="dash">&mdash;</span>');
+      var origin = (r.selfOrigin !== undefined) ? esc(String(r.selfOrigin)) : '<span class="dash">&mdash;</span>';
+      var framed = (r.isFramed === true) ? 'yes' : (r.isFramed === false ? 'no' : '<span class="dash">&mdash;</span>');
+      bits.push('<tr><td class="leg">' + r.index + '</td>'
+        + '<td><span class="worker-th ' + wt.cls + '" style="flex-direction:row;justify-content:flex-start;"><span class="worker-dot"></span>' + wt.label + '</span></td>'
+        + '<td class="ua-cell" title="' + esc(r.userAgent || '') + '">' + esc(r.userAgent || '—') + '</td>'
+        + '<td class="num">' + fullVersion + '</td>'
+        + '<td class="num">' + (r.globalThisKeys ? r.globalThisKeys.length : '<span class="dash">&mdash;</span>') + '</td>'
+        + '<td class="num">' + nodeV8 + '</td>'
+        + '<td class="num">' + origin + '</td>'
+        + '<td class="num">' + framed + '</td>'
+        + '<td class="num">' + gpuSummary + '</td>'
+        + '<td class="num">' + fmtMs(arrivalByIndex[r.index]) + '</td></tr>');
+    });
+    bits.push('</tbody></table></div></section>');
+
+    if (results.some(function (r) { return r.gpuAdapterFound || r.uaHighEntropy; })) {
+      bits.push('<section><div class="head"><h2>Engine &amp; GPU details</h2><p>Everything the sandbox will hand over about the real engine build and GPU adapter/device, per worker -- collapsed by default since it\'s verbose.</p></div><div style="padding:0.5rem 1.25rem 1.25rem;display:flex;flex-direction:column;gap:0.5rem;">');
+      results.forEach(function (r) {
+        var rows = [];
+        function kv(label, val) { if (val !== undefined && val !== null && val !== '') rows.push([label, val]); }
+        var ua = r.uaHighEntropy;
+        if (ua) {
+          kv('Full version (UA-CH)', ua.uaFullVersion);
+          kv('Platform version', ua.platformVersion);
+          kv('Architecture', ua.architecture + (ua.bitness ? ' (' + ua.bitness + '-bit)' : ''));
+          kv('Model', ua.model);
+          if (ua.fullVersionList) kv('Brands', ua.fullVersionList.map(function (b) { return b.brand + ' ' + b.version; }).join(', '));
+        } else if (r.uaBrands) {
+          kv('Brands (low-entropy)', r.uaBrands.map(function (b) { return b.brand + ' ' + b.version; }).join(', '));
+        }
+        if (r.gpuAdapterInfo) {
+          kv('GPU vendor / architecture', (r.gpuAdapterInfo.vendor || '?') + ' / ' + (r.gpuAdapterInfo.architecture || '?'));
+          kv('GPU device', r.gpuAdapterInfo.device);
+          kv('GPU description', r.gpuAdapterInfo.description);
+          kv('Subgroup size range', (r.gpuAdapterInfo.subgroupMinSize !== undefined) ? (r.gpuAdapterInfo.subgroupMinSize + '-' + r.gpuAdapterInfo.subgroupMaxSize) : undefined);
+        }
+        kv('Fallback (software) adapter?', (r.gpuIsFallbackAdapter === undefined) ? undefined : (r.gpuIsFallbackAdapter ? 'yes' : 'no'));
+        if (r.gpuFeatures && r.gpuFeatures.length) kv('Adapter features', r.gpuFeatures.join(', '));
+        if (r.gpuDeviceFeatures && r.gpuDeviceFeatures.length) kv('Device features', r.gpuDeviceFeatures.join(', '));
+        if (r.gpuLimits) kv('Adapter limits', Object.keys(r.gpuLimits).map(function (k) { return k + '=' + r.gpuLimits[k]; }).join(', '));
+        if (r.gpuComputeTest) {
+          kv('Compute test', r.gpuComputeTest.ran
+            ? ('ran, output=[' + r.gpuComputeTest.output.join(',') + '] ' + (r.gpuComputeTest.correct ? '(correct)' : '(WRONG, expected [' + r.gpuComputeTest.expected.join(',') + '])'))
+            : ('failed at ' + r.gpuComputeTest.failedAtStep + ': ' + r.gpuComputeTest.error));
+        }
+        if (!rows.length) return;
+        var body = rows.map(function (row) {
+          return '<tr><td style="font-weight:600;white-space:nowrap;">' + esc(row[0]) + '</td><td style="white-space:normal;">' + esc(String(row[1])) + '</td></tr>';
+        }).join('');
+        bits.push('<details class="table-scroll"><summary>Worker ' + r.index + ' (' + classifyWorker(r).label + ')</summary>'
+          + '<table><tbody>' + body + '</tbody></table></details>');
+      });
+      bits.push('</div></section>');
+    }
+
+    bits.push('<section><div class="head"><div><h2>Capability matrix</h2><p>Rows highlighted are checks that did <b>not</b> agree across every worker -- the ones worth feature-detecting at runtime rather than assuming.</p></div>'
+      + '<label><input type="checkbox" id="onlyVaries"' + (onlyVaries ? ' checked' : '') + '> show only rows that vary</label></div>');
+    if (!results.length) {
+      bits.push('<p style="padding:1.25rem;color:var(--muted);">Waiting for the first result...</p></section>');
+    } else {
+      bits.push('<div class="table-scroll"><table class="matrix-table"><thead><tr><th class="rowlabel">Check</th>');
+      results.forEach(function (r) {
+        var wt = classifyWorker(r);
+        bits.push('<th class="num"><span class="worker-th ' + wt.cls + '"><span class="worker-dot"></span>W' + r.index + '</span></th>');
+      });
+      bits.push('<th class="num">Agree?</th></tr></thead><tbody>');
+      categories.forEach(function (cat) {
+        var rows = matrix.filter(function (r) { return r.category === cat; }).filter(function (r) { return !onlyVaries || !r.uniform; });
+        if (!rows.length) return;
+        bits.push('<tr class="category-row"><td colspan="' + (results.length + 2) + '">' + esc(cat) + '</td></tr>');
+        rows.forEach(function (row) {
+          bits.push('<tr class="' + (row.uniform ? '' : 'varies') + '"><td class="rowlabel">' + esc(row.name) + '</td>');
+          results.forEach(function (r) {
+            bits.push('<td class="num">' + renderMark(row.byIndex[r.index]) + '</td>');
+          });
+          var agree = row.allTrue ? 'all yes' : row.allFalse ? 'all no' : row.allError ? 'all threw' : (row.nTrue + '/' + row.nTotal);
+          bits.push('<td class="num">' + esc(agree) + '</td></tr>');
+        });
+      });
+      bits.push('</tbody></table></div>');
+      bits.push('<div class="legend">'
+        + '<span><span class="mark yes">&#10003;</span> present</span>'
+        + '<span><span class="mark no">&ndash;</span> absent</span>'
+        + '<span><span class="mark err">!</span> threw (hover for message)</span>'
+        + '<span style="background:var(--warn-soft);padding:0.15rem 0.5rem;border-radius:4px;">highlighted row</span> varies across workers'
+        + '</div>');
+      bits.push('</section>');
+    }
+
+    resultsEl.innerHTML = bits.join('');
+    var onlyVariesCb = document.getElementById('onlyVaries');
+    if (onlyVariesCb) {
+      onlyVariesCb.addEventListener('change', function () {
+        onlyVaries = onlyVariesCb.checked;
+        renderResults(nExpected);
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // The work function itself -- identical to discover-worker-environment.js's
+  // discoverEnvironment (see that file's own header for the full rationale
+  // behind each probe and what's deliberately NOT done: no real file reads,
+  // no env var values, no outbound calls to arbitrary hosts). Self-contained
+  // (no closures over outer scope) because DCP ships only this function's
+  // own source to remote sandboxes.
+  // ---------------------------------------------------------------------
+  async function discoverEnvironment(index) {
+    var setProgress = function (p) { if (typeof progress === 'function') progress(p); };
+    setProgress(0.0);
+    var report = { index: index, checks: [] };
+
+    function safe(name, fn) {
+      try { report[name] = fn(); } catch (e) { report[name] = { error: (e && e.message) || String(e) }; }
+    }
+    function reflectGetters(obj) {
+      if (!obj) return undefined;
+      var proto = Object.getPrototypeOf(obj);
+      var names = proto ? Object.getOwnPropertyNames(proto).filter(function (n) { return n !== 'constructor'; }) : [];
+      var out = {};
+      names.forEach(function (n) { try { out[n] = obj[n]; } catch (e) { out[n] = 'error'; } });
+      return out;
+    }
+    function check(category, name, fn) {
+      var value;
+      try { value = fn(); } catch (e) { value = { error: (e && e.message) || String(e) }; }
+      report.checks.push({ category: category, name: name, value: value });
+    }
+
+    safe('isNode', function () { return typeof process !== 'undefined'; });
+    safe('processVersions', function () { return (typeof process !== 'undefined' ? process.versions : undefined); });
+    safe('hasSelf', function () { return typeof self !== 'undefined'; });
+    safe('selfName', function () { return (typeof self !== 'undefined' ? self.name : undefined); });
+    safe('hasWorkerGlobalScope', function () { return typeof WorkerGlobalScope !== 'undefined'; });
+    safe('globalThisKeys', function () { return Object.getOwnPropertyNames(globalThis).sort(); });
+    safe('argumentsLength', function () { return arguments.length; });
+    safe('hasDcpGlobal', function () { return typeof dcp !== 'undefined'; });
+    safe('userAgent', function () { return navigator.userAgent; });
+    safe('hardwareConcurrency', function () { return navigator.hardwareConcurrency; });
+    safe('deviceMemory', function () { return navigator.deviceMemory; });
+    safe('locationHref', function () { return location.href; });
+    // NOTE: WebGPU turning out to be an opt-in-per-job capability (see
+    // job.requirements.environment) rather than an opaque-origin sandbox
+    // restriction means these origin/framing checks did NOT explain that
+    // particular mystery. Kept anyway as real, still-useful diagnostic
+    // signal for whatever DOES explain the remaining absent APIs (Storage,
+    // MessageChannel/BroadcastChannel, Intl) -- an open question, not
+    // resolved by this alone.
+    safe('selfOrigin', function () { return self.origin; });
+    safe('documentOrigin', function () { return (typeof document !== 'undefined') ? document.origin : undefined; });
+    safe('hasDocument', function () { return typeof document !== 'undefined'; });
+    safe('isFramed', function () { return typeof window !== 'undefined' && window.top !== window.self; });
+    safe('isSecureContext', function () { return typeof isSecureContext !== 'undefined' ? isSecureContext : undefined; });
+    // Low-entropy User-Agent Client Hints -- free, sync, no permission
+    // needed. High-entropy version (real build number, not the UA string's
+    // possibly-reduced "150.0.0.0") requested async below, since
+    // getHighEntropyValues() returns a Promise.
+    safe('uaBrands', function () { return (typeof navigator !== 'undefined' && navigator.userAgentData) ? navigator.userAgentData.brands : undefined; });
+    safe('uaMobile', function () { return (typeof navigator !== 'undefined' && navigator.userAgentData) ? navigator.userAgentData.mobile : undefined; });
+    safe('uaPlatform', function () { return (typeof navigator !== 'undefined' && navigator.userAgentData) ? navigator.userAgentData.platform : undefined; });
+    safe('errorStackSample', function () { try { throw new Error('probe'); } catch (e) { return e.stack; } });
+    safe('timezoneOffsetMinutes', function () { return new Date().getTimezoneOffset(); });
+    safe('dateNowIso', function () { return new Date().toISOString(); });
+    setProgress(0.2);
+
+    check('Storage', 'IndexedDB', function () { return typeof indexedDB !== 'undefined'; });
+    check('Storage', 'CacheStorage', function () { return typeof caches !== 'undefined'; });
+    check('Storage', 'localStorage', function () { return typeof localStorage !== 'undefined'; });
+    check('Storage', 'navigator.storage (StorageManager)', function () { return typeof navigator !== 'undefined' && !!navigator.storage; });
+    check('Storage', 'OPFS (storage.getDirectory)', function () { return typeof navigator !== 'undefined' && !!navigator.storage && typeof navigator.storage.getDirectory === 'function'; });
+
+    check('GPU/Rendering', 'WebGLRenderingContext', function () { return typeof WebGLRenderingContext !== 'undefined'; });
+    check('GPU/Rendering', 'WebGL2RenderingContext', function () { return typeof WebGL2RenderingContext !== 'undefined'; });
+    check('GPU/Rendering', 'OffscreenCanvas', function () { return typeof OffscreenCanvas !== 'undefined'; });
+    // Split into three signals instead of one, because "exists" and "works"
+    // are different questions -- a plain `!!navigator.gpu` check reported
+    // false on a REAL Chrome 150 worker with a real GPU (confirmed by
+    // timezone/UA matching the operator's own machine), which would wrongly
+    // read as "no WebGPU here" when the far more likely explanation is that
+    // DCP's own sandbox (or a Permissions-Policy on whatever page/worker
+    // hosts it) hides navigator.gpu even though the engine itself ships it.
+    // `GPU`/`GPUAdapter` are the WebGPU spec's own global TYPES -- if those
+    // exist but navigator.gpu doesn't, that's the engine having WebGPU
+    // compiled in while something else is blocking the instance accessor,
+    // not the hardware/browser lacking support.
+    check('GPU/Rendering', 'GPU type defined (engine ships WebGPU)', function () { return typeof GPU !== 'undefined'; });
+    check('GPU/Rendering', 'GPUAdapter type defined', function () { return typeof GPUAdapter !== 'undefined'; });
+    check('GPU/Rendering', "'gpu' in navigator (property exists)", function () { return typeof navigator !== 'undefined' && 'gpu' in navigator; });
+    check('GPU/Rendering', 'navigator.gpu is truthy', function () { return typeof navigator !== 'undefined' && !!navigator.gpu; });
+    check('GPU/Rendering', 'initWebGPU (DCP-internal)', function () { return typeof initWebGPU !== 'undefined'; });
+
+    // "Exists" checks below are existence-only (typeof) UNLESS marked
+    // "(functional)" -- those actually exercise the API (construct a real
+    // SharedArrayBuffer and do a real Atomics op, actually run
+    // WebAssembly.validate on real wasm bytes, actually call
+    // crypto.subtle.digest) because a global's mere presence doesn't prove
+    // it works: CSP can block wasm compilation even with `WebAssembly`
+    // defined, and a SharedArrayBuffer constructor can exist yet throw at
+    // construction time without cross-origin isolation.
+    check('Concurrency', 'SharedArrayBuffer (exists)', function () { return typeof SharedArrayBuffer !== 'undefined'; });
+    check('Concurrency', 'SharedArrayBuffer + Atomics (functional)', function () {
+      var sab = new SharedArrayBuffer(4);
+      var ia = new Int32Array(sab);
+      Atomics.store(ia, 0, 42);
+      return Atomics.load(ia, 0) === 42;
+    });
+    check('Concurrency', 'nested Worker', function () { return typeof Worker !== 'undefined'; });
+    check('Concurrency', 'MessageChannel', function () { return typeof MessageChannel !== 'undefined'; });
+    check('Concurrency', 'BroadcastChannel', function () { return typeof BroadcastChannel !== 'undefined'; });
+
+    check('Crypto', 'crypto', function () { return typeof crypto !== 'undefined'; });
+    check('Crypto', 'crypto.getRandomValues', function () { return typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function'; });
+    check('Crypto', 'crypto.subtle (exists)', function () { return typeof crypto !== 'undefined' && typeof crypto.subtle !== 'undefined'; });
+    // crypto.subtle.digest is async -- functional result appended after this
+    // synchronous batch (see below), same "checks" array either way.
+
+    check('Networking', 'fetch', function () { return typeof fetch !== 'undefined'; });
+    check('Networking', 'XMLHttpRequest', function () { return typeof XMLHttpRequest !== 'undefined'; });
+    check('Networking', 'WebSocket', function () { return typeof WebSocket !== 'undefined'; });
+    check('Networking', 'WebTransport', function () { return typeof WebTransport !== 'undefined'; });
+
+    check('Language/runtime', 'WebAssembly (exists)', function () { return typeof WebAssembly !== 'undefined'; });
+    check('Language/runtime', 'WebAssembly.validate (functional)', function () {
+      // Minimal valid empty module: \0asm + version 1 -- real bytes, real
+      // compile-validation, not just checking the constructor exists.
+      return WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
+    });
+    check('Language/runtime', 'BigInt', function () { return typeof BigInt !== 'undefined'; });
+    check('Language/runtime', 'Intl', function () { return typeof Intl !== 'undefined'; });
+    check('Language/runtime', 'TextEncoder/Decoder', function () { return typeof TextEncoder !== 'undefined' && typeof TextDecoder !== 'undefined'; });
+    check('Language/runtime', 'Error.captureStackTrace (V8 marker)', function () { return typeof Error.captureStackTrace === 'function'; });
+    check('Language/runtime', 'performance.now', function () { return typeof performance !== 'undefined' && typeof performance.now === 'function'; });
+    check('Language/runtime', 'performance.memory (Chrome-only heap stats)', function () { return typeof performance !== 'undefined' && !!performance.memory; });
+    setProgress(0.35);
+
+    var versionProbes = [
+      { label: 'Array.flat/flatMap', hint: '~Chrome 69+', test: function () { return typeof Array.prototype.flat === 'function'; } },
+      { label: 'Object.fromEntries', hint: '~Chrome 73+', test: function () { return typeof Object.fromEntries === 'function'; } },
+      { label: 'globalThis', hint: '~Chrome 75+', test: function () { return typeof globalThis !== 'undefined'; } },
+      { label: 'Promise.allSettled', hint: '~Chrome 76+', test: function () { return typeof Promise.allSettled === 'function'; } },
+      { label: 'optional chaining / nullish (?. ??)', hint: '~Chrome 80+', test: function () { try { return new Function('return (null)?.x ?? 1')() === 1; } catch (e) { return false; } } },
+      { label: 'WeakRef/FinalizationRegistry', hint: '~Chrome 84+', test: function () { return typeof WeakRef !== 'undefined' && typeof FinalizationRegistry !== 'undefined'; } },
+      { label: 'private class fields (#x)', hint: '~Chrome 84+', test: function () { try { return new Function('class C{#x=1;get x(){return this.#x}}; return new C().x')() === 1; } catch (e) { return false; } } },
+      { label: 'Promise.any / String.replaceAll', hint: '~Chrome 85+', test: function () { return typeof Promise.any === 'function' && typeof String.prototype.replaceAll === 'function'; } },
+      { label: 'Array/String.at', hint: '~Chrome 92+', test: function () { return typeof Array.prototype.at === 'function'; } },
+      { label: 'Object.hasOwn', hint: '~Chrome 93+', test: function () { return typeof Object.hasOwn === 'function'; } },
+      { label: 'Array.findLast/findLastIndex', hint: '~Chrome 97+', test: function () { return typeof Array.prototype.findLast === 'function'; } },
+      { label: 'structuredClone', hint: '~Chrome 98+', test: function () { return typeof structuredClone === 'function'; } },
+      { label: 'Array change-by-copy (toSorted/with)', hint: '~Chrome 110+', test: function () { return typeof Array.prototype.toSorted === 'function'; } },
+      { label: 'Object.groupBy/Map.groupBy', hint: '~Chrome 117+', test: function () { return typeof Object.groupBy === 'function'; } },
+      { label: 'Promise.withResolvers', hint: '~Chrome 119+', test: function () { return typeof Promise.withResolvers === 'function'; } },
+      { label: 'Array.fromAsync', hint: '~Chrome 121+', test: function () { return typeof Array.fromAsync === 'function'; } },
+      { label: 'Iterator helpers (Iterator.prototype.map)', hint: '~Chrome 122+', test: function () { return typeof Iterator !== 'undefined' && typeof Iterator.prototype.map === 'function'; } },
+      { label: 'Uint8Array base64/hex (toBase64)', hint: '~Chrome 133+', test: function () { return typeof Uint8Array.prototype.toBase64 === 'function'; } },
+      { label: 'explicit resource management (using)', hint: '~Chrome 134+', test: function () { try { return new Function('{ using x = { [Symbol.dispose](){} }; } return true')() === true; } catch (e) { return false; } } },
+    ];
+    versionProbes.forEach(function (p) {
+      check('Engine version fingerprint', p.label + ' (' + p.hint + ')', function () { return !!p.test(); });
+    });
+    setProgress(0.55);
+
+    // WebGPU: not just existence/adapter-request (already distinguished
+    // above) but an ACTUAL compute pipeline -- real buffers, a real WGSL
+    // shader, a real dispatch, and a real readback checked against the
+    // expected output. gpuStep records the last step reached, so a failure
+    // partway through says exactly where (e.g. "adapter found but
+    // requestDevice threw" vs "device created but shader compile failed")
+    // instead of a single pass/fail bit.
+    report.gpuStep = 'start';
+    try {
+      if (typeof navigator !== 'undefined' && navigator.gpu) {
+        report.gpuStep = 'requestAdapter';
+        var adapter = await navigator.gpu.requestAdapter();
+        report.gpuAdapterFound = !!adapter;
+        if (adapter) {
+          // isFallbackAdapter: real WebGPU spec property -- true means this
+          // is a software (e.g. SwiftShader-style) adapter, not real GPU
+          // hardware, even though everything else here would look identical.
+          safe('gpuIsFallbackAdapter', function () { return adapter.isFallbackAdapter; });
+          report.gpuStep = 'requestAdapterInfo';
+          try {
+            var info = typeof adapter.requestAdapterInfo === 'function' ? await adapter.requestAdapterInfo() : adapter.info;
+            if (info) {
+              // Full reflection, not just the 4 well-known fields -- spec
+              // has grown GPUAdapterInfo over time (e.g. subgroupMinSize/
+              // subgroupMaxSize), and this way new fields show up without
+              // needing to update this list every time the spec does.
+              report.gpuAdapterInfo = {
+                vendor: info.vendor, architecture: info.architecture,
+                device: info.device, description: info.description,
+                subgroupMinSize: info.subgroupMinSize, subgroupMaxSize: info.subgroupMaxSize,
+              };
+            }
+          } catch (e) { report.gpuAdapterInfoError = (e && e.message) || String(e); }
+          safe('gpuFeatures', function () { return Array.from(adapter.features || []); });
+          safe('gpuLimits', function () { return reflectGetters(adapter.limits); });
+
+          report.gpuStep = 'requestDevice';
+          var device = await adapter.requestDevice();
+          report.gpuDeviceFound = !!device;
+
+          if (device) {
+            // Device-level features/limits can be a SUBSET of the adapter's
+            // (a device is created FOR specific requested features/limits) --
+            // worth capturing separately rather than assuming they match.
+            safe('gpuDeviceFeatures', function () { return Array.from(device.features || []); });
+            safe('gpuDeviceLimits', function () { return reflectGetters(device.limits); });
+            report.gpuStep = 'createBuffer';
+            var input = new Float32Array([1, 2, 3, 4]);
+            var gpuBuffer = device.createBuffer({
+              size: input.byteLength,
+              usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+            });
+            device.queue.writeBuffer(gpuBuffer, 0, input);
+            var readBuffer = device.createBuffer({
+              size: input.byteLength,
+              usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+            });
+
+            report.gpuStep = 'createShaderModule';
+            var wgsl = '@group(0) @binding(0) var<storage, read_write> data: array<f32>;\n'
+              + '@compute @workgroup_size(1)\n'
+              + 'fn main(@builtin(global_invocation_id) id: vec3<u32>) {\n'
+              + '  data[id.x] = data[id.x] * 2.0;\n'
+              + '}\n';
+            var shaderModule = device.createShaderModule({ code: wgsl });
+
+            report.gpuStep = 'createComputePipeline';
+            var pipeline = device.createComputePipeline({
+              layout: 'auto',
+              compute: { module: shaderModule, entryPoint: 'main' },
+            });
+
+            report.gpuStep = 'createBindGroup';
+            var bindGroup = device.createBindGroup({
+              layout: pipeline.getBindGroupLayout(0),
+              entries: [{ binding: 0, resource: { buffer: gpuBuffer } }],
+            });
+
+            report.gpuStep = 'dispatch';
+            var commandEncoder = device.createCommandEncoder();
+            var passEncoder = commandEncoder.beginComputePass();
+            passEncoder.setPipeline(pipeline);
+            passEncoder.setBindGroup(0, bindGroup);
+            passEncoder.dispatchWorkgroups(4);
+            passEncoder.end();
+            commandEncoder.copyBufferToBuffer(gpuBuffer, 0, readBuffer, 0, input.byteLength);
+            device.queue.submit([commandEncoder.finish()]);
+
+            report.gpuStep = 'mapAsync/readback';
+            await readBuffer.mapAsync(GPUMapMode.READ);
+            var output = Array.from(new Float32Array(readBuffer.getMappedRange().slice(0)));
+            readBuffer.unmap();
+
+            var expected = [2, 4, 6, 8];
+            var correct = output.length === expected.length
+              && output.every(function (v, i) { return Math.abs(v - expected[i]) < 0.001; });
+            report.gpuStep = 'done';
+            report.gpuComputeTest = { ran: true, output: output, expected: expected, correct: correct };
+          }
+        }
+      }
+    } catch (e) {
+      report.gpuError = (e && e.message) || String(e);
+      report.gpuComputeTest = { ran: false, failedAtStep: report.gpuStep, error: (e && e.message) || String(e) };
+    }
+
+    // High-entropy User-Agent Client Hints -- the REAL build number, since
+    // modern Chrome intentionally reduces the plain userAgent string's own
+    // version to "X.0.0.0" for privacy (that's not automation/embedding,
+    // it's standard User-Agent Reduction) and only exposes the precise
+    // version through this opt-in, async API.
+    try {
+      if (typeof navigator !== 'undefined' && navigator.userAgentData && typeof navigator.userAgentData.getHighEntropyValues === 'function') {
+        report.uaHighEntropy = await navigator.userAgentData.getHighEntropyValues(
+          ['fullVersionList', 'platformVersion', 'architecture', 'bitness', 'model', 'uaFullVersion']);
+      }
+    } catch (e) { report.uaHighEntropyError = (e && e.message) || String(e); }
+
+    // crypto.subtle.digest functional test -- async, so it lives out here
+    // rather than in the synchronous check() batch above, same reasoning
+    // as the WebAssembly/SharedArrayBuffer functional checks: does it
+    // actually work, not just does the name exist.
+    try {
+      if (typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function') {
+        var digestBuf = await crypto.subtle.digest('SHA-256', new Uint8Array([1, 2, 3]));
+        report.checks.push({ category: 'Crypto', name: 'crypto.subtle.digest (functional)', value: !!digestBuf && digestBuf.byteLength === 32 });
+      } else {
+        report.checks.push({ category: 'Crypto', name: 'crypto.subtle.digest (functional)', value: false });
+      }
+    } catch (e) {
+      report.checks.push({ category: 'Crypto', name: 'crypto.subtle.digest (functional)', value: { error: (e && e.message) || String(e) } });
+    }
+    setProgress(0.8);
+
+    var probeModules = ['os', 'fs', 'path', 'crypto', 'worker_threads', 'child_process', 'net', 'http', 'util'];
+    probeModules.forEach(function (m) {
+      check('Node builtins (require)', m, function () {
+        if (typeof require !== 'function') throw new Error('no require() in this sandbox');
+        require(m);
+        return true;
+      });
+    });
+
+    setProgress(1.0);
+    return report;
+  }
+
+  function log(msg) {
+    var out = document.getElementById('deployLog');
+    if (!out) return;
+    out.textContent += (out.textContent ? '\n' : '') + msg;
+    out.scrollTop = out.scrollHeight;
+  }
+
+  async function deploy(ev) {
+    ev.preventDefault();
+    parseErrorEl.style.display = 'none';
+    parseErrorEl.textContent = '';
+
+    var apiKey = document.getElementById('apiKey').value.trim();
+    var n = parseInt(document.getElementById('nSlices').value, 10) || 1;
+    var discrete = document.getElementById('discreteFlag').checked;
+    var wantGpu = document.getElementById('gpuFlag').checked;
+    var groups = collectComputeGroups();
+
+    if (!apiKey) {
+      parseErrorEl.textContent = 'API key is required.';
+      parseErrorEl.style.display = 'block';
+      return;
+    }
+    if (typeof window.dcp === 'undefined') {
+      parseErrorEl.textContent = 'window.dcp did not load (dcp-client script blocked or offline?).';
+      parseErrorEl.style.display = 'block';
+      return;
+    }
+
+    deployBtn.disabled = true;
+    deployBtn.textContent = 'Deploying...';
+    liveResults = [];
+    arrivalByIndex = {};
+
+    // Status/log lives in its OWN persistent container (#statusPanel), not
+    // #results -- renderResults() below replaces #results wholesale on
+    // every incoming result, which previously destroyed #statusDot/
+    // #statusText/#deployLog the instant the first result arrived, so any
+    // later reference to them (e.g. a late 'accepted' event) threw
+    // "Cannot set properties of null".
+    statusPanelEl.style.display = 'flex';
+    statusPanelEl.innerHTML = '<section><div class="head"><h2>Status</h2></div>'
+      + '<div style="padding:1.25rem;display:flex;flex-direction:column;gap:0.6rem;">'
+      + '<div class="meta-row"><span class="status-dot active" id="statusDot"></span><span id="statusText">Connecting...</span></div>'
+      + '<div id="deployLog" class="log"></div></div></section>';
+
+    try {
+      // apiKey already has a payment key attached to it -- no separate
+      // funding keystore needed, just identity. identity.set() accepts the
+      // apiKey string directly, no Keystore wrapping required.
+      if (!window.dcp.identity.check()) {
+        log('[identity] authenticating...');
+        await window.dcp.identity.set(apiKey);
+        log('[identity] OK');
+      }
+
+      var compute = window.dcp.compute;
+      var inputSet = Array.from({ length: n }, function (_, i) { return i; });
+      var job = compute.for(inputSet, discoverEnvironment);
+      job.computeGroups = groups;
+      if (discrete) job.requirements.discrete = true;
+      // WebGPU is opt-in per job (dcp-client bundle: environment:
+      // {offscreenCanvas:8,fdlibm:16,webgpu:32} as bits of needCapabilities)
+      // -- matches TWO real working references exactly (demo/webgpu/
+      // webgpu-job.html and webgpu-job-cooley.html both use only
+      // `job.requirements.environment = {webgpu: true}`, never
+      // offscreenCanvas alongside it, so this doesn't add that
+      // speculatively). Without this, the sandbox has no reason to turn
+      // WebGPU on at all, regardless of the worker's real hardware -- this
+      // is why earlier runs found nothing no matter what the browser
+      // worker's real GPU capability was.
+      if (wantGpu) job.requirements.environment = { webgpu: true };
+      job.public.name = '🔎 worker environment discovery';
+
+      dispatchStart = Date.now();
+      job.on('readystatechange', function (s) { log('[state] ' + s); });
+      job.on('accepted', function () {
+        log('[accepted] job id: ' + job.id);
+        var t = document.getElementById('statusText');
+        if (t) t.textContent = 'Job ' + job.id + ' -- awaiting results...';
+      });
+      job.on('error', function (e) { log('[error] ' + (e && e.message ? e.message : JSON.stringify(e))); });
+      job.on('nofunds', function (e) { log('[nofunds] ' + JSON.stringify(e)); });
+      job.on('result', function (ev) {
+        var r = ev.result;
+        arrivalByIndex[r.index] = Date.now() - dispatchStart;
+        liveResults.push(r);
+        log('[result] worker ' + r.index + ' reported (+' + arrivalByIndex[r.index] + 'ms)');
+        renderResults(n);
+      });
+
+      log('[exec] submitting job for ' + n + ' slice(s), discrete=' + discrete + '...');
+      await job.exec();
+      log('[done] job complete.');
+      var dot = document.getElementById('statusDot');
+      if (dot) { dot.classList.remove('active'); dot.classList.add('done'); }
+      var st = document.getElementById('statusText');
+      if (st) st.textContent = 'Done -- ' + liveResults.length + '/' + n + ' worker(s) reported.';
+    } catch (e) {
+      log('[error] ' + (e && e.message ? e.message : String(e)));
+      parseErrorEl.textContent = 'Deploy failed: ' + ((e && e.message) || String(e));
+      parseErrorEl.style.display = 'block';
+    } finally {
+      deployBtn.disabled = false;
+      deployBtn.textContent = 'Deploy job';
+    }
+  }
+
+  deployForm.addEventListener('submit', deploy);
+})();
+</script>
+</body>
+</html>

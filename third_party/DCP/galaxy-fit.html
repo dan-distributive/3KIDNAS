@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3KIDNAS Galaxy Fit</title>
+<style>
+  :root {
+    --bg:#f3f4f7; --panel:#ffffff; --panel-2:#fbfbfd; --ink:#1a2130; --muted:#5c6578;
+    --border:#d7dbe3; --border-strong:#c3c9d6; --accent:#1f6fa8; --accent-ink:#ffffff;
+    --code-bg:rgba(20,24,33,0.05);
+    --ok:#1f8a5f; --ok-bg:rgba(31,138,95,0.10);
+    --warn:#b9740b; --warn-bg:rgba(185,116,11,0.10);
+    --err:#c1332f; --err-bg:rgba(193,51,47,0.10);
+    --shadow:0 1px 2px rgba(20,24,33,0.06), 0 8px 20px -12px rgba(20,24,33,0.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#10131a; --panel:#171b25; --panel-2:#1c212c; --ink:#e7ebf3; --muted:#98a2b5;
+      --border:#2a3142; --border-strong:#3a4258; --accent:#5fa8dd; --accent-ink:#0a1420;
+      --code-bg:rgba(255,255,255,0.06);
+      --ok:#5cc491; --ok-bg:rgba(92,196,145,0.12);
+      --warn:#e3ab48; --warn-bg:rgba(227,171,72,0.12);
+      --err:#e8756f; --err-bg:rgba(232,117,111,0.12);
+      --shadow:0 1px 2px rgba(0,0,0,0.4), 0 10px 24px -14px rgba(0,0,0,0.6);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family: ui-sans-serif, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    line-height:1.5;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 40px 24px 96px; }
+  code, .mono, input, .tabular { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin: 0 0 8px; }
+  .lede { color: var(--muted); font-size: 14px; max-width: 62ch; margin: 0 0 28px; }
+
+  section.card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 22px; margin-bottom: 20px; box-shadow: var(--shadow);
+  }
+  section.card.disabled { opacity: 0.5; pointer-events: none; }
+  h2 { font-size: 15px; margin: 0 0 4px; display:flex; align-items:center; gap: 8px; }
+  h2 .step-num {
+    display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px;
+    border-radius:50%; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight:700;
+  }
+  .card-sub { color: var(--muted); font-size: 12.5px; margin: 0 0 16px; }
+
+  label { display:block; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  .field { margin-bottom: 14px; }
+  .row { display:flex; gap: 14px; flex-wrap: wrap; }
+  .row > .field { flex: 1; min-width: 160px; }
+  input[type=text], input[type=number], input[type=file], input[type=password] {
+    width:100%; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--border-strong);
+    background: var(--panel-2); color: var(--ink); font-size: 13px;
+  }
+  input[type=number] { max-width: 160px; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  button {
+    background: var(--accent); color: var(--accent-ink); border: none; border-radius: 8px;
+    padding: 10px 18px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.secondary { background: var(--code-bg); color: var(--ink); border: 1px solid var(--border-strong); }
+
+  .compute-group-row { display:flex; gap: 8px; align-items: center; }
+  .compute-group-row input { flex: 1; min-width: 0; }
+  .compute-group-row .remove-group-btn {
+    flex: 0 0 auto; background: transparent; border: none; color: var(--muted);
+    cursor: pointer; font-size: 18px; line-height: 1; padding: 4px 8px;
+  }
+  .compute-group-row .remove-group-btn:hover { color: var(--err); }
+
+  details.advanced { margin: 4px 0 18px; border: 1px solid var(--border); border-radius: 8px; padding: 0; }
+  details.advanced > summary {
+    cursor: pointer; padding: 10px 14px; font-size: 12.5px; font-weight: 600; color: var(--muted);
+    list-style: none; display:flex; align-items:center; gap: 6px;
+  }
+  details.advanced > summary::-webkit-details-marker { display:none; }
+  details.advanced > summary::before { content: '▸'; font-size: 10px; }
+  details.advanced[open] > summary::before { content: '▾'; }
+  .advanced-body { padding: 4px 14px 16px; border-top: 1px solid var(--border); }
+
+  table.flags { width:100%; border-collapse: collapse; font-size: 12px; margin: 8px 0 16px; }
+  table.flags th, table.flags td { padding: 5px 8px; text-align:center; border-bottom: 1px solid var(--border); }
+  table.flags th { color: var(--muted); font-weight:600; text-align:left; }
+  table.flags td:first-child, table.flags th:first-child { text-align:left; }
+  table.flags input[type=checkbox] { width:16px; height:16px; }
+
+  .status-pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding: 4px 10px; border-radius: 999px; }
+  .status-pill.idle { background: var(--code-bg); color: var(--muted); }
+  .status-pill.running { background: var(--warn-bg); color: var(--warn); }
+  .status-pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .status-pill.err { background: var(--err-bg); color: var(--err); }
+  .status-pill .dot { width:7px; height:7px; border-radius:50%; background: currentColor; }
+
+  .log { background: var(--code-bg); border-radius: 8px; padding: 10px 12px; font-size: 11.5px;
+    max-height: 160px; overflow-y: auto; margin-top: 12px; white-space: pre-wrap; color: var(--muted); }
+  .log .line { margin: 0; }
+  .log .line.err { color: var(--err); }
+  .log .line.ok { color: var(--ok); }
+
+  .results { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+  table.kv { width:100%; border-collapse: collapse; font-size: 13px; }
+  table.kv td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  table.kv td:first-child { color: var(--muted); width: 40%; }
+  table.kv td:last-child { text-align:right; font-weight:600; }
+
+  .charts { display:flex; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
+  .chart-box { flex: 1; min-width: 240px; }
+  .chart-box canvas { width:100%; height: 120px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); }
+  .chart-box .chart-label { font-size: 11px; color: var(--muted); margin-top: 4px; text-align:center; }
+  /* Image-style panels (moment maps, PV diagrams) set their own canvas
+     width/height attrs to match the cube's real pixel aspect ratio -- CSS
+     here just caps the display size and preserves that ratio via `object-fit`,
+     unlike .chart-box canvas's fixed 120px height (line plots don't have an
+     inherent aspect ratio to preserve). */
+  .image-box canvas { width:100%; height:auto; max-height: 420px; object-fit: contain; }
+  /* Full-width panels (corner plot, radial profiles) have real room to grow
+     and no fixed display size to preserve like the moment maps/PV panels
+     above -- let them fill the card's full width instead of sharing that
+     420px cap. Each canvas's own width/height attributes already fix its
+     aspect ratio; `height:auto` alone preserves it at any display width. */
+  .wide-box { flex-basis: 100%; }
+  .wide-box canvas { width:100%; height:auto; object-fit: contain; }
+
+  footer { color: var(--muted); font-size: 11.5px; text-align:center; margin-top: 24px; }
+
+  .file-protocol-warning {
+    background: var(--warn-bg); border: 1px solid var(--warn); color: var(--ink);
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 12.5px;
+  }
+  .file-protocol-warning strong { color: var(--warn); }
+  .file-protocol-warning code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+
+  <p class="eyebrow">3KIDNAS &middot; JS/DCP pipeline</p>
+  <h1>Galaxy Fit</h1>
+  <p class="lede">
+    Fits one HI data cube's kinematics via a Nelder&ndash;Mead tilted-ring model, entirely in JS/DCP
+    &mdash; no Fortran, no Python. Runs as two separate DCP jobs: an initial/anchor fit, then a
+    bootstrap-uncertainty loop sized by how many realizations you ask for. Nothing here reads or
+    writes anything outside your own machine except the two DCP dispatches themselves.
+  </p>
+
+  <div class="file-protocol-warning" id="fileProtocolWarning" hidden>
+    <strong>Opened as a local file.</strong> Step 1 (initial fit) works fine like this, but step 2
+    (bootstrap loop) needs its SoFiA config asset fetched over HTTP &mdash; browsers block that under
+    <code>file://</code>. Serve this folder locally instead, e.g. from a terminal in this same
+    directory: <code>python3 -m http.server 8000</code>, then open
+    <code>http://localhost:8000/galaxy-fit.html</code>.
+  </div>
+
+  <section class="card">
+    <h2>DCP Account</h2>
+    <p class="card-sub">
+      Paste your DCP API key to view and manage the job in the DCP Portal, and secify the compute groups that 
+      determine which workers can pick up your jobs.
+    </p>
+
+    <div class="field">
+      <label for="apiKeyInput">API key (identity)</label>
+      <input type="text" id="apiKeyInput" placeholder="0x… (leave blank to use the wallet picker instead)">
+    </div>
+
+    <div class="field">
+      <label>Compute group(s)</label>
+      <div id="computeGroupRows" style="display:flex; flex-direction:column; gap:8px; margin-top:4px"></div>
+      <button id="addComputeGroupBtn" type="button" class="secondary" style="margin-top:8px">+ Add another group</button>
+      <p class="card-sub" style="margin:6px 0 0">Leave joinKey blank for the public group. Not specifying one deploys to Global (public).</p>
+    </div>
+  </section>
+
+  <section class="card" id="stepInitial">
+    <h2><span class="step-num">1</span>Initial fit</h2>
+    <p class="card-sub">The anchor fit every bootstrap realization is measured against.</p>
+
+    <div class="row">
+      <div class="field">
+        <label for="cubeFile" title="Must be velocity-calibrated, e.g. &quot;_VelCube.fits&quot; -- not a raw frequency-axis cube">Observed cube (FITS)</label>
+        <input type="file" id="cubeFile" accept=".fits,.fits.gz">
+      </div>
+      <div class="field">
+        <label for="maskFile" title="Pre-existing, from an earlier source-finding step">Mask (FITS)</label>
+        <input type="file" id="maskFile" accept=".fits,.fits.gz">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field" style="flex: 2 1 240px">
+        <label for="objName">Object name</label>
+        <input type="text" id="objName" placeholder="e.g. WALLABY_J103538-484832">
+      </div>
+      <div class="field" style="flex: 0 0 160px">
+        <label for="paEstimate">PA estimate (deg)</label>
+        <input type="number" id="paEstimate" step="0.001">
+      </div>
+      <div class="field" style="flex: 0 0 160px">
+        <label for="incEstimate">Inclination estimate (deg)</label>
+        <input type="number" id="incEstimate" step="0.001">
+      </div>
+    </div>
+    <p class="card-sub" id="estimateGeometryStatus" style="margin-top:-8px">
+      Object name and PA/Inc auto-fill from the cube once you pick it above (SoFiA, run locally,
+      instant) &mdash; all three stay freely editable.
+    </p>
+
+    <details class="advanced" id="advancedPanel">
+      <summary>Advanced &mdash; fixed pipeline configuration</summary>
+      <div class="advanced-body">
+        <p class="card-sub" style="margin-top:10px">
+          Defaults transcribed from this pipeline's own config templates. Same values for every
+          galaxy unless changed here.
+        </p>
+        <div class="row">
+          <div class="field"><label for="advCenterSource">Center source (0=estimate)</label><input type="number" id="advCenterSource"></div>
+          <div class="field"><label for="advSdSwitch">SD switch (0=linear, 1=log)</label><input type="number" id="advSdSwitch"></div>
+          <div class="field"><label for="advCmode">Cloud mode</label><input type="number" id="advCmode"></div>
+          <div class="field"><label for="advCloudBaseSurfDens">Cloud base surface density</label><input type="number" id="advCloudBaseSurfDens" step="any"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="advSigmaLengths">Sigma lengths (beam kernel half-width)</label><input type="number" id="advSigmaLengths" step="any"></div>
+          <div class="field"><label for="advNoiseSigmaLim">Noise sigma limit</label><input type="number" id="advNoiseSigmaLim" step="any"></div>
+          <div class="field"><label for="advNRingsPerBeam">Rings per beam</label><input type="number" id="advNRingsPerBeam"></div>
+          <div class="field"><label for="advLikelihoodSwitch">Likelihood (1=chi&sup2;)</label><input type="number" id="advLikelihoodSwitch"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="advFitIdum">Optimizer seed (idum)</label><input type="number" id="advFitIdum"></div>
+          <div class="field"><label for="advFtol">ftol</label><input type="number" id="advFtol" step="any"></div>
+          <div class="field"><label for="advVRotLims">V<sub>rot</sub> limits (km/s)</label><input type="text" id="advVRotLims"></div>
+          <div class="field"><label for="advSizeLims">Size limits (beams)</label><input type="text" id="advSizeLims"></div>
+        </div>
+
+        <table class="flags">
+          <thead><tr><th>Ring property</th><th>Constant across rings</th><th>Fixed at initial value</th></tr></thead>
+          <tbody id="flagsTableBody"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <button id="runInitialFitBtn">Run initial fit</button>
+    <span id="initialFitStatus" class="status-pill idle" style="margin-left:10px"><span class="dot"></span>idle</span>
+    <label style="display:inline-flex; align-items:center; gap:6px; margin:0 0 0 14px; font-weight:400; font-size:12.5px; cursor:pointer;">
+      <input type="checkbox" id="pauseAfterInitialFit" style="width:auto; margin:0;">
+      Pause after initial fit
+    </label>
+
+    <div class="log" id="initialFitLog" hidden></div>
+
+    <div class="results" id="initialFitResults" hidden>
+      <table class="kv" id="initialFitTable"></table>
+      <div class="charts">
+        <div class="chart-box"><canvas id="vrotChart" width="400" height="120"></canvas><div class="chart-label">V<sub>rot</sub> vs R</div></div>
+        <div class="chart-box"><canvas id="sdChart" width="400" height="120"></canvas><div class="chart-label">&Sigma;<sub>HI</sub> vs R</div></div>
+      </div>
+      <div class="charts">
+        <div class="chart-box image-box"><canvas id="mom0Canvas"></canvas><div class="chart-label">Moment 0 (observed, masked)</div></div>
+        <div class="chart-box image-box"><canvas id="mom1Canvas"></canvas><div class="chart-label">Moment 1 (observed, masked) &mdash; V<sub>los</sub></div></div>
+      </div>
+      <div class="charts">
+        <div class="chart-box image-box" style="flex:1 1 100%"><canvas id="pvCanvas"></canvas><div class="chart-label">Position-velocity diagrams (major/minor axis, data/residual)</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="stepBootstrap">
+    <h2><span class="step-num">2</span>Bootstrap uncertainty loop</h2>
+    <p class="card-sub">Configurable any time -- "Run bootstraps" unlocks once the initial fit above has converged. Cost scales with the realization count.</p>
+
+    <div class="row">
+      <div class="field">
+        <label for="nBootstraps">Number of realizations</label>
+        <input type="number" id="nBootstraps" value="50" min="1" step="1">
+      </div>
+      <div class="field">
+        <label for="bootstrapSeed">Debug seed (optional, 0 = time-based)</label>
+        <input type="number" id="bootstrapSeed" value="42" step="1">
+      </div>
+    </div>
+
+    <button id="runBootstrapBtn" disabled>Run bootstraps</button>
+    <span id="bootstrapStatus" class="status-pill idle" style="margin-left:10px"><span class="dot"></span>idle</span>
+    <button id="downloadBtn" class="secondary" hidden style="margin-left:10px">Download results JSON</button>
+
+    <div class="log" id="bootstrapLog" hidden></div>
+
+    <div class="results" id="bootstrapResults" hidden>
+      <table class="kv" id="bootstrapTable"></table>
+      <div class="charts">
+        <div class="chart-box wide-box"><canvas id="radialProfileCanvas"></canvas><div class="chart-label">Radial profiles &mdash; every realization (red) vs. initial fit (teal)</div></div>
+      </div>
+      <div class="charts">
+        <div class="chart-box wide-box"><canvas id="cornerPlotCanvas"></canvas><div class="chart-label">Bootstrap parameter distributions</div></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Dispatched via your own DCP identity. No cube, mask, or result is sent anywhere except the DCP network itself.</footer>
+
+</main>
+
+<!-- Browser build of dcp-client, loaded from a local sibling folder (never a CDN -- this only works
+     when the page is opened as a real local file, e.g. `open galaxy-fit.html`, next to its sibling
+     dcp-client-browser/ folder; it can never work from a sandboxed preview that blocks outbound
+     network calls, since dcp-client needs to reach the real DCP scheduler).
+     load-css="false": dcp-client.js's own CSS auto-loader only matches a script path literally ending
+     in ".../dcp-client/dcp-client.js" -- our folder is named dcp-client-browser, so it would silently
+     never find the stylesheet; loaded explicitly below instead. -->
+<script src="dcp-client-browser/dcp-client.js" scheduler="https://scheduler.distributed.computer/" load-css="false"></script>
+<link rel="stylesheet" href="dcp-client-browser/assets/dcp-client.css">
+
+<!-- The fit engine itself and its shared config/payload-builder modules. bootstrap-realization-
+     launcher.js defines runInitialFit/runBootstrapRealization as plain globals when loaded this way
+     (see its own export guard) -- compute.for() never executes them locally, in this page or in
+     Node; it only ships their source to a remote DCP sandbox, so the `require(...)` calls inside
+     their bodies never need to resolve here. -->
+<script src="src/PipelineConfig/defaultFittingOptions.js"></script>
+<script src="src/PayloadBuilder/buildFitPayloads.js"></script>
+<script src="bootstrap-realization-launcher.js"></script>
+<script src="velocityColormap.js"></script>
+<script src="scalingParams.js"></script>
+<script src="momentMapCanvas.js"></script>
+<script src="cornerPlot.js"></script>
+<script src="pvDiagram.js"></script>
+<script src="radialProfilePlot.js"></script>
+
+<script>
+'use strict';
+
+// ---------------------------------------------------------------------------
+// dcp-client readiness -- loads async (fetches real config, then a ~1.7MB
+// bundle), so checking `typeof dcp` at click time races that. Wait properly,
+// with a timeout so a genuine failure (folder missing, no network, or a host
+// that blocks the document.write()-based loader) surfaces as a clear
+// message instead of hanging forever.
+// ---------------------------------------------------------------------------
+const dcpReady = new Promise((resolve, reject) => {
+  if (typeof dcp !== 'undefined') { resolve(); return; }
+  window.addEventListener('dcpclientready', () => resolve(), { once: true });
+  setTimeout(() => {
+    if (typeof dcp === 'undefined') {
+      reject(new Error(
+        'dcp-client did not load within 20s. Likely causes: the dcp-client-browser/ folder isn\'t ' +
+        'sitting next to this HTML file, there\'s no network path to scheduler.distributed.computer, ' +
+        'or this page is open in something other than a normal browser tab.'
+      ));
+    }
+  }, 20000);
+});
+
+function setPill(el, kind, text) {
+  el.className = 'status-pill ' + kind;
+  el.innerHTML = '<span class="dot"></span>' + text;
+}
+function logLine(el, text, kind) {
+  el.hidden = false;
+  const p = document.createElement('div');
+  p.className = 'line' + (kind ? ' ' + kind : '');
+  p.textContent = text;
+  el.appendChild(p);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ---------------------------------------------------------------------------
+// DCP account settings: API key + compute group(s), persisted locally --
+// same shape/behavior as ~/DCP/ffmpeg-dcp/app.js's own account section,
+// adapted to this page's styling. No hardcoded fallback key (unlike that
+// project's demo key) -- an empty API key field falls back to the wallet
+// picker instead, below.
+// ---------------------------------------------------------------------------
+const API_KEY_STORAGE_KEY = 'galaxy-fit:apiKey';
+const COMPUTE_GROUPS_STORAGE_KEY = 'galaxy-fit:computeGroups';
+
+const apiKeyInput = document.getElementById('apiKeyInput');
+apiKeyInput.value = localStorage.getItem(API_KEY_STORAGE_KEY) || '';
+apiKeyInput.addEventListener('change', () => localStorage.setItem(API_KEY_STORAGE_KEY, apiKeyInput.value.trim()));
+
+function getApiKey() {
+  return apiKeyInput.value.trim();
+}
+
+// Compute group rows: one {joinKey, joinSecret} pair per row. A blank key
+// means "public group" -- at least one row is always present so there's
+// always something to fill in; the row's own × either removes it (if
+// there's more than one) or just clears it.
+const computeGroupRowsEl = document.getElementById('computeGroupRows');
+let computeGroupRowEls = [];
+
+function loadStoredComputeGroups() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(COMPUTE_GROUPS_STORAGE_KEY) || 'null');
+    if (Array.isArray(stored) && stored.length) return stored;
+  } catch (e) { /* fall through to default */ }
+  return [{ joinKey: '', joinSecret: '' }];
+}
+
+function persistComputeGroups() {
+  const groups = computeGroupRowEls.map((row) => ({
+    joinKey: row.keyInput.value.trim(),
+    joinSecret: row.secretInput.value.trim(),
+  }));
+  localStorage.setItem(COMPUTE_GROUPS_STORAGE_KEY, JSON.stringify(groups));
+}
+
+function makeComputeGroupRow(joinKey, joinSecret) {
+  const row = document.createElement('div');
+  row.className = 'compute-group-row';
+
+  const keyInput = document.createElement('input');
+  keyInput.type = 'text';
+  keyInput.placeholder = 'joinKey (blank = public)';
+  keyInput.value = joinKey || '';
+
+  const secretInput = document.createElement('input');
+  secretInput.type = 'password';
+  secretInput.placeholder = 'joinSecret (optional)';
+  secretInput.value = joinSecret || '';
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'remove-group-btn';
+  removeBtn.textContent = '×';
+  removeBtn.title = 'Remove this group';
+
+  keyInput.addEventListener('change', persistComputeGroups);
+  secretInput.addEventListener('change', persistComputeGroups);
+  removeBtn.addEventListener('click', () => {
+    if (computeGroupRowEls.length > 1) {
+      computeGroupRowEls = computeGroupRowEls.filter((r) => r.el !== row);
+      row.remove();
+    } else {
+      keyInput.value = '';
+      secretInput.value = '';
+    }
+    persistComputeGroups();
+  });
+
+  row.append(keyInput, secretInput, removeBtn);
+  return { el: row, keyInput, secretInput };
+}
+
+function renderComputeGroupRows(groups) {
+  computeGroupRowsEl.innerHTML = '';
+  computeGroupRowEls = groups.map((g) => makeComputeGroupRow(g.joinKey, g.joinSecret));
+  for (const row of computeGroupRowEls) computeGroupRowsEl.appendChild(row.el);
+}
+renderComputeGroupRows(loadStoredComputeGroups());
+
+document.getElementById('addComputeGroupBtn').addEventListener('click', () => {
+  const row = makeComputeGroupRow('', '');
+  computeGroupRowEls.push(row);
+  computeGroupRowsEl.appendChild(row.el);
+});
+
+// job.computeGroups' own shape: [{joinKey, joinSecret?}, ...], defaulting
+// to the public group when nothing's configured.
+function getComputeGroups() {
+  const groups = computeGroupRowEls
+    .map((row) => ({ joinKey: row.keyInput.value.trim(), joinSecret: row.secretInput.value.trim() }))
+    .filter((g) => g.joinKey);
+  if (!groups.length) return [{ joinKey: 'public' }];
+  return groups.map((g) => (g.joinSecret ? g : { joinKey: g.joinKey }));
+}
+
+// ---------------------------------------------------------------------------
+// Identity + payment, established lazily on the first real dispatch -- no
+// separate "Connect" step (matches ~/DCP/ffmpeg-dcp/app.js's own
+// dispatchJob(), which does the identical thing on every dispatch rather
+// than gating behind a pre-connect button).
+//
+// An API key (if provided) sets identity directly, no modal --
+// dcp.identity.set() accepts a raw key string just as readily as a Keystore
+// instance, and job.exec() accepts the same raw string for payment too (it
+// auto-wraps it into a Keystore internally) -- so providing an API key never
+// pops any modal at all. Left blank, falls back to DCP's own wallet picker
+// (wallet.get() pops a native modal -- keystore upload or OAuth -- and
+// resolves a Keystore instance), reused for both identity and payment so it
+// only prompts once per session, not once per dispatch.
+// ---------------------------------------------------------------------------
+let keystore = null;
+let paymentArg = null;
+const runInitialFitBtn = document.getElementById('runInitialFitBtn');
+
+async function unlockKeystore(ks) {
+  const isEmpty = await ks.testPassphrase('').catch(() => false);
+  if (isEmpty) await ks.unlock('', 300, true);
+  else await ks.unlock(undefined, 300, true);
+  return ks;
+}
+
+async function ensureConnected() {
+  if (paymentArg) return; // already connected this session
+  const apiKey = getApiKey();
+  if (apiKey) {
+    await dcp.identity.set(apiKey).catch((error) => { if (error.code !== 'EHAVEIDENTITY') throw error; });
+    paymentArg = apiKey;
+  } else {
+    keystore = await dcp.wallet.get();
+    await unlockKeystore(keystore);
+    await dcp.identity.set(keystore).catch((error) => { if (error.code !== 'EHAVEIDENTITY') throw error; });
+    paymentArg = keystore;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Advanced panel <-> defaultFittingOptions()
+// ---------------------------------------------------------------------------
+const options = DefaultFittingOptions.defaultFittingOptions();
+const labels = DefaultFittingOptions.RING_PARAM_LABELS;
+
+document.getElementById('advCenterSource').value = options.centerSource;
+document.getElementById('advSdSwitch').value = options.sdSwitch;
+document.getElementById('advCmode').value = options.cmode;
+document.getElementById('advCloudBaseSurfDens').value = options.cloudBaseSurfDens;
+document.getElementById('advSigmaLengths').value = options.sigmaLengths;
+document.getElementById('advNoiseSigmaLim').value = options.noiseSigmaLim;
+document.getElementById('advNRingsPerBeam').value = options.nRingsPerBeam;
+document.getElementById('advLikelihoodSwitch').value = options.likelihoodSwitch;
+document.getElementById('advFitIdum').value = options.fitIdum;
+document.getElementById('advFtol').value = options.ftol;
+document.getElementById('advVRotLims').value = options.vRotLims.join(', ');
+document.getElementById('advSizeLims').value = options.sizeLims.join(', ');
+
+const flagsBody = document.getElementById('flagsTableBody');
+labels.forEach((label, i) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${label}</td>
+    <td><input type="checkbox" data-flag="const" data-i="${i}" ${options.constParams[i] ? 'checked' : ''}></td>
+    <td><input type="checkbox" data-flag="fixed" data-i="${i}" ${options.fixedParams[i] ? 'checked' : ''}></td>`;
+  flagsBody.appendChild(tr);
+});
+
+function readOptionsFromForm() {
+  options.centerSource = parseInt(document.getElementById('advCenterSource').value, 10);
+  options.sdSwitch = parseInt(document.getElementById('advSdSwitch').value, 10);
+  options.cmode = parseInt(document.getElementById('advCmode').value, 10);
+  options.cloudBaseSurfDens = parseFloat(document.getElementById('advCloudBaseSurfDens').value);
+  options.sigmaLengths = parseFloat(document.getElementById('advSigmaLengths').value);
+  options.noiseSigmaLim = parseFloat(document.getElementById('advNoiseSigmaLim').value);
+  options.nRingsPerBeam = parseInt(document.getElementById('advNRingsPerBeam').value, 10);
+  options.likelihoodSwitch = parseInt(document.getElementById('advLikelihoodSwitch').value, 10);
+  options.fitIdum = parseInt(document.getElementById('advFitIdum').value, 10);
+  options.ftol = parseFloat(document.getElementById('advFtol').value);
+  options.vRotLims = document.getElementById('advVRotLims').value.split(',').map((s) => parseFloat(s.trim()));
+  options.sizeLims = document.getElementById('advSizeLims').value.split(',').map((s) => parseFloat(s.trim()));
+  flagsBody.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+    const i = parseInt(cb.dataset.i, 10);
+    (cb.dataset.flag === 'const' ? options.constParams : options.fixedParams)[i] = cb.checked;
+  });
+  return options;
+}
+
+// ---------------------------------------------------------------------------
+// File -> Uint8Array
+// ---------------------------------------------------------------------------
+async function fileToBytes(file) {
+  return new Uint8Array(await file.arrayBuffer());
+}
+
+// ---------------------------------------------------------------------------
+// Tiny canvas line chart -- no library, just enough to sanity-check a profile.
+// ---------------------------------------------------------------------------
+function drawChart(canvas, xs, ys) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height, pad = 8;
+  ctx.clearRect(0, 0, w, h);
+  if (!xs.length) return;
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = 0, yMax = Math.max(...ys) * 1.1 || 1;
+  const sx = (x) => pad + (xMax > xMin ? (x - xMin) / (xMax - xMin) : 0.5) * (w - 2 * pad);
+  const sy = (y) => h - pad - ((y - yMin) / (yMax - yMin || 1)) * (h - 2 * pad);
+  const styles = getComputedStyle(document.body);
+  ctx.strokeStyle = styles.getPropertyValue('--accent').trim() || '#1f6fa8';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  xs.forEach((x, i) => { const px = sx(x), py = sy(ys[i]); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
+  ctx.stroke();
+  ctx.fillStyle = ctx.strokeStyle;
+  xs.forEach((x, i) => { ctx.beginPath(); ctx.arc(sx(x), sy(ys[i]), 2.5, 0, 7); ctx.fill(); });
+}
+
+// ---------------------------------------------------------------------------
+// Job dispatch helper -- shared shape for both steps. ensureConnected()
+// establishes identity + payment on the first call (pops the wallet modal
+// then, if no API key is set) and is a no-op on every call after.
+// ---------------------------------------------------------------------------
+async function dispatchJob({ inputSet, workFn, payload, jobName, modules }) {
+  await dcpReady;
+  await ensureConnected();
+  const job = dcp.compute.for(inputSet, workFn, [payload]);
+  job.requires(modules || window.INITIAL_FIT_AND_BOOTSTRAP_MODULES);
+  job.computeGroups = getComputeGroups();
+  job.public = { name: '🌌 ' + jobName, description: '3KIDNAS galaxy fit', link: 'https://www.candiapl.ca/' };
+  return job;
+}
+
+// ---------------------------------------------------------------------------
+// Object name & PA/Inc prepopulation -- automatic the moment a cube is
+// picked, always local (estimateGeometry runs SoFiA on one un-resampled
+// cube with no fit -- well under a second on a real test cube, so there's
+// no reason this should ever go over the network). Neither ever overwrites
+// a field the user has typed into themselves -- objNameEdited tracks that
+// for the name field; PA/Inc simply get filled once, from empty, and stay
+// freely editable afterward.
+// ---------------------------------------------------------------------------
+let objNameEdited = false;
+const objNameField = document.getElementById('objName');
+objNameField.addEventListener('input', () => { objNameEdited = true; });
+
+function guessObjectNameFromFilename(filename) {
+  return filename.replace(/\.fits(\.gz)?$/i, '').replace(/_(velcube|cube)$/i, '');
+}
+
+const cubeFileInput = document.getElementById('cubeFile');
+const estimateGeometryStatus = document.getElementById('estimateGeometryStatus');
+
+// estimateGeometry's own body is written to run inside a DCP sandbox
+// (require('cfitsio-wasm.js') etc.), which normally only exists there or in
+// Node -- these scripts make it also runnable directly in this page's own
+// JS context. Lazy-loaded (not unconditionally at page load:
+// cfitsio-module.js/sofia-module.js are multi-MB wasm blobs) the first time
+// a cube is picked, then cached. local-testing-wasm/ holds synced copies of
+// the canonical wasm build artifacts (see its own README) -- kept
+// same-directory-tree so this page works fully self-contained under
+// third_party/DCP/, however it's served.
+const LOCAL_ESTIMATE_SCRIPTS = [
+  'src/SoFiACatalog/ParseSoFiACatalog.js',
+  'src/GeometryEstimates/GeometryEstimates.js',
+  'local-testing-wasm/cfitsio-module.js',
+  'local-testing-wasm/cfitsio-wasm.js',
+  'local-testing-wasm/sofia-module.js',
+  'local-testing-wasm/sofia-wasm.js',
+];
+let localEstimateScriptsLoaded = false;
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false; // preserve document order -- cfitsio-module.js must run before cfitsio-wasm.js
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('failed to load ' + src));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureLocalEstimateScriptsLoaded() {
+  if (localEstimateScriptsLoaded) return;
+  for (const src of LOCAL_ESTIMATE_SCRIPTS) {
+    await loadScriptOnce(src);
+  }
+  localEstimateScriptsLoaded = true;
+}
+
+// Temporary, narrowly-scoped `require` shim resolving the same module names
+// a real DCP sandbox would -- installed only for the duration of this one
+// call, then removed, so it can never interfere with dcp-client's own bundle.
+async function runEstimateGeometryLocally(payload) {
+  await ensureLocalEstimateScriptsLoaded();
+  const previousRequire = window.require;
+  window.require = function (name) {
+    switch (name) {
+      case './src/SoFiACatalog/ParseSoFiACatalog': return window.ParseSoFiACatalog;
+      case './src/GeometryEstimates/GeometryEstimates': return window.GeometryEstimates;
+      case 'cfitsio-wasm.js':
+      case '../cfitsio-4.6.3/wasm/cfitsio-wasm.js': return window.CfitsioWasm;
+      case 'sofia-wasm.js':
+      case '../SoFiA-2-master_2_5_1/wasm/sofia-wasm.js': return window.SofiaWasm;
+      default: throw new Error('require: no browser-local shim for module "' + name + '"');
+    }
+  };
+  try {
+    return await estimateGeometry(0, payload);
+  } finally {
+    if (previousRequire === undefined) delete window.require;
+    else window.require = previousRequire;
+  }
+}
+
+cubeFileInput.addEventListener('change', async () => {
+  const cubeFile = cubeFileInput.files[0];
+  if (!cubeFile) return;
+  if (!objNameEdited) objNameField.value = guessObjectNameFromFilename(cubeFile.name);
+
+  estimateGeometryStatus.textContent = 'Estimating PA / Inc / object name from cube (SoFiA, local)…';
+  try {
+    let sofiaParTemplateText;
+    try {
+      sofiaParTemplateText = await (await fetch('sofia-template-par-file.par')).text();
+    } catch (fetchError) {
+      throw new Error(location.protocol === 'file:'
+        ? 'Could not load the SoFiA config asset -- browsers block fetch() of local files under file://. Serve this folder over HTTP instead (see the notice at the top of the page) and reload.'
+        : 'Could not load sofia-template-par-file.par: ' + fetchError.message);
+    }
+    const payload = BuildFitPayloads.buildGeometryEstimatePayload({
+      cubeBytes: await fileToBytes(cubeFile),
+      sofiaParTemplateText,
+    });
+
+    const result = await runEstimateGeometryLocally(payload);
+    if (result.sofiaFailed) throw new Error(result.error || 'SoFiA found no usable source in this cube');
+
+    document.getElementById('paEstimate').value = result.paEstDeg.toFixed(3);
+    document.getElementById('incEstimate').value = result.incEstDeg.toFixed(3);
+    if (result.objectName && !objNameEdited) objNameField.value = result.objectName;
+
+    if (result.velocityAxisWarning) {
+      estimateGeometryStatus.textContent = '⚠ ' + result.velocityAxisWarning;
+      estimateGeometryStatus.style.color = 'var(--warn)';
+    } else {
+      estimateGeometryStatus.textContent = 'Estimated from cube (SoFiA) -- edit any of the three fields above freely.';
+      estimateGeometryStatus.style.color = '';
+    }
+  } catch (error) {
+    console.error(error);
+    estimateGeometryStatus.textContent = 'Couldn\'t auto-estimate from this cube (' + error.message + ') -- enter PA/Inc manually.';
+    estimateGeometryStatus.style.color = '';
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Step 1: initial fit
+// ---------------------------------------------------------------------------
+let initialFitResult = null;
+const initialFitLog = document.getElementById('initialFitLog');
+const initialFitStatus = document.getElementById('initialFitStatus');
+
+document.getElementById('runInitialFitBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('runInitialFitBtn');
+  const cubeFile = document.getElementById('cubeFile').files[0];
+  const maskFile = document.getElementById('maskFile').files[0];
+  const paEstDeg = parseFloat(document.getElementById('paEstimate').value);
+  const incEstDeg = parseFloat(document.getElementById('incEstimate').value);
+  const objName = document.getElementById('objName').value || 'galaxy';
+
+  if (!cubeFile || !maskFile || !Number.isFinite(paEstDeg) || !Number.isFinite(incEstDeg)) {
+    setPill(initialFitStatus, 'err', 'cube, mask, PA, and inclination are all required');
+    return;
+  }
+
+  btn.disabled = true;
+  setPill(initialFitStatus, 'running', 'building payload…');
+  initialFitLog.hidden = false; initialFitLog.innerHTML = '';
+  document.getElementById('initialFitResults').hidden = true;
+
+  try {
+    const opts = readOptionsFromForm();
+    const payload = BuildFitPayloads.buildInitialFitPayload({
+      cubeBytes: await fileToBytes(cubeFile),
+      maskBytes: await fileToBytes(maskFile),
+      paEstDeg, incEstDeg, options: opts,
+    });
+
+    setPill(initialFitStatus, 'running', 'dispatching…');
+    logLine(initialFitLog, `dispatching initial fit for ${objName}...`);
+    const job = await dispatchJob({ inputSet: [0], workFn: runInitialFit, payload, jobName: objName + ' (initial fit)', modules: window.INITIAL_FIT_ONLY_MODULES });
+    job.on('readystatechange', (ev) => logLine(initialFitLog, 'state: ' + ev));
+    job.on('accepted', () => logLine(initialFitLog, 'job id: ' + job.id));
+    job.on('error', (error) => logLine(initialFitLog, 'job error: ' + (error.message || error), 'err'));
+
+    const results = await job.exec(undefined, paymentArg);
+    const result = results[0];
+    if (!result.FITAchieved) {
+      throw new Error(result.error || 'did not converge');
+    }
+
+    initialFitResult = result;
+    // Keep the raw cube bytes for the bootstrap step -- same bytes, no need
+    // to re-prompt the file picker.
+    initialFitResult.__cubeBytes = payload.observedCubeRawFitsB64;
+
+    logLine(initialFitLog, `converged: chi2=${result.chi2.toFixed(3)}`, 'ok');
+    setPill(initialFitStatus, 'ok', 'converged  chi2=' + result.chi2.toFixed(1));
+
+    renderInitialFitResults(result);
+    document.getElementById('runBootstrapBtn').disabled = false;
+    if (!document.getElementById('pauseAfterInitialFit').checked) {
+      runBootstrapFlow(); // not awaited -- runs in the background, its own try/catch handles status/errors
+    }
+  } catch (error) {
+    console.error(error);
+    logLine(initialFitLog, 'error: ' + error.message, 'err');
+    setPill(initialFitStatus, 'err', error.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function renderInitialFitResults(r) {
+  const table = document.getElementById('initialFitTable');
+  const rows = [
+    ['chi2', r.chi2.toFixed(2)],
+    ['Inclination (deg)', r.INCLINATION[0].toFixed(3)],
+    ['Position angle (deg)', r.POSITIONANGLE[0].toFixed(3)],
+    ['V_sys (km/s)', r.VSYS[0].toFixed(2)],
+    ['V_disp (km/s)', r.VDISP[0].toFixed(2)],
+    ['Center (X, Y) (pix)', r.XCENTER[0].toFixed(2) + ', ' + r.YCENTER[0].toFixed(2)],
+    ['Rings', r.R.length],
+    ['RMS', r.RMS.toFixed(4)],
+    ['S/N (median / peak / integrated)', [r.SN_Median, r.SN_Peak, r.SN_Integrated].map((v) => v.toFixed(2)).join(' / ')],
+  ];
+  table.innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td class="tabular">${v}</td></tr>`).join('');
+  document.getElementById('initialFitResults').hidden = false;
+  drawChart(document.getElementById('vrotChart'), r.R, r.VROT);
+  drawChart(document.getElementById('sdChart'), r.R_SD, r.SURFDENS);
+  if (r.momentMaps) {
+    const centerPix = [r.XCENTER[0], r.YCENTER[0]];
+    MomentMapCanvas.drawMom0Panel(document.getElementById('mom0Canvas'), r.momentMaps, centerPix);
+    MomentMapCanvas.drawMom1Panel(document.getElementById('mom1Canvas'), r, centerPix);
+  }
+  if (r.pvDiagrams) {
+    PVDiagram.drawPVGrid(document.getElementById('pvCanvas'), r);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: bootstrap loop
+// ---------------------------------------------------------------------------
+let bootstrapResults = null;
+const bootstrapLog = document.getElementById('bootstrapLog');
+const bootstrapStatus = document.getElementById('bootstrapStatus');
+
+document.getElementById('runBootstrapBtn').addEventListener('click', runBootstrapFlow);
+
+async function runBootstrapFlow() {
+  const btn = document.getElementById('runBootstrapBtn');
+  const nBootstraps = parseInt(document.getElementById('nBootstraps').value, 10);
+  const seed = parseInt(document.getElementById('bootstrapSeed').value, 10) || 0;
+  const cubeFile = document.getElementById('cubeFile').files[0];
+  const objName = document.getElementById('objName').value || 'galaxy';
+
+  if (!initialFitResult) { setPill(bootstrapStatus, 'err', 'run the initial fit first'); return; }
+  if (!Number.isFinite(nBootstraps) || nBootstraps < 1) { setPill(bootstrapStatus, 'err', 'set a valid realization count'); return; }
+
+  btn.disabled = true;
+  setPill(bootstrapStatus, 'running', 'building payload…');
+  bootstrapLog.hidden = false; bootstrapLog.innerHTML = '';
+  document.getElementById('bootstrapResults').hidden = true;
+  document.getElementById('downloadBtn').hidden = true;
+
+  try {
+    const opts = readOptionsFromForm();
+    let sofiaParTemplateText;
+    try {
+      sofiaParTemplateText = await (await fetch('sofia-template-par-file.par')).text();
+    } catch (fetchError) {
+      throw new Error(location.protocol === 'file:'
+        ? 'Could not load the SoFiA config asset -- browsers block fetch() of local files under file://. Serve this folder over HTTP instead (see the notice at the top of the page) and reload.'
+        : 'Could not load sofia-template-par-file.par: ' + fetchError.message);
+    }
+    const payload = BuildFitPayloads.buildBootstrapPayload({
+      initialFitResult,
+      cubeBytes: await fileToBytes(cubeFile),
+      sofiaParTemplateText, bootstrapSeed: seed, options: opts,
+    });
+
+    setPill(bootstrapStatus, 'running', `dispatching ${nBootstraps} realization(s)…`);
+    logLine(bootstrapLog, `dispatching ${nBootstraps} bootstrap realization(s) for ${objName}...`);
+    const inputSet = Array.from({ length: nBootstraps }, (_, i) => i);
+    const job = await dispatchJob({ inputSet, workFn: runBootstrapRealization, payload, jobName: objName + ' (bootstrap)', modules: window.BOOTSTRAP_ONLY_MODULES });
+
+    let completed = 0;
+    job.on('readystatechange', (ev) => logLine(bootstrapLog, 'state: ' + ev));
+    job.on('accepted', () => logLine(bootstrapLog, 'job id: ' + job.id));
+    job.on('result', () => {
+      completed++;
+      setPill(bootstrapStatus, 'running', `${completed}/${nBootstraps} realizations complete…`);
+    });
+    job.on('error', (error) => logLine(bootstrapLog, 'job error: ' + (error.message || error), 'err'));
+
+    const results = await job.exec(undefined, paymentArg);
+    bootstrapResults = results;
+    const nOk = results.filter((r) => !r.sofiaFailed).length;
+    logLine(bootstrapLog, `${nOk}/${nBootstraps} realizations succeeded`, 'ok');
+    setPill(bootstrapStatus, 'ok', `${nOk}/${nBootstraps} succeeded`);
+
+    renderBootstrapResults(results, initialFitResult);
+    document.getElementById('downloadBtn').hidden = false;
+  } catch (error) {
+    console.error(error);
+    logLine(bootstrapLog, 'error: ' + error.message, 'err');
+    setPill(bootstrapStatus, 'err', error.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Median + 1.4825*MAD, combined with the (median - best-fit) offset --
+// mirrors Bootstrap_Error_Analysis.BootsrapErrors_ForParam's formula exactly.
+function medianMadUncertainty(values, bestFitVal) {
+  const sorted = values.slice().sort((a, b) => a - b);
+  const median = (arr) => {
+    const n = arr.length;
+    return n % 2 ? arr[(n - 1) / 2] : (arr[n / 2 - 1] + arr[n / 2]) / 2;
+  };
+  const med = median(sorted);
+  const absDevs = values.map((v) => Math.abs(v - med)).sort((a, b) => a - b);
+  const mad = median(absDevs);
+  const madErr = 1.4825 * mad;
+  const diff = bestFitVal - med;
+  const err = Math.sqrt(madErr * madErr + diff * diff);
+  return { median: med, err };
+}
+
+function renderBootstrapResults(results, best) {
+  const ok = results.filter((r) => !r.sofiaFailed);
+  const params = [
+    ['XCENTER', 'X Center (pix)', (r) => r.XCENTER[0]],
+    ['YCENTER', 'Y Center (pix)', (r) => r.YCENTER[0]],
+    ['INCLINATION', 'Inclination (deg)', (r) => r.INCLINATION[0]],
+    ['POSITIONANGLE', 'Position angle (deg)', (r) => r.POSITIONANGLE[0]],
+    ['VSYS', 'V_sys (km/s)', (r) => r.VSYS[0]],
+    ['VDISP', 'V_disp (km/s)', (r) => r.VDISP[0]],
+  ];
+  const rows = params.map(([key, label, pick]) => {
+    const values = ok.map(pick);
+    const bestVal = pick(best);
+    if (!values.length) return `<tr><td>${label}</td><td>&mdash;</td></tr>`;
+    const { median, err } = medianMadUncertainty(values, bestVal);
+    return `<tr><td>${label}</td><td class="tabular">${median.toFixed(3)} &plusmn; ${err.toFixed(3)}</td></tr>`;
+  });
+  rows.unshift(`<tr><td>Converged</td><td class="tabular">${ok.length} / ${results.length}</td></tr>`);
+
+  // RHI/VHI scaling params + WCS-corrected global PA -- computed client-side
+  // from data already on hand (best fit + every bootstrap realization), no
+  // extra dispatch needed. See scalingParams.js.
+  const scaling = ScalingParams.computeScalingParams(best, ok);
+  rows.push(`<tr><td>R<sub>HI</sub> (kpc)</td><td class="tabular">${
+    Number.isFinite(scaling.RHI_kpc) ? scaling.RHI_kpc.toFixed(2) + (Number.isFinite(scaling.RHI_kpc_err) ? ' &plusmn; ' + scaling.RHI_kpc_err.toFixed(2) : '') : '&mdash;'
+  }</td></tr>`);
+  rows.push(`<tr><td>V<sub>HI</sub> (km/s)</td><td class="tabular">${
+    Number.isFinite(scaling.VHI) ? scaling.VHI.toFixed(1) + (Number.isFinite(scaling.VHI_err) ? ' &plusmn; ' + scaling.VHI_err.toFixed(1) : '') : '&mdash;'
+  }</td></tr>`);
+  if (best.wcsHeader && best.momentMaps) {
+    const paGlobal = ScalingParams.computeGlobalPA(best, best.wcsHeader, best.momentMaps.beamMajPix);
+    rows.push(`<tr><td>PA (sky-frame, deg)</td><td class="tabular">${paGlobal.toFixed(1)}</td></tr>`);
+  }
+
+  document.getElementById('bootstrapTable').innerHTML = rows.join('');
+  document.getElementById('bootstrapResults').hidden = false;
+  RadialProfilePlot.drawRadialProfileGrid(document.getElementById('radialProfileCanvas'), results, best);
+  CornerPlot.drawCornerPlot(document.getElementById('cornerPlotCanvas'), results, best);
+}
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ initialFit: initialFitResult, bootstraps: bootstrapResults }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (document.getElementById('objName').value || 'galaxy') + '_fit_results.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Individual dispatch buttons already surface dcpReady failures via their
+// own try/catch (ensureConnected() awaits dcpReady first) -- this is just a
+// console breadcrumb for the case where dcp-client never even loads.
+dcpReady.catch((error) => { console.error('dcp-client failed to load:', error); });
+
+if (location.protocol === 'file:') {
+  document.getElementById('fileProtocolWarning').hidden = false;
+}
+</script>
+</body>
+</html>

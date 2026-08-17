@@ -1,0 +1,36 @@
+=== r2c plan for 37x37 ===
+(rdft2-rank>=2/1
+  (rdft2-rdft-r2hc-37-x37/37-1
+    (rdft-vrank>=1-x37/1
+      (rdft-generic-r2hc-37))
+    (rdft2-nop))
+  (dft-vrank>=1-x19/1
+    (dft-rader-37/is=38/os=38
+      (dft-ct-dit/6
+        (dftw-direct-6/10 "t1_6")
+        (dft-direct-6-x6 "n1_6"))
+      (dft-ct-dit/6
+        (dftw-direct-6/10 "t1_6")
+        (dft-direct-6-x6 "n1_6"))
+      (dft-ct-dit/6
+        (dftw-direct-6/10 "t1_6")
+        (dft-directbuf/10-6-x6 "n1_6")))))
+
+=== c2r plan for 37x37 ===
+(rdft2-rank>=2/1
+  (rdft2-rdft-hc2r-37-x37/37-1
+    (rdft-vrank>=1-x37/1
+      (rdft-generic-hc2r-37))
+    (rdft2-nop))
+  (dft-vrank>=1-x19/1
+    (dft-rader-37/is=38/os=38
+      (dft-ct-dit/6
+        (dftw-direct-6/10 "t1_6")
+        (dft-direct-6-x6 "n1_6"))
+      (dft-ct-dit/6
+        (dftw-direct-6/10 "t1_6")
+        (dft-direct-6-x6 "n1_6"))
+      (dft-ct-dit/6
+        (dftw-direct-6/10 "t1_6")
+        (dft-directbuf/10-6-x6 "n1_6")))))
+

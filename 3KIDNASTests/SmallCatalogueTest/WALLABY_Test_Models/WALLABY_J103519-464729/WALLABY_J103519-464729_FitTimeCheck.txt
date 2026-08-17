@@ -1,0 +1,2 @@
+Initial Fit Runtime (in seconds) = 5.11156702041626
+Total Fit Runtime (in seconds) = 82.56525993347168

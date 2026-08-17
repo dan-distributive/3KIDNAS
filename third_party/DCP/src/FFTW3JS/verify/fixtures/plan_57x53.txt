@@ -1,0 +1,32 @@
+=== r2c plan for 57x53 ===
+(rdft2-rank>=2/1
+  (rdft2-rdft-r2hc-53-x57/57-1
+    (rdft-vrank>=1-x57/1
+      (rdft-generic-r2hc-53))
+    (rdft2-nop))
+  (dft-buffered-57-x27/27-5
+    (dft-vrank>=1-x27/1
+      (dft-ct-dit/3
+        (dftw-direct-3/4 "t1_3")
+        (dft-vrank>=1-x3/1
+          (dft-generic-19))))
+    (dft-r2hc-1
+      (rdft-rank0-tiledbuf/2-x27-x57))
+    (dft-nop)))
+
+=== c2r plan for 57x53 ===
+(rdft2-rank>=2/1
+  (rdft2-rdft-hc2r-53-x57/57-1
+    (rdft-vrank>=1-x57/1
+      (rdft-generic-hc2r-53))
+    (rdft2-nop))
+  (dft-buffered-57-x27/27-5
+    (dft-vrank>=1-x27/1
+      (dft-ct-dit/3
+        (dftw-direct-3/4 "t1_3")
+        (dft-vrank>=1-x3/1
+          (dft-generic-19))))
+    (dft-r2hc-1
+      (rdft-rank0-tiledbuf/2-x27-x57))
+    (dft-nop)))
+

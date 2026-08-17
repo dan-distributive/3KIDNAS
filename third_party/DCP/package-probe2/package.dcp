@@ -1,0 +1,21 @@
+{
+    "name": "3kidnas-probe2",
+    "version": "0.0.2",
+    "files": {
+        "EntryProbe.js": "EntryProbe.js",
+        "deps/Dep01.js": "deps/Dep01.js",
+        "deps/Dep02.js": "deps/Dep02.js",
+        "deps/Dep03.js": "deps/Dep03.js",
+        "deps/Dep04.js": "deps/Dep04.js",
+        "deps/Dep05.js": "deps/Dep05.js",
+        "deps/Dep06.js": "deps/Dep06.js",
+        "deps/Dep07.js": "deps/Dep07.js",
+        "deps/Dep08.js": "deps/Dep08.js",
+        "deps/Dep09.js": "deps/Dep09.js",
+        "deps/Dep10.js": "deps/Dep10.js",
+        "deps/Dep11.js": "deps/Dep11.js",
+        "deps/Dep12.js": "deps/Dep12.js",
+        "deps/Dep13.js": "deps/Dep13.js",
+        "deps/Dep14.js": "deps/Dep14.js"
+    }
+}

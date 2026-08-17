@@ -1,0 +1,1526 @@
+<!doctype html>
+<html lang="en">
+<head gtag-measurement-id="G-YWXYDRB40M">
+<script type="module" src="../components/gdpr-gtag/gdpr-gtag.js"></script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Distributive — Galaxy Kinematics at Survey Scale</title>
+<meta name="description" content="Distributing the 3KIDNAS bootstraping stage across a DCP worker pool to kinematically model tens of thousands of galaxies from the WALLABY HI survey.">
+<link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+<link rel="stylesheet" href="../css/styles.css">
+<link rel="stylesheet" href="../css/styles-docs.css">
+<script defer src="../js/header.js"></script>
+<script defer src="../js/footer.js"></script>
+<script src="../js/doc.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+<!--
+  ╔══════════════════════════════════════════════════════╗
+  ║  GEO BOX PLOT — page-specific styling (inlined so     ║
+  ║  this page is self-contained: just this .html file +  ║
+  ║  3kidnas-project-assets/ need to travel together)      ║
+  ╚══════════════════════════════════════════════════════╝
+-->
+<style>
+  /* =========================================
+     GEO BOX PLOT
+     Themed replacement for the static matplotlib
+     bootstrap corner-plot PNG. Colors are drawn from
+     the site's own palette (--accent, --text, --bg,
+     defined in styles.css) plus one new complementary
+     hue for the bootstrap scatter/histograms.
+  ========================================= */
+
+  .geo-box-plot {
+    --gbp-panel-bg: #0a0a0a;
+    --gbp-panel-border: #1a1a1a;
+    --gbp-grid: #161616;
+    --gbp-bootstrap: #9b8cff;      /* violet -- bootstrap realizations */
+    --gbp-bootstrap-dim: #9b8cff55;
+    --gbp-best: var(--accent);     /* site green -- best-fit reference model */
+    --gbp-hist-fill: #9b8cff20;
+    margin-top: 20px;
+  }
+
+  .geo-box-plot .gbp-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    background: var(--gbp-panel-bg);
+    border: 1px solid var(--gbp-panel-border);
+    border-radius: 6px;
+  }
+  /* Fixed width + no flex-grow/shrink: the value text inside grows and
+     shrinks every animation frame as more bootstraps are revealed (more
+     digits, sign changes, etc.) -- without a reserved width each card
+     resizes to fit its own content, which shoves every card after it
+     sideways and can shift where the row wraps. A fixed box with the
+     number left-aligned inside it turns that reflow into "text grows into
+     empty space to its right," which is stationary. */
+  .geo-box-plot .gbp-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 118px;
+    flex: 0 0 auto;
+  }
+  .geo-box-plot .gbp-stat-k {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text);
+    opacity: 0.65;
+  }
+  .geo-box-plot .gbp-stat-v {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+  .geo-box-plot .gbp-stat-e {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text);
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Corner plot on top, rotation-curve + surface-density panels as a row
+     beneath it -- the row's width is computed in JS to exactly match the
+     corner plot's own rendered width (see CORNER_WIDTH/PROFILE_WIDTH
+     below), so the two "line up" as matching-width boxes stacked
+     vertically rather than an arbitrary side-by-side split. */
+  .geo-box-plot .gbp-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-items: flex-start;
+  }
+  .geo-box-plot .gbp-corner-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+    border: 1px solid var(--gbp-panel-border);
+    border-radius: 6px;
+    background: var(--gbp-panel-bg);
+    padding: 6px;
+  }
+  .geo-box-plot .gbp-side {
+    display: flex;
+    flex-direction: row;
+    gap: 14px;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .geo-box-plot .gbp-panel-card {
+    background: var(--gbp-panel-bg);
+    border: 1px solid var(--gbp-panel-border);
+    border-radius: 6px;
+    padding: 10px 12px 4px;
+    flex: 0 0 auto;
+  }
+  .geo-box-plot .gbp-panel-card h4 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text);
+    opacity: 0.7;
+  }
+
+  .geo-box-plot .gbp-error { color: var(--text); font-style: italic; padding: 20px; }
+
+  .gbp-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 10px 0 0;
+    flex-wrap: wrap;
+  }
+  .gbp-meta-line {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 12px;
+    color: var(--text);
+    opacity: 0.65;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+  .gbp-meta-line span { opacity: 1; }
+  .gbp-anim-toggle {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 11px;
+    color: var(--text);
+    background: var(--gbp-panel-bg);
+    border: 1px solid var(--gbp-panel-border);
+    border-radius: 4px;
+    padding: 3px 10px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+  }
+  .gbp-anim-toggle:hover { border-color: var(--accent); color: #fff; }
+
+  /* SVG primitives */
+  .geo-box-plot svg text { font-family: inherit; }
+  .geo-box-plot .gbp-frame { fill: none; stroke: var(--gbp-panel-border); stroke-width: 1; }
+  .geo-box-plot .gbp-axis-label { fill: var(--text); opacity: 0.65; font-size: 9.5px; }
+  .geo-box-plot .gbp-dot { fill: var(--gbp-bootstrap-dim); }
+  .geo-box-plot .gbp-star { fill: var(--gbp-best); stroke: #000; stroke-width: 0.75; }
+  .geo-box-plot .gbp-bar { fill: var(--gbp-hist-fill); stroke: var(--gbp-bootstrap); stroke-width: 0.75; }
+  .geo-box-plot .gbp-bestline { stroke: var(--gbp-best); stroke-width: 2; }
+  .geo-box-plot .gbp-profile-line { fill: none; stroke: var(--gbp-bootstrap); stroke-width: 1.3; opacity: 0.28; }
+  .geo-box-plot .gbp-best-line { fill: none; stroke: var(--gbp-best); stroke-width: 2.3; }
+  .geo-box-plot .gbp-best-dot { fill: var(--gbp-best); }
+  .geo-box-plot .gbp-errbar { stroke: var(--gbp-best); stroke-width: 1.6; opacity: 0.8; }
+</style>
+
+<!--
+  ╔══════════════════════════════════════════════════════╗
+  ║  DCP JOB STATS  (optional live hook)                 ║
+  ║  Point this at a live scaling job to make the progress║
+  ║  bar reflect real-time completion. With placeholder   ║
+  ║  creds it silently no-ops and the static first-run    ║
+  ║  numbers below are shown instead.                     ║
+  ╚══════════════════════════════════════════════════════╝
+-->
+<script src="https://scheduler.distributed.computer/dcp-client/dcp-client.js"></script>
+<script>
+  window.addEventListener('load', async () => {
+    try {
+      const pct = await getJobCompletion(
+        '<private_key>',          // TODO: API key of the live job's owner
+        '<job_opaque_id>'         // TODO: opaqueId of the live scaling job
+      );
+      if (pct === null || Number.isNaN(pct)) return;   // keep static content
+
+      document.querySelector('.progress-bar-fill').style.width  = pct + '%';
+      document.getElementById('stat-pct').innerHTML             = pct + '<span>%</span>';
+      document.getElementById('progress-label-pct').textContent = pct + '% complete';
+      document.querySelectorAll('.live-pct').forEach(el => el.textContent = pct);
+    } catch (e) {
+      // Placeholder creds or offline — leave the static first-run state as-is.
+    }
+  });
+
+  async function getJobCompletion(apiKey, jobOpaqueId) {
+    const ks = await new dcp.wallet.Keystore(apiKey, '');
+    await dcp.identity.set(ks);
+
+    const db = await dcp.jnu.connect('scheduler', ks);
+
+    const jobsQuery = await db.select({ table: 'jobs', prototype: { opaqueId: jobOpaqueId } });
+
+    const resultCounts = {};
+    const resultsQuery = await db.select({ table: 'jobResults', prototype: {} });
+    for (let row = await resultsQuery.getFirst(); row; row = await resultsQuery.getNext())
+      resultCounts[row.jobId] = (resultCounts[row.jobId] ?? 0) + 1;
+
+    for (let row = await jobsQuery.getFirst(); row; row = await jobsQuery.getNext()) {
+      const completed = resultCounts[row.id] ?? 0;
+      const total = row.lastSliceNumber ?? 0;
+      return total > 0 ? parseFloat(((completed / total) * 100).toFixed(1)) : null;
+    }
+
+    return null;
+  }
+</script>
+
+<!--
+  ╔══════════════════════════════════════════════════════╗
+  ║  PAGE STYLE  (inherited verbatim from the use-case    ║
+  ║  design system; helix bg re-themed to a galaxy disk)  ║
+  ╚══════════════════════════════════════════════════════╝
+-->
+
+<style>
+  /* ── live badge ── */
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.72em;
+    font-family: Courier, monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent-dark);
+    padding: 3px 10px 3px 8px;
+    margin-bottom: 18px;
+  }
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: livepulse 1.6s ease-in-out infinite;
+  }
+  @keyframes livepulse {
+    0%,100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(0,204,117,0.6); }
+    50%     { opacity: 0.5; transform: scale(0.75); box-shadow: 0 0 0 4px rgba(0,204,117,0); }
+  }
+
+  /* ── stat strip ── */
+  .stat-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border: 1px solid #222;
+    margin: 40px 0 0;
+  }
+  .stat-item {
+    padding: 20px 24px;
+    border-right: 1px solid #222;
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-n {
+    font-family: Courier, monospace;
+    font-size: 2rem;
+    color: #fff;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-n span { font-size: 1rem; color: #666; }
+  .stat-d { font-size: 0.78rem; color: #666; line-height: 1.4; }
+
+  /* ── progress bar ── */
+  .progress-wrap {
+    border: 1px solid #222;
+    padding: 20px 24px;
+    margin: 24px 0;
+    background: #050505;
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-wrap::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: -100%;
+    width: 60%;
+    background: linear-gradient(90deg, transparent, rgba(0,204,117,0.04), transparent);
+    animation: scan 3s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes scan {
+    0%   { left: -60%; }
+    100% { left: 110%; }
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-family: Courier, monospace;
+    font-size: 0.75em;
+    color: #888;
+    margin-bottom: 10px;
+  }
+  .progress-label span { color: #666; }
+  .progress-bar-bg {
+    height: 6px;
+    background: #1a1a1a;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--accent);
+    position: relative;
+  }
+  .progress-bar-fill::after {
+    content: '';
+    position: absolute;
+    right: -8px; top: -2px; bottom: -2px;
+    width: 16px;
+    background: radial-gradient(ellipse at center, rgba(0,255,140,0.9) 0%, transparent 70%);
+    animation: edgeflash 1.5s ease-in-out infinite;
+  }
+  @keyframes edgeflash {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.2; }
+  }
+  .progress-sub {
+    margin-top: 10px;
+    font-family: Courier, monospace;
+    font-size: 0.7em;
+    color: #666;
+  }
+
+  /* ── finding / science cards ── */
+  .gene-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: #1a1a1a;
+    margin: 24px 0;
+  }
+  .gene-card {
+    background: #000;
+    padding: 20px 22px;
+    border-left: 3px solid transparent;
+  }
+  .gene-card.primary   { border-left-color: var(--accent); }
+  .gene-card.secondary { border-left-color: #777; }
+  .gene-name { font-family: Courier, monospace; font-size: 1.1rem; color: #fff; margin-bottom: 4px; }
+  .gene-freq         { font-family: Courier, monospace; font-size: 0.72em; color: var(--accent); margin-bottom: 8px; }
+  .gene-freq.muted   { color: #777; }
+  .gene-desc { font-size: 0.85rem; color: #888; line-height: 1.5; }
+
+  /* ── pipeline ── */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    margin: 24px 0;
+    border: 1px solid #1e1e1e;
+  }
+  .pipe-node {
+    flex: 1;
+    padding: 14px 16px;
+    border-right: 1px solid #1e1e1e;
+    background: #050505;
+  }
+  .pipe-node:last-child { border-right: none; }
+  .pipe-node.active { background: #001f0f; border-right-color: #0a3a1f; }
+  .pipe-node-title { font-family: Courier, monospace; font-size: 0.72em; color: #fff; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .pipe-node-sub   { font-size: 0.72em; color: #555; }
+  .pipe-node.active .pipe-node-sub { color: var(--accent); }
+
+  .inset { white-space: pre; }
+
+  /* ── callout ── */
+  .callout {
+    border-left: 3px solid var(--accent-dark);
+    background: #030d07;
+    padding: 14px 18px;
+    margin: 20px 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #aaa;
+  }
+  .callout strong { color: #fff; }
+
+  /* ── collaborator cards ── */
+  .collab-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: #1a1a1a;
+    margin-top: 20px;
+  }
+  .collab-card {
+    background: #000;
+    padding: 18px 20px;
+    text-decoration: none;
+    display: block;
+    transition: background 0.15s;
+    border-bottom: 2px solid transparent;
+  }
+  .collab-card:hover { background: #050505; border-bottom-color: var(--accent); text-decoration: none; }
+  .collab-inst { font-family: Courier, monospace; font-size: 0.72em; color: var(--accent); letter-spacing: 0.05em; margin-bottom: 4px; text-transform: uppercase; }
+  .collab-name { font-size: 0.95rem; color: #fff; margin-bottom: 2px; }
+  .collab-role { font-size: 0.8rem; color: #666; line-height: 1.4; }
+
+  /* ── connect CTA ── */
+  .connect-cta {
+    border: 1px solid #222;
+    background: #080808;
+    padding: 28px 28px;
+    margin-top: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .connect-cta p { margin: 0; max-width: 500px; }
+  .connect-cta a.crosshair-btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+  /* ── roadmap steps ── */
+  .step-list { margin-top: 16px; }
+  .step {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 14px;
+    align-items: start;
+    padding: 14px 0;
+    border-bottom: 1px solid #111;
+  }
+  .step:last-child { border-bottom: none; }
+  .step-num  { font-family: Courier, monospace; font-size: 0.75em; color: #333; padding-top: 2px; }
+  .step-title { font-size: 0.95rem; color: #ddd; margin-bottom: 3px; }
+  .step-desc  { font-size: 0.82rem; color: #666; line-height: 1.5; }
+  .step-badge {
+    font-family: Courier, monospace; font-size: 0.65em;
+    padding: 3px 8px; white-space: nowrap; align-self: start; margin-top: 2px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    width: 65px;
+    text-align: center;
+  }
+  .step-badge.done   { color: var(--accent); border: 1px solid var(--accent-dark); }
+  .step-badge.active { color: var(--accent); border: 1px solid var(--accent-dark); animation: badgepulse 2s ease-in-out infinite; }
+  .step-badge.next   { color: #555; border: 1px solid #222; }
+  @keyframes badgepulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+  }
+
+  /* ── figures ── */
+  .figure {
+    border: 1px solid #1a1a1a;
+    background: #050505;
+    padding: 20px;
+    margin: 24px 0;
+  }
+  .figure-title {
+    font-family: Courier, monospace; font-size: 0.7em;
+    color: #888; text-transform: uppercase;
+    letter-spacing: 0.1em; margin-bottom: 16px;
+  }
+  .fig-caption { font-size: 0.78rem; color: #777; margin-top: 12px; font-style: italic; }
+  .fig-pending {
+    font-family: Courier, monospace; font-size: 0.8em;
+    color: #666; padding: 34px 20px; text-align: center;
+    border: 1px dashed #1a1a1a; margin: 4px 0;
+    line-height: 1.7;
+  }
+  .fig-pending strong { color: #999; }
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* ── data table (reused for parameter stats) ── */
+  .lb-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .lb-table th { font-family: Courier, monospace; font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.08em; color: #666; padding: 6px 10px; text-align: left; border-bottom: 1px solid #2a2a2a; font-weight: 400; }
+  .lb-table td { padding: 7px 10px; border-bottom: 1px solid #1e1e1e; color: #999; font-family: Courier, monospace; font-size: 0.82em; }
+  .lb-table td.auc  { color: var(--accent); }
+  .lb-table td.gene { color: #ccc; }
+  .lb-table tr:hover td { background: #0a0a0a; }
+
+  @media (max-width: 900px) {
+    .stat-strip  { grid-template-columns: 1fr 1fr; }
+    .stat-item   { border-bottom: 1px solid #222; }
+    .gene-grid   { grid-template-columns: 1fr; }
+    .collab-grid { grid-template-columns: 1fr; }
+    .connect-cta { flex-direction: column; }
+    .pipeline    { flex-direction: column; }
+    .pipe-node   { border-right: none; border-bottom: 1px solid #1e1e1e; }
+    .pipe-node:last-child { border-bottom: none; }
+  }
+</style>
+</head>
+<body>
+  <div id="site-header-placeholder"></div>
+  <main>
+
+    <!-- HERO -->
+    <section class="hero-short">
+      <section class="container">
+        <div class="live-badge"><span class="live-dot"></span>Live</div>
+        <h1><span class="brandline">G</span>alaxy Kinematics<br>at Survey Scale</h1>
+        <p class="mice-type">Use Case · Astrophysics · Galaxy Modelling &nbsp;·&nbsp; First distributed run July 2026 &nbsp;·&nbsp; WALLABY HI Survey</p>
+        <h3 style="max-width:760px; margin-top: 16px;">Mapping the cosmos, one galaxy at a time. We distribute the 3KIDNAS bootstrap uncertainty stage across a DCP worker pool, turning a computation that would take a single machine centuries into a workload that idle institutional hardware can absorb, so tens of thousands of galaxies can be kinematically modelled with rigorous error bars.</h3>
+
+        <div class="stat-strip">
+          <div class="stat-item">
+            <div class="stat-n">210<span>K</span></div>
+            <div class="stat-d">HI galaxy detections expected across WALLABY</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-n">17&ndash;38<span>K</span></div>
+            <div class="stat-d">galaxies with enough resolution to model</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-n">1,000</div>
+            <div class="stat-d">bootstrap fits in our first run · complete</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-n">4.3<span>×</span></div>
+            <div class="stat-d">cheaper than commercial cloud (first run)</div>
+          </div>
+        </div>
+
+      </section>
+    </section>
+
+    <!-- DOCS PANEL -->
+    <section class="panel panel-docs">
+      <div class="container">
+        <div class="toc-panel">
+
+          <!-- TOC -->
+          <aside class="toc" id="toc">
+            <h4 class="toc-title">Contents</h4>
+            <nav class="toc-nav">
+              <ul id="tocList"></ul>
+            </nav>
+          </aside>
+
+          <!-- MAIN CONTENT -->
+          <article class="doc-content" id="docContent">
+
+            <!-- WHY -->
+            <h2>Why Model Galaxies?</h2>
+            <p>Every galaxy is a record of its own history. The way its gas rotates, how fast the outer edges spin relative to the centre, how the disk warps and tilts, encodes the distribution of matter within it, including the dark matter we cannot see directly. Measure the rotation of enough galaxies and you begin to reconstruct how galaxies form, grow, interact, and how the universe assembled the structure we live inside today.</p>
+            <p>Followed far enough, the question of how galaxies evolve becomes the same question as how <em>we</em> came to be here: how gas collapsed into disks, how disks formed stars, how stars forged the elements that make up planets and people. A rotation curve measured from the faint 21-centimetre glow of hydrogen gas is one small, precise data point in that very large story.</p>
+            <p>The challenge has always been scale. Modelling one galaxy's kinematics well is hard. Modelling tens of thousands of them, consistently and with rigorous uncertainties, has been beyond reach, not because the science is unknown, but because the <strong>compute is enormous</strong>. That is the gap this work closes.</p>
+
+            <!-- FIRST RUN PROGRESS -->
+            <h2>First Run</h2>
+            <p>We ported the computational core of the 3KIDNAS bootstrap stage from its original Fortran into JavaScript so it runs natively, sandboxed, inside the Distributive Compute Protocol (DCP). Then we ran it: <strong>1,000 bootstrap realizations of a single galaxy's kinematic fit, distributed across a DCP worker pool</strong>. The run completed and produced physically meaningful results: well-behaved distributions for every fitted parameter, the overwhelming majority of realizations converging to sensible, consistent values (a small minority of bootstrap resamples are intrinsically hard to fit, in native Fortran as much as in JS, and are excluded from the aggregate statistics rather than silently averaged in). The port is faithful; the science survives the translation to JavaScript.</p>
+
+            <div class="progress-wrap">
+              <div class="progress-label">
+                <span>First run · bootstrap realizations returned</span>
+                <span id="progress-label-pct">100 % complete</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill"></div>
+              </div>
+              <div class="progress-sub">1,000 realizations &nbsp;·&nbsp; ~8 min per fit &nbsp;·&nbsp; two-pass Nelder-Mead &nbsp;·&nbsp; per-parameter uncertainties aggregated at the dispatcher</div>
+            </div>
+
+            <div class="callout">
+              <strong>Help model the sky.</strong> This workload runs on ordinary machines that are already powered on. If you have idle compute and want to contribute to real astrophysics, open <a href="https://dcp.work" target="_blank" style="color:var(--accent)">dcp.work</a> to launch an in-browser DCP worker that joins the network.
+            </div>
+
+            <!-- THE SURVEY -->
+            <h2>The Survey: WALLABY</h2>
+            <p>The <strong>Widefield ASKAP L-band Legacy All-sky Blind surveY (WALLABY)</strong> is a flagship science project of the Australian SKA Pathfinder (ASKAP) telescope. It is mapping the neutral atomic hydrogen (HI) content of the nearby universe out to a redshift of about z &approx; 0.1, and is expected to detect the gas in roughly <strong>210,000 galaxies</strong>.</p>
+            <p>Detecting a galaxy is not the same as being able to model it. A kinematic model, a rotation curve and a gas density profile, requires a galaxy that is <em>spatially resolved</em>: bright and large enough on the sky that its disk is sampled by several independent telescope beams. Most detections are too small or faint to clear that bar. Based on the survey's own pilot results, the modellable fraction sits in the range of roughly <strong>8% to 18%</strong> of detections.</p>
+            <p>That places the kinematically modellable population on the order of <strong>17,000 to 38,000 galaxies</strong>, what the WALLABY team describes as several thousand and more, the largest homogeneous set of HI kinematic models ever assembled. Each one a rotation curve. Each one a data point in the story of cosmic structure.</p>
+
+            <div class="figure">
+              <div class="figure-title">Figure 1 — Bootstrap parameter distributions · WALLABY J103538-484832</div>
+              <p>Each of the six fitted geometry parameters is bootstrapped independently: the pipeline re-samples the galaxy's data, re-fits the tilted-ring model, and repeats. The grid below is a <em>corner plot</em> of that ensemble &mdash; every panel below the diagonal is a scatter of one parameter pair across all realizations, and the diagonal shows each parameter's own distribution as a histogram. Where two parameters are correlated, the scatter tilts into a diagonal streak rather than a round cloud; that shape is exactly what a single "± error" on each parameter separately would hide. The rotation curve and surface-density panels on the right show the same idea applied to the radial profiles, one faint curve per realization, tracing out the model's uncertainty at every radius. The plot animates in to make the effect tangible: watch the cloud fill in and the error bars tighten as more bootstrap realizations are added.</p>
+              <div id="geoBoxPlot" data-json="./3kidnas-project-assets/WALLABY_J103538-484832_BootstrapResults.json">
+                <div class="gbp-error">Loading bootstrap fit distributions…</div>
+              </div>
+              <div class="gbp-meta-row">
+                <p class="gbp-meta-line" id="gbpMetaLine">Loading…</p>
+                <button class="gbp-anim-toggle" id="gbpAnimToggle" type="button" hidden>⏸ Pause</button>
+              </div>
+              <script>
+              /**
+               * geo-box-plot.js (inlined — see the note above the <style>
+               * block for why: this page + 3kidnas-project-assets/ should
+               * be the only two things that need to travel together).
+               * Renders the 3KIDNAS bootstrap "geometry box plot" (a
+               * 6-parameter corner plot of bootstrap fit distributions,
+               * plus rotation-curve and surface-density-profile panels) as
+               * themed, animated SVG. Data comes from a single JSON file in
+               * 3kidnas-project-assets/, generated by running real
+               * DCP job results through 3KIDNAS-nosofia's
+               * src/PostProcessing/GeoBoxPlot.js (see FitDriverScripts/
+               * BootstrapBoxPlot.py in the 3KIDNAS repo for the original
+               * matplotlib plot this replaces).
+               *
+               * The plot animates on load: bootstrap realizations reveal
+               * 1, 1-2, 1-3, ... 1-N on an accelerating ("chirp") schedule
+               * over 3s, hold on the full set for 3s, then loop -- making
+               * the effect of more bootstraps visible rather than just
+               * stated. Axis ranges are fixed from the full dataset so the
+               * scale doesn't jump around as points are revealed; the
+               * stats panel and profile error bars recompute live from
+               * whatever subset has been revealed so far.
+               */
+              (function () {
+                'use strict';
+
+                const SVGNS = 'http://www.w3.org/2000/svg';
+                function el(tag, attrs) {
+                  const e = document.createElementNS(SVGNS, tag);
+                  for (const k in attrs) e.setAttribute(k, attrs[k]);
+                  return e;
+                }
+
+                const PARAMS = ['INCLINATION', 'POSITIONANGLE', 'VSYS', 'VDISP', 'XCENTER', 'YCENTER'];
+                const LABELS = {
+                  INCLINATION: 'Inc (°)',
+                  POSITIONANGLE: 'PA (°)',
+                  VSYS: 'Vsys (km/s)',
+                  VDISP: 'Vdisp (km/s)',
+                  XCENTER: 'X (pix)',
+                  YCENTER: 'Y (pix)',
+                };
+
+                // Corner-plot geometry, computed once so the rotation-curve
+                // and surface-density panels below can be sized to add up
+                // to exactly the same total width (two profiles + the gap
+                // between them == the corner plot's own rendered width).
+                const CORNER_CELL = 88;
+                const CORNER_GAP = 3;
+                const CORNER_PAD = { l: 52, t: 8, r: 8, b: 42 };
+                const CORNER_WIDTH = CORNER_PAD.l + PARAMS.length * (CORNER_CELL + CORNER_GAP) - CORNER_GAP + CORNER_PAD.r;
+                const SIDE_GAP = 14;
+                const PROFILE_WIDTH = Math.floor((CORNER_WIDTH - SIDE_GAP) / 2);
+
+                function adjustPA(pa, paBest) {
+                  const diff = paBest - pa;
+                  if (diff <= -180) return pa - 360;
+                  if (diff >= 180) return pa + 360;
+                  return pa;
+                }
+
+                function scaleFor(values, padFrac) {
+                  let lo = Math.min(...values);
+                  let hi = Math.max(...values);
+                  if (!isFinite(lo) || !isFinite(hi)) { lo = 0; hi = 1; }
+                  if (lo === hi) { lo -= 1; hi += 1; }
+                  const p = (hi - lo) * padFrac;
+                  lo -= p; hi += p;
+                  return { lo, hi, map: (v) => (v - lo) / (hi - lo) };
+                }
+
+                function starPath(cx, cy, rOuter, rInner) {
+                  const pts = [];
+                  for (let i = 0; i < 10; i++) {
+                    const r = i % 2 === 0 ? rOuter : rInner;
+                    const a = (Math.PI / 5) * i - Math.PI / 2;
+                    pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+                  }
+                  return 'M' + pts.map((p) => p.join(',')).join('L') + 'Z';
+                }
+
+                // rows: subset currently being drawn. allRows: complete
+                // dataset, used only to fix the axis range/bin edges so
+                // they stay stable across every animation frame.
+                function drawScatter(g, rows, allRows, xKey, yKey, xBest, yBest, cell) {
+                  const allXs = allRows.map((r) => (xKey === 'POSITIONANGLE' ? adjustPA(r[xKey], xBest) : r[xKey]));
+                  const allYs = allRows.map((r) => (yKey === 'POSITIONANGLE' ? adjustPA(r[yKey], yBest) : r[yKey]));
+                  const sx = scaleFor(allXs.concat([xBest]), 0.12);
+                  const sy = scaleFor(allYs.concat([yBest]), 0.12);
+
+                  const xs = rows.map((r) => (xKey === 'POSITIONANGLE' ? adjustPA(r[xKey], xBest) : r[xKey]));
+                  const ys = rows.map((r) => (yKey === 'POSITIONANGLE' ? adjustPA(r[yKey], yBest) : r[yKey]));
+                  for (let i = 0; i < xs.length; i++) {
+                    const px = sx.map(xs[i]) * cell;
+                    const py = cell - sy.map(ys[i]) * cell;
+                    g.appendChild(el('circle', { cx: px, cy: py, r: 2.6, class: 'gbp-dot' }));
+                  }
+                  const bx = sx.map(xBest) * cell;
+                  const by = cell - sy.map(yBest) * cell;
+                  g.appendChild(el('path', { d: starPath(bx, by, 7, 3), class: 'gbp-star' }));
+                }
+
+                function drawHist(g, rows, allRows, key, best, cell) {
+                  const allVals = allRows.map((r) => (key === 'POSITIONANGLE' ? adjustPA(r[key], best) : r[key])).filter(isFinite);
+                  const sx = scaleFor(allVals.concat([best]), 0.12);
+                  const nbins = 20;
+                  const binw = (sx.hi - sx.lo) / nbins;
+
+                  function binCounts(vals) {
+                    const counts = new Array(nbins).fill(0);
+                    for (const v of vals) {
+                      let bi = Math.floor((v - sx.lo) / binw);
+                      if (bi < 0) bi = 0;
+                      if (bi >= nbins) bi = nbins - 1;
+                      counts[bi]++;
+                    }
+                    return counts;
+                  }
+
+                  // Normalize against the FINAL dataset's tallest bin, fixed
+                  // for the whole animation -- bars grow toward their true
+                  // final height as more points land, instead of each small
+                  // subset's own max looking "full."
+                  const maxCount = Math.max(...binCounts(allVals), 1);
+
+                  const vals = rows.map((r) => (key === 'POSITIONANGLE' ? adjustPA(r[key], best) : r[key])).filter(isFinite);
+                  const counts = binCounts(vals);
+                  const barW = cell / nbins;
+                  for (let i = 0; i < nbins; i++) {
+                    const bh = (counts[i] / maxCount) * (cell - 4);
+                    g.appendChild(el('rect', {
+                      x: i * barW, y: cell - bh, width: Math.max(barW - 1, 0.5), height: bh, class: 'gbp-bar',
+                    }));
+                  }
+                  const bx = sx.map(best) * cell;
+                  g.appendChild(el('line', { x1: bx, x2: bx, y1: 0, y2: cell, class: 'gbp-bestline' }));
+                }
+
+                // liveData: { bestFit (static central values + live-
+                // recomputed _ERR), bootstraps (current revealed subset) }.
+                // allBootstraps: full, fixed set (scale reference only).
+                function buildCorner(liveData, allBootstraps) {
+                  const n = PARAMS.length;
+                  const cell = CORNER_CELL;
+                  const gap = CORNER_GAP;
+                  const pad = CORNER_PAD;
+                  const w = CORNER_WIDTH;
+                  const h = pad.t + n * (cell + gap) - gap + pad.b;
+                  const svg = el('svg', { width: w, height: h, viewBox: `0 0 ${w} ${h}`, class: 'gbp-corner-svg' });
+                  const allGood = allBootstraps.filter((b) => b.FITAchieved);
+                  const liveGood = liveData.bootstraps.filter((b) => b.FITAchieved);
+
+                  for (let row = 0; row < n; row++) {
+                    const yKey = PARAMS[row];
+                    const yBest = DATA.bestFit[yKey];
+                    for (let col = 0; col <= row; col++) {
+                      const xKey = PARAMS[col];
+                      const xBest = DATA.bestFit[xKey];
+                      const cx = pad.l + col * (cell + gap);
+                      const cy = pad.t + row * (cell + gap);
+                      const g = el('g', { transform: `translate(${cx},${cy})` });
+                      svg.appendChild(g);
+                      g.appendChild(el('rect', { class: 'gbp-frame', x: 0, y: 0, width: cell, height: cell }));
+
+                      if (row === col) drawHist(g, liveGood, allGood, xKey, xBest, cell);
+                      else drawScatter(g, liveGood, allGood, xKey, yKey, xBest, yBest, cell);
+
+                      if (row === n - 1) {
+                        const t = el('text', { class: 'gbp-axis-label', x: cell / 2, y: cell + 16, 'text-anchor': 'middle' });
+                        t.textContent = LABELS[xKey];
+                        g.appendChild(t);
+                      }
+                      if (col === 0) {
+                        const t = el('text', {
+                          class: 'gbp-axis-label', x: -8, y: cell / 2, 'text-anchor': 'middle',
+                          transform: `rotate(-90 -8 ${cell / 2})`,
+                        });
+                        t.textContent = row === col ? 'N' : LABELS[yKey];
+                        g.appendChild(t);
+                      }
+                    }
+                  }
+                  return svg;
+                }
+
+                function buildProfile(liveData, allBootstraps, key, errKey, xKey, label) {
+                  const w = PROFILE_WIDTH;
+                  const h = 190;
+                  const pad = { l: 44, t: 8, r: 8, b: 30 };
+                  const svg = el('svg', { width: w, height: h, viewBox: `0 0 ${w} ${h}`, class: 'gbp-profile-svg' });
+                  const allGood = allBootstraps.filter((b) => b.FITAchieved);
+                  const liveGood = liveData.bootstraps.filter((b) => b.FITAchieved);
+
+                  // Scale from the full, fixed dataset + static best-fit --
+                  // stays put across every frame.
+                  const allR = allGood.flatMap((r) => r[xKey]).concat(DATA.bestFit[xKey]);
+                  const allY = allGood.flatMap((r) => r[key]).concat(DATA.bestFit[key]).concat([0]);
+                  const sx = scaleFor(allR, 0.06);
+                  const sy = scaleFor(allY, 0.1);
+                  const iw = w - pad.l - pad.r;
+                  const ih = h - pad.t - pad.b;
+                  const X = (v) => pad.l + sx.map(v) * iw;
+                  const Y = (v) => pad.t + ih - sy.map(v) * ih;
+
+                  svg.appendChild(el('rect', { class: 'gbp-frame', x: pad.l, y: pad.t, width: iw, height: ih }));
+
+                  for (const row of liveGood) {
+                    const R = row[xKey];
+                    const V = row[key];
+                    if (!R || !V || R.length < 2) continue;
+                    const d = R.map((r, i) => `${i === 0 ? 'M' : 'L'}${X(r)},${Y(V[i])}`).join('');
+                    svg.appendChild(el('path', { d, class: 'gbp-profile-line' }));
+                  }
+
+                  const bR = DATA.bestFit[xKey];
+                  const bV = DATA.bestFit[key];
+                  const bE = liveData.bestFit[errKey];   // live-recomputed error bars, shrink as more points reveal
+                  if (bR && bV) {
+                    for (let i = 0; i < bR.length; i++) {
+                      const e = Math.abs(bE ? bE[i] : 0);
+                      svg.appendChild(el('line', {
+                        x1: X(bR[i]), x2: X(bR[i]), y1: Y(bV[i] - e), y2: Y(bV[i] + e), class: 'gbp-errbar',
+                      }));
+                    }
+                    const d = bR.map((r, i) => `${i === 0 ? 'M' : 'L'}${X(r)},${Y(bV[i])}`).join('');
+                    svg.appendChild(el('path', { d, class: 'gbp-best-line' }));
+                    bR.forEach((r, i) => svg.appendChild(el('circle', { cx: X(r), cy: Y(bV[i]), r: 3, class: 'gbp-best-dot' })));
+                  }
+
+                  svg.appendChild(Object.assign(
+                    el('text', { class: 'gbp-axis-label', x: pad.l + iw / 2, y: h - 2, 'text-anchor': 'middle' }),
+                    { textContent: "R ('')" },
+                  ));
+                  svg.appendChild(Object.assign(
+                    el('text', {
+                      class: 'gbp-axis-label', x: 10, y: pad.t + ih / 2, 'text-anchor': 'middle',
+                      transform: `rotate(-90 10 ${pad.t + ih / 2})`,
+                    }),
+                    { textContent: label },
+                  ));
+                  return svg;
+                }
+
+                function buildStats(liveData) {
+                  const bf = liveData.bestFit;
+                  const fmt = (v, d) => (typeof v === 'number' && isFinite(v) ? v.toFixed(d) : '—');
+                  const rows = [
+                    ['Inc', fmt(bf.INCLINATION, 1) + '°', '± ' + fmt(bf.INCLINATION_ERR, 1)],
+                    ['PA', fmt(bf.POSITIONANGLE, 1) + '°', '± ' + fmt(bf.POSITIONANGLE_ERR, 1)],
+                    ['Vsys', fmt(bf.VSYS, 1) + ' km/s', '± ' + fmt(bf.VSYS_ERR, 1)],
+                    ['Vdisp', fmt(bf.VDISP, 1) + ' km/s', '± ' + fmt(bf.VDISP_ERR, 1)],
+                    ['X', fmt(bf.XCENTER, 2) + ' pix', '± ' + fmt(bf.XCENTER_ERR, 2)],
+                    ['Y', fmt(bf.YCENTER, 2) + ' pix', '± ' + fmt(bf.YCENTER_ERR, 2)],
+                    ['N bootstraps', liveData.bootstraps.length + ' / ' + DATA.bootstraps.length, null],
+                  ];
+                  const wrap = document.createElement('div');
+                  wrap.className = 'gbp-stats';
+                  for (const [k, v, e] of rows) {
+                    const cell = document.createElement('div');
+                    cell.className = 'gbp-stat';
+                    cell.innerHTML = `<div class="gbp-stat-k">${k}</div><div class="gbp-stat-v">${v}${e ? ` <span class="gbp-stat-e">${e}</span>` : ''}</div>`;
+                    wrap.appendChild(cell);
+                  }
+                  return wrap;
+                }
+
+                // ---- live error-bar recomputation ----
+                // Central best-fit values (XCENTER, VROT, etc.) never
+                // change -- they're the single reference model. Only the
+                // *_ERR spread is recomputed per frame from whichever
+                // subset of bootstraps has been revealed so far, so the
+                // stats panel and profile error bars visibly tighten as N
+                // grows.
+                function stdOf(vals) {
+                  const v = vals.filter((x) => typeof x === 'number' && isFinite(x));
+                  if (v.length === 0) return NaN;
+                  const mean = v.reduce((a, x) => a + x, 0) / v.length;
+                  return Math.sqrt(v.reduce((a, x) => a + (x - mean) ** 2, 0) / v.length);
+                }
+
+                function computeLiveBestFit(subset) {
+                  const base = DATA.bestFit;
+                  const live = Object.assign({}, base);
+                  live.XCENTER_ERR = stdOf(subset.map((b) => b.XCENTER));
+                  live.YCENTER_ERR = stdOf(subset.map((b) => b.YCENTER));
+                  live.INCLINATION_ERR = stdOf(subset.map((b) => b.INCLINATION));
+                  live.POSITIONANGLE_ERR = stdOf(subset.map((b) => adjustPA(b.POSITIONANGLE, base.POSITIONANGLE)));
+                  live.VSYS_ERR = stdOf(subset.map((b) => b.VSYS));
+                  live.VDISP_ERR = stdOf(subset.map((b) => b.VDISP));
+                  live.VROT_ERR = base.R.map((_, i) => stdOf(subset.map((b) => b.VROT && b.VROT[i])));
+                  live.SURFDENS_FACEON_ERR = base.R_SD.map((_, i) => stdOf(subset.map((b) => b.SURFDENS_FACEON && b.SURFDENS_FACEON[i])));
+                  return live;
+                }
+
+                let DATA = null;
+                let statsHost, cornerHost, rcHost, sdHost, metaEl;
+
+                function setupLayout(host) {
+                  host.innerHTML = '';
+                  host.classList.add('geo-box-plot');
+
+                  statsHost = document.createElement('div');
+                  host.appendChild(statsHost);
+
+                  const layout = document.createElement('div');
+                  layout.className = 'gbp-layout';
+                  cornerHost = document.createElement('div');
+                  cornerHost.className = 'gbp-corner-scroll';
+                  const side = document.createElement('div');
+                  side.className = 'gbp-side';
+
+                  const rcCard = document.createElement('div');
+                  rcCard.className = 'gbp-panel-card';
+                  rcCard.innerHTML = '<h4>Rotation curve</h4>';
+                  rcHost = document.createElement('div');
+                  rcCard.appendChild(rcHost);
+
+                  const sdCard = document.createElement('div');
+                  sdCard.className = 'gbp-panel-card';
+                  sdCard.innerHTML = '<h4>Surface density</h4>';
+                  sdHost = document.createElement('div');
+                  sdCard.appendChild(sdHost);
+
+                  side.appendChild(rcCard);
+                  side.appendChild(sdCard);
+                  layout.appendChild(cornerHost);
+                  layout.appendChild(side);
+                  host.appendChild(layout);
+
+                  metaEl = document.getElementById('gbpMetaLine');
+                }
+
+                function renderFrame(k) {
+                  const subset = DATA.bootstraps.slice(0, k);
+                  const liveData = { bestFit: computeLiveBestFit(subset), bootstraps: subset };
+
+                  statsHost.replaceChildren(buildStats(liveData));
+                  cornerHost.replaceChildren(buildCorner(liveData, DATA.bootstraps));
+                  rcHost.replaceChildren(buildProfile(liveData, DATA.bootstraps, 'VROT', 'VROT_ERR', 'R', 'V (km/s)'));
+                  sdHost.replaceChildren(buildProfile(liveData, DATA.bootstraps, 'SURFDENS_FACEON', 'SURFDENS_FACEON_ERR', 'R_SD', 'Σ (M☉ pc⁻²)'));
+
+                  const m = DATA.meta || {};
+                  if (metaEl) {
+                    metaEl.innerHTML = `<span>${k} / ${DATA.bootstraps.length}</span> realizations &middot; run `
+                      + `<span>${m.timestamp || ''}</span> &middot; chi&sup2; range `
+                      + `<span>${m.chi2Lo != null ? m.chi2Lo.toExponential(3) : '—'} – `
+                      + `${m.chi2Hi != null ? m.chi2Hi.toExponential(3) : '—'}</span>`;
+                  }
+                }
+
+                // ---- animation driver ----
+                // Reveal 1..N over REVEAL_MS with an ease-in ("chirp")
+                // schedule -- each additional realization appears faster
+                // than the last -- then hold on the full set for the rest
+                // of CYCLE_MS before looping.
+                const REVEAL_MS = 3000;
+                const CYCLE_MS = 6000;
+
+                function runAnimation() {
+                  const N = DATA.bootstraps.length;
+                  const toggle = document.getElementById('gbpAnimToggle');
+
+                  if (N <= 1) { renderFrame(N); return; }
+
+                  const reduceMotion = window.matchMedia
+                    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+                  let playing = !reduceMotion;
+                  let cycleStart = null;
+                  let pauseStartTs = null;
+                  let lastK = -1;
+
+                  function setPlaying(next) {
+                    playing = next;
+                    const now = performance.now();
+                    if (!playing) {
+                      pauseStartTs = now;
+                    } else if (pauseStartTs !== null) {
+                      cycleStart += now - pauseStartTs;
+                      pauseStartTs = null;
+                    }
+                    toggle.textContent = playing ? '⏸ Pause' : '▶ Play';
+                  }
+
+                  toggle.hidden = false;
+                  toggle.textContent = playing ? '⏸ Pause' : '▶ Play';
+                  toggle.addEventListener('click', () => setPlaying(!playing));
+
+                  if (reduceMotion) {
+                    lastK = N;
+                    renderFrame(N);
+                  }
+
+                  function tick(ts) {
+                    if (playing) {
+                      if (cycleStart === null) cycleStart = ts;
+                      const elapsed = (ts - cycleStart) % CYCLE_MS;
+                      let k;
+                      if (elapsed >= REVEAL_MS) {
+                        k = N;
+                      } else {
+                        const frac = elapsed / REVEAL_MS;
+                        k = Math.max(1, Math.min(N, Math.floor(N * frac * frac)));   // ease-in: speeds up like a chirp
+                      }
+                      if (k !== lastK) {
+                        lastK = k;
+                        renderFrame(k);
+                      }
+                    }
+                    requestAnimationFrame(tick);
+                  }
+                  requestAnimationFrame(tick);
+                }
+
+                async function renderGeoBoxPlot(containerId) {
+                  const host = document.getElementById(containerId);
+                  if (!host) return;
+                  const jsonPath = host.dataset.json;
+
+                  try {
+                    DATA = await fetch(jsonPath).then((r) => r.json());
+                  } catch (e) {
+                    host.innerHTML = '<div class="gbp-error">Could not load bootstrap fit data.</div>';
+                    return;
+                  }
+
+                  setupLayout(host);
+                  runAnimation();
+                }
+
+                document.addEventListener('DOMContentLoaded', () => renderGeoBoxPlot('geoBoxPlot'));
+              })();
+              </script>
+              <div class="fig-caption">Corner plot of bootstrap parameter distributions from 1,163 realizations of WALLABY J103538-484832, recovered from a DCP job that ran past its 1,000-realization target. <span style="color:#9b8cff">Violet</span>: individual bootstrap realizations. <span style="color:var(--accent)">Green</span> star/line: best-fit reference model. Best fit: Inc = 59.9 ± 3.4°, PA = 241.3 ± 2.5°, V<sub>sys</sub> = 5740.2 ± 1.2 km s<sup>-1</sup>, V<sub>disp</sub> = 8.0 ± 1.9 km s<sup>-1</sup>.</div>
+            </div>
+
+            <!-- THE PIPELINE -->
+            <h2>The Pipeline: 3KIDNAS</h2>
+            <p><strong>3KIDNAS</strong>, the 3D Kinematic Data aNalysis Algorithm for Surveys (pronounced "echidnas"), is an automated kinematic-modelling pipeline developed by WALLABY's technical working group under the leadership of Kristine Spekkens and Nathan Deg. It fits rotating-disk models to HI data cubes and, critically, produces statistically meaningful uncertainties on every parameter it measures.</p>
+            <p>Those uncertainties are where the cost lives. To know not just a galaxy's rotation speed but how <em>confident</em> we are in it, 3KIDNAS uses <strong>bootstrapping</strong>: it re-samples the galaxy's data many times, re-fits the model to each re-sampled version, and studies the spread of results. More re-samples means a better-mapped parameter space and tighter error bars. A robust run uses on the order of <strong>1,000 bootstrap realizations per galaxy</strong>, and each realization is a complete, independent model fit.</p>
+            <p>That independence is the key. A thousand bootstrap fits do not depend on one another. They can run at the same time, on different machines, anywhere. This is exactly the workload distributed computing was made for.</p>
+
+            <h3>What runs where</h3>
+            <p>This port covers the parallel uncertainty stage only, not the full pipeline. The initial galaxy fit is still performed upstream by the original Fortran 3KIDNAS, modified to dump its post-fit state to two JSON files (the fit configuration, observed cube, beam, and best-fit tilted-ring parameters; and the best-fit model cube). Both are shipped to every worker as static arguments, so each sandbox has full context without fetching anything. Each worker then generates one bootstrap realization and runs a complete tilted-ring fit on it.</p>
+
+            <div class="pipeline">
+              <div class="pipe-node">
+                <div class="pipe-node-title">Initial Fit</div>
+                <div class="pipe-node-sub">Fortran 3KIDNAS · dumps best-fit state</div>
+              </div>
+              <div class="pipe-node">
+                <div class="pipe-node-title">Static Inputs</div>
+                <div class="pipe-node-sub">fixture + model cube → every worker</div>
+              </div>
+              <div class="pipe-node active">
+                <div class="pipe-node-title">DCP Fan-out</div>
+                <div class="pipe-node-sub">1 realization index per sandbox</div>
+              </div>
+              <div class="pipe-node active">
+                <div class="pipe-node-title">Worker Fit</div>
+                <div class="pipe-node-sub">resample + 2-pass Nelder-Mead</div>
+              </div>
+              <div class="pipe-node">
+                <div class="pipe-node-title">Aggregate</div>
+                <div class="pipe-node-sub">mean · std · 16/50/84 percentiles</div>
+              </div>
+            </div>
+
+            <!-- THE SCALE -->
+            <h2>The Scale: A Staggering Amount of Compute</h2>
+            <p>Here the numbers become vivid. Take the modellable population, 17,000 to 38,000 galaxies. Give each a proper uncertainty estimate, ~1,000 bootstrap realizations. And recognize that a single realization is not cheap: depending on the size and resolution of the galaxy, one fit takes anywhere from <strong>several minutes to an hour</strong> (our first run measured about 8 minutes on a modestly-sized galaxy; larger, better-resolved systems run longer).</p>
+
+            <div class="inset">
+[ galaxies ]        ~17,000 – 38,000 kinematically modellable
+[ bootstraps ]      ~1,000 per galaxy
+[ time / fit ]      ~10 – 60 min
+
+[ total fits ]      ~17M – 38M independent model fits
+[ total compute ]   ~6M – 13M compute-hours
+
+[ 1 machine ]       centuries
+[ 10,000 workers ]  weeks — on hardware that would otherwise sit idle
+            </div>
+
+            <p>That is on the order of <strong>tens of millions of independent model fits</strong> and <strong>millions of compute-hours</strong>. Run serially, it would take centuries. Provisioned on commercial cloud at on-demand rates, it would cost a fortune no research budget is built to absorb. But it is also, structurally, the most parallelizable workload imaginable, millions of small, independent, self-contained jobs. Exactly what DCP exists to run.</p>
+
+            <!-- DCP ARCHITECTURE -->
+            <h2>DCP Architecture</h2>
+            <p>This workload is a natural fit for DCP's distributed model. Bootstrap realizations are <strong>embarrassingly parallel</strong>: each slice is independent, stateless, and returns a compact result (best-fit parameters and a goodness-of-fit value). No inter-worker communication is required; aggregation happens only at the job dispatcher.</p>
+
+            <h3>Reusing the science, not reimplementing it</h3>
+            <p>The original 3KIDNAS pipeline is a stack, not a single program: Python drives the run and calls a compiled Fortran binary for the tilted-ring fit and geometry estimation, which itself shells out to two more native C tools for the heavy numerical work, <strong>SoFiA-2</strong> (source finding) and a linked <strong>FFTW3 + cfitsio</strong> (FFT-based beam convolution and FITS I/O). Hand-porting that C math to JavaScript would be slow to write and easy to get subtly wrong, so we didn't: the same C source compiles, unmodified, to WebAssembly via Emscripten and loads as ordinary modules inside the DCP worker sandbox, <code>sofia2wasm</code>, <code>fftw3wasm-v3</code>, <code>cfitsio4wasm</code>. Only the orchestration around them, tilted-ring model generation, parameter handling, and the Nelder-Mead optimizer itself, was reimplemented in JavaScript, with every floating-point operation wrapped to reproduce Fortran's REAL*4 (float32) rounding exactly rather than silently running in JS's native float64.</p>
+            <p>Numerical equivalence was checked at both levels before any distributed run was trusted: the wasm FFT build was validated bit-exact against a real compiled <code>libfftw3.a</code> reference binary, and the full bootstrap pipeline's output was cross-checked against native Fortran on the same galaxy (Step 03 below).</p>
+            <div class="callout">
+              <strong>The overhead is small; the win is horizontal.</strong> Run head-to-head on identical hardware, one JS+wasm bootstrap fit inside a DCP worker sandbox takes only about <strong>25% longer</strong> than the same fit in compiled, native Fortran. That modest constant-factor cost buys full compatibility with DCP's model, and for a workload built from thousands of fully independent fits, it's a bargain: fanned out across even a few hundred workers, the aggregate throughput advantage swamps a 1.25× single-thread difference almost immediately, and it keeps climbing linearly as more workers join, something no amount of single-machine optimization could match.
+            </div>
+
+            <h3>Why CPU, not GPU?</h3>
+            <p>The core computation is a two-pass Nelder-Mead (downhill simplex) optimization, an iterative, sequential search with data dependencies between steps. Like most simplex minimizers it maps poorly onto SIMD GPU parallelism. CPU workers are the correct resource, with parallelism expressed at the realization level, one galaxy's thousand fits fanned across a thousand cores, rather than within a single fit.</p>
+
+            <h3>The Distributive difference</h3>
+            <p>Distributive's compute doesn't come from a hyperscaler's data centre. It comes from machines that already exist and already sit idle, computers at universities, schools, and research institutions, powered on and available. For a workload like WALLABY's, that means the enormous compute bill is not spent on cloud capex and margin; it flows instead to the institutions doing the science, funding hardware refresh and generating value from equipment they already own. A workload that would be prohibitively expensive on commercial cloud becomes tractable, and does so in a way that recirculates the spending into the research community itself.</p>
+
+            <div class="callout">
+              This work is carried out in collaboration with the WALLABY kinematic-modelling team and aligns with the mission of the <strong>Canadian Data-Intensive Astrophysics Platform (CanDIAPL)</strong>, of which Distributive is a partner, an initiative built to process the flood of data from next-generation facilities like ASKAP, the SKA pathfinders, and the Vera C. Rubin Observatory.
+            </div>
+
+            <!-- COLLABORATORS -->
+            <h2>Collaborators</h2>
+            <p>This project is conducted with the WALLABY kinematic-modelling team and the CanDIAPL consortium. 3KIDNAS is under active development and pre-publication; results here are shared with the pipeline team's awareness.</p>
+
+            <div class="collab-grid">
+              <a href="https://wallaby-survey.org/" class="collab-card" target="_blank">
+                <div class="collab-inst">WALLABY · Kinematic Modelling</div>
+                <div class="collab-name">Dr. Nathan Deg</div>
+                <div class="collab-role">3KIDNAS pipeline lead</div>
+                <br>
+                <div class="collab-name">Dr. Kristine Spekkens</div>
+                <div class="collab-role">Kinematic modelling co-lead</div>
+              </a>
+              <a href="https://www.candiapl.ca/" class="collab-card" target="_blank">
+                <div class="collab-inst">CanDIAPL</div>
+                <div class="collab-name">Canadian Data-Intensive Astrophysics Platform</div>
+                <div class="collab-role">Processing next-generation survey data · CFI / CIRADA partnership · Distributive is a platform partner</div>
+              </a>
+              <a href="https://distributive.network" class="collab-card" target="_blank">
+                <div class="collab-inst">Distributive</div>
+                <div class="collab-name">Dan Desjardins</div>
+                <div class="collab-role">JavaScript / DCP port of the bootstrap stage · distributed job design</div>
+              </a>
+              <a href="mailto:research@distributive.network" class="collab-card">
+                <div class="collab-inst">Open collaboration</div>
+                <div class="collab-name">Your institution</div>
+                <div class="collab-role">Contribute compute, data, or scientific expertise to this project</div>
+              </a>
+            </div>
+
+            <!-- CONNECT -->
+            <div class="connect-cta">
+              <div>
+                <h3 style="margin:0 0 6px;">Contribute compute. Help map the sky.</h3>
+                <p>The first run proved the port. Scaling it to tens of thousands of galaxies will take a great deal of compute, and every DCP worker that joins the network contributes directly to modelling real galaxies from the WALLABY survey. Workers receive model inputs and run fits; no proprietary data leaves any institution.</p>
+              </div>
+              <a href="https://dcp.work" class="crosshair-btn" style="white-space:nowrap">
+                <span class="c1"></span><span class="c2"></span>
+                <span class="btn-text">RUN WORKER</span>
+              </a>
+            </div>
+
+            <!-- NEXT STEPS -->
+            <h2>Next Steps</h2>
+            <div class="step-list">
+              <div class="step">
+                <div class="step-num">01</div>
+                <div>
+                  <div class="step-title">Port the 3KIDNAS bootstrap stage to JavaScript on DCP</div>
+                  <div class="step-desc">Complete. The tilted-ring fit and two-pass Nelder-Mead optimizer were ported from Fortran with float32 fidelity and run sandboxed inside DCP workers.</div>
+                </div>
+                <div class="step-badge done">✓ done</div>
+              </div>
+              <div class="step">
+                <div class="step-num">02</div>
+                <div>
+                  <div class="step-title">First distributed run · 1,000 realizations · single galaxy</div>
+                  <div class="step-desc">Complete. A full 1,000-realization bootstrap of one galaxy's fit ran to completion across a DCP worker pool and produced physically meaningful, well-converged parameter distributions.</div>
+                </div>
+                <div class="step-badge done">✓ done</div>
+              </div>
+              <div class="step">
+                <div class="step-num">03</div>
+                <div>
+                  <div class="step-title">Validate against the reference Fortran pipeline</div>
+                  <div class="step-desc">Complete. The JavaScript bootstrap outputs were cross-checked against 3KIDNAS's native Fortran results on the same galaxy and showed strong statistical agreement, confirming the port preserves the pipeline's science before scaling up.</div>
+                </div>
+                <div class="step-badge done">✓ done</div>
+              </div>
+              <div class="step">
+                <div class="step-num">04</div>
+                <div>
+                  <div class="step-title">Scale to a batch of resolved galaxies</div>
+                  <div class="step-desc">Move from one galaxy to a curated batch of well-resolved WALLABY detections, thousands of realizations each, distributed across a larger worker fleet to characterize throughput and cost at scale.</div>
+                </div>
+                <div class="step-badge next">planned</div>
+              </div>
+              <div class="step">
+                <div class="step-num">05</div>
+                <div>
+                  <div class="step-title">Full modellable survey population</div>
+                  <div class="step-desc">Extend to the full 17,000&ndash;38,000 modellable galaxies as WALLABY data releases proceed, tens of millions of fits, run on idle institutional compute rather than commercial cloud.</div>
+                </div>
+                <div class="step-badge next">planned</div>
+              </div>
+              <div class="step">
+                <div class="step-num">06</div>
+                <div>
+                  <div class="step-title">Institutional worker fleets</div>
+                  <div class="step-desc">Onboard university and observatory hardware as standing DCP workers, so the compute spend that powers the survey recirculates into the research institutions supplying the machines.</div>
+                </div>
+                <div class="step-badge next">planned</div>
+              </div>
+            </div>
+
+            <!-- VIDEO -->
+            <h2>Project Video</h2>
+            <div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; margin:24px 0; border:1px solid #1a1a1a;">
+              <iframe
+                src="https://www.youtube.com/embed/5y9MwjIBRss?si=tiIWubEiNuHu4KXK"
+                title="YouTube video player"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allowfullscreen
+                style="position:absolute; top:0; left:0; width:100%; height:100%;">
+              </iframe>
+            </div>
+
+          </article>
+        </div>
+      </div>
+    </section>
+
+  </main>
+  <div id="site-footer-placeholder"></div>
+
+<script>
+const chartDefaults = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+};
+const gridColor = 'rgba(255,255,255,0.05)';
+const tickStyle = { color: '#444', font: { family: 'Courier, monospace', size: 10 } };
+
+/* Figure 2 — detections vs modellable population */
+new Chart(document.getElementById('popChart'), {
+  type: 'bar',
+  data: {
+    labels: ['HI detections (survey)', 'Modellable · upper (~18%)', 'Modellable · conservative (~8%)'],
+    datasets: [{
+      data: [210000, 38000, 17000],
+      backgroundColor: (ctx) => ctx.dataIndex === 0 ? '#2a2a2a' : '#00cc75',
+      borderRadius: 0, borderWidth: 0
+    }]
+  },
+  options: {
+    ...chartDefaults, indexAxis: 'y',
+    scales: {
+      x: { ticks: tickStyle, grid: { color: gridColor } },
+      y: { ticks: { color: '#888', font: { family: 'Courier, monospace', size: 11 } }, grid: { display: false } }
+    }
+  }
+});
+
+/* Figure 3 — wall-clock vs worker count (log scale, days) */
+new Chart(document.getElementById('scaleChart'), {
+  type: 'bar',
+  data: {
+    labels: ['1 machine', '200 workers', '1,000 workers', '10,000 workers'],
+    datasets: [{
+      // ~5.67M compute-hours (17k galaxies × 1000 × 20min) → days on N workers
+      data: [236250, 1181, 236, 24],
+      backgroundColor: (ctx) => ctx.dataIndex === 3 ? '#00cc75' : ctx.dataIndex === 0 ? '#3a2020' : '#2a2a2a',
+      borderRadius: 0, borderWidth: 0
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    scales: {
+      x: { ticks: { color: '#888', font: { family: 'Courier, monospace', size: 11 } }, grid: { display: false } },
+      y: {
+        type: 'logarithmic',
+        ticks: { ...tickStyle, callback: (v) => {
+          if (v === 100000) return '100k d';
+          if (v === 10000) return '10k d';
+          if (v === 1000) return '1k d';
+          if (v === 100) return '100 d';
+          if (v === 10) return '10 d';
+          return '';
+        }},
+        grid: { color: gridColor },
+        title: { display: true, text: 'wall-clock (days, log)', color: '#555', font: { family: 'Courier, monospace', size: 10 } }
+      }
+    }
+  }
+});
+
+/* Figure 4 — first-run cost vs cloud */
+new Chart(document.getElementById('costChart'), {
+  type: 'bar',
+  data: {
+    labels: ['DCP (buyer-side)', 'Commercial cloud'],
+    datasets: [{
+      data: [1.66, 19.72],
+      backgroundColor: (ctx) => ctx.dataIndex === 0 ? '#00cc75' : '#EF9F27',
+      borderRadius: 0, borderWidth: 0
+    }]
+  },
+  options: {
+    ...chartDefaults, indexAxis: 'y',
+    scales: {
+      x: { ticks: { ...tickStyle, callback: (v) => '$' + v }, grid: { color: gridColor },
+           title: { display: true, text: 'USD · first 1,000-realization run', color: '#555', font: { family: 'Courier, monospace', size: 10 } } },
+      y: { ticks: { color: '#888', font: { family: 'Courier, monospace', size: 11 } }, grid: { display: false } }
+    }
+  }
+});
+</script>
+
+
+<!--
+  ╔══════════════════════════════════════════════════════╗
+  ║  GALAXY BACKGROUND  —  tilted-ring disk               ║
+  ║  Re-theme of the helix bg: concentric tilted rings    ║
+  ║  (a galaxy disk / the tilted-ring model itself),      ║
+  ║  slowly rotating, with orbiting sample points and an  ║
+  ║  outward density-wave pulse that lights rings green.  ║
+  ╚══════════════════════════════════════════════════════╝
+-->
+
+<canvas id="galaxy-bg"></canvas>
+
+<style>
+  #galaxy-bg {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    display: block;
+  }
+  body > *:not(#galaxy-bg):not(#site-header-placeholder):not(header) {
+    position: relative;
+    z-index: 1;
+  }
+</style>
+
+<script>
+(function () {
+
+  /* ════════════════════════════════════════════════════
+     CONFIG
+     ════════════════════════════════════════════════════ */
+  const CONFIG = {
+    // ── Disk geometry ──────────────────────────────────
+    numRings     : 8,     // concentric tilted rings
+    diskFrac     : 0.82,   // outer ring radius as fraction of min(w,h)
+    inclination  : 0.40,   // ry/rx (0 = edge-on, 1 = face-on) — the "tilt"
+    baseAngle    : 28,     // position angle of the disk, degrees
+
+    // ── Animation ──────────────────────────────────────
+    spinSpeed       : 0.0002,  // base orbital speed (radians/frame)
+    diffRotation    : 9.9,     // inner rings orbit faster than outer (× factor)
+    precessionSpeed : 0.0006,  // slow wobble of the position angle
+    precessionAmp   : 0.16,    // wobble amplitude (radians)
+
+    // ── Ring / dot colours ─────────────────────────────
+    ringColor    : 'rgba(52,52,52,',
+    ringAlpha    : 0.55,
+    dotsPerRing  : 30,
+    dotColor     : 'rgba(120,120,120,',
+    dotAlpha     : 0.55,
+    dotRadius    : 1.1,
+    backDim      : 0.45,   // far side of a ring dims to this fraction
+
+    // ── Density-wave pulse (sweeps outward, lights rings) ─
+    pulseIntervalMin : 150,
+    pulseIntervalMax : 320,
+    pulseSpeedMin    : 0.020,  // rings per frame
+    pulseSpeedMax    : 0.045,
+    pulseSigma       : 1.5,    // gaussian width in rings
+    pulsePeak        : 1.0,
+    pulseColor       : 'rgba(0,204,117,',
+    pulseRingAlpha   : 0.40,
+    pulseDotAlpha    : 0.85,
+
+    // ── Starfield ──────────────────────────────────────
+    starCount    : 130,
+    starColor    : 'rgba(150,150,150,',
+    starAlphaMin : 0.08,
+    starAlphaMax : 0.34,
+    twinkleSpeed : 0.02
+  };
+  /* ════════════════════════════════════════════════════ */
+
+  const cv  = document.getElementById('galaxy-bg');
+  const ctx = cv.getContext('2d');
+
+  let paAngle = 0;      // position-angle precession accumulator
+  let orbit   = 0;      // orbital phase accumulator
+  let frame   = 0;
+
+  /* ── Starfield (screen-space, rebuilt on resize) ─── */
+  let stars = [];
+  function buildStars() {
+    stars = [];
+    for (let i = 0; i < CONFIG.starCount; i++) {
+      stars.push({
+        x  : Math.random() * cv.width,
+        y  : Math.random() * cv.height,
+        r  : Math.random() * 1.1 + 0.3,
+        a  : CONFIG.starAlphaMin + Math.random() * (CONFIG.starAlphaMax - CONFIG.starAlphaMin),
+        ph : Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  /* ── Density-wave pulses ──────────────────────────── */
+  const pulses = [];
+  let nextPulse = 90;
+  function spawnPulse() {
+    pulses.push({ pos: -2, speed: CONFIG.pulseSpeedMin + Math.random() * (CONFIG.pulseSpeedMax - CONFIG.pulseSpeedMin) });
+  }
+  function updatePulses() {
+    if (--nextPulse <= 0) {
+      spawnPulse();
+      nextPulse = CONFIG.pulseIntervalMin + Math.floor(Math.random() * (CONFIG.pulseIntervalMax - CONFIG.pulseIntervalMin));
+    }
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      pulses[i].pos += pulses[i].speed;
+      if (pulses[i].pos > CONFIG.numRings + 3) pulses.splice(i, 1);
+    }
+  }
+  function ringGlow(ringIndex) {
+    let g = 0;
+    for (const p of pulses) {
+      const d = ringIndex - p.pos;
+      g = Math.max(g, CONFIG.pulsePeak * Math.exp(-(d * d) / (2 * CONFIG.pulseSigma * CONFIG.pulseSigma)));
+    }
+    return Math.min(g, 1);
+  }
+
+  /* ── Draw ─────────────────────────────────────────── */
+  function drawStars() {
+    for (const s of stars) {
+      const tw = s.a * (0.7 + 0.3 * Math.sin(frame * CONFIG.twinkleSpeed + s.ph));
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = CONFIG.starColor + tw + ')';
+      ctx.fill();
+    }
+  }
+
+  function drawDisk() {
+    const cx = cv.width / 2, cy = cv.height / 2;
+    const maxR = Math.min(cv.width, cv.height) * CONFIG.diskFrac;
+    const ringSpacing = maxR / CONFIG.numRings;
+    const pa = CONFIG.baseAngle * Math.PI / 180 + Math.sin(paAngle) * CONFIG.precessionAmp;
+    const cosPA = Math.cos(pa), sinPA = Math.sin(pa);
+
+    for (let ri = 1; ri <= CONFIG.numRings; ri++) {
+      const rx = ri * ringSpacing;
+      const ry = rx * CONFIG.inclination;
+      const glow = ringGlow(ri);
+
+      // ring outline
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, pa, 0, Math.PI * 2);
+      if (glow > 0.02) {
+        ctx.strokeStyle = CONFIG.ringColor + (CONFIG.ringAlpha * (1 - glow * 0.5)) + ')';
+        ctx.lineWidth = 1; ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, pa, 0, Math.PI * 2);
+        ctx.strokeStyle = CONFIG.pulseColor + (glow * CONFIG.pulseRingAlpha) + ')';
+        ctx.lineWidth = 1.2; ctx.stroke();
+      } else {
+        ctx.strokeStyle = CONFIG.ringColor + CONFIG.ringAlpha + ')';
+        ctx.lineWidth = 1; ctx.stroke();
+      }
+
+      // orbiting sample dots — inner rings rotate faster (differential rotation)
+      const speedScale = 1 + (CONFIG.diffRotation - 1) * (1 - ri / CONFIG.numRings);
+      const phase = orbit * speedScale;
+      for (let d = 0; d < CONFIG.dotsPerRing; d++) {
+        const th = (d / CONFIG.dotsPerRing) * Math.PI * 2 + phase;
+        const lx = rx * Math.cos(th);
+        const ly = ry * Math.sin(th);
+        const px = cx + lx * cosPA - ly * sinPA;
+        const py = cy + lx * sinPA + ly * cosPA;
+        const depth = Math.sin(th); // >0 near side, <0 far side
+        const dim = depth >= 0 ? 1 : CONFIG.backDim;
+
+        ctx.beginPath();
+        ctx.arc(px, py, CONFIG.dotRadius, 0, Math.PI * 2);
+        if (glow > 0.02) {
+          ctx.fillStyle = CONFIG.pulseColor + (glow * CONFIG.pulseDotAlpha * dim) + ')';
+        } else {
+          ctx.fillStyle = CONFIG.dotColor + (CONFIG.dotAlpha * dim) + ')';
+        }
+        ctx.fill();
+      }
+    }
+
+    // galactic core
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(200,200,200,0.5)';
+    ctx.fill();
+  }
+
+  /* ── Resize ───────────────────────────────────────── */
+  function resize() {
+    cv.width  = window.innerWidth;
+    cv.height = window.innerHeight;
+    buildStars();
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* ── Main loop ────────────────────────────────────── */
+  function draw() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    frame++;
+    orbit   += CONFIG.spinSpeed;
+    paAngle += CONFIG.precessionSpeed;
+    updatePulses();
+
+    drawStars();
+    drawDisk();
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+
+
+</body>
+</html>

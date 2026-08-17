@@ -1,0 +1,578 @@
+<title>3KIDNAS Bootstrap Pipeline — Execution Flow</title>
+<style>
+  :root{
+    --bg:#eef2f5;
+    --surface:#ffffff;
+    --surface-2:#e4e9ed;
+    --ink:#12181d;
+    --ink-dim:#4c5964;
+    --ink-faint:#7c8790;
+    --line:#c9d2d8;
+    --accent:#0f8fa3;
+    --accent-bg:#e1f2f4;
+    --accent-ink:#ffffff;
+    --rust:#a35a2a;
+    --live:#2c8a54;
+    --live-bg:#e3f3e8;
+    --stale:#6b58bf;
+    --stale-bg:#ece9fa;
+    --warn:#a5761f;
+    --warn-bg:#f7ecd8;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, "Roboto Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0a1216; --surface:#101b21; --surface-2:#16232a;
+      --ink:#e8eef2; --ink-dim:#9fb0b8; --ink-faint:#6d7d85; --line:#28373f;
+      --accent:#3fc4d8; --accent-bg:#0d2a30; --accent-ink:#04262b; --rust:#d68a52;
+      --live:#5cc98a; --live-bg:#123021; --stale:#ab9bf2; --stale-bg:#231c42;
+      --warn:#dcb15a; --warn-bg:#3a2c0d;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a1216; --surface:#101b21; --surface-2:#16232a;
+    --ink:#e8eef2; --ink-dim:#9fb0b8; --ink-faint:#6d7d85; --line:#28373f;
+    --accent:#3fc4d8; --accent-bg:#0d2a30; --accent-ink:#04262b; --rust:#d68a52;
+    --live:#5cc98a; --live-bg:#123021; --stale:#ab9bf2; --stale-bg:#231c42;
+    --warn:#dcb15a; --warn-bg:#3a2c0d;
+  }
+  :root[data-theme="light"]{
+    --bg:#eef2f5; --surface:#ffffff; --surface-2:#e4e9ed;
+    --ink:#12181d; --ink-dim:#4c5964; --ink-faint:#7c8790; --line:#c9d2d8;
+    --accent:#0f8fa3; --accent-bg:#e1f2f4; --accent-ink:#ffffff; --rust:#a35a2a;
+    --live:#2c8a54; --live-bg:#e3f3e8; --stale:#6b58bf; --stale-bg:#ece9fa;
+    --warn:#a5761f; --warn-bg:#f7ecd8;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:0 24px 96px;}
+  code, .fn, .file{ font-family:var(--mono); }
+
+  header.head{
+    padding:56px 24px 36px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+  }
+  header.head .inner{max-width:1180px; margin:0 auto;}
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent); margin:0 0 14px;
+  }
+  h1{
+    font-family:var(--mono); font-weight:700; font-size:clamp(26px,3.4vw,38px);
+    margin:0 0 14px; letter-spacing:-.01em; text-wrap:balance; color:var(--ink);
+  }
+  header.head p.lede{ max-width:70ch; color:var(--ink-dim); font-size:16px; margin:0 0 24px; }
+  .legend{display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center;}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; font-size:12.5px;
+    font-family:var(--mono); padding:4px 10px 4px 8px; border-radius:5px;
+    border:1px solid var(--line); color:var(--ink-dim); white-space:nowrap;
+  }
+  .chip .dot{width:8px; height:8px; border-radius:2px; flex:none;}
+  .chip.lane-fortran .dot{background:var(--rust);}
+  .chip.lane-js .dot{background:var(--accent);}
+
+  section{padding:34px 0;}
+  .section-label{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--ink-faint); margin:0 0 16px; display:flex; align-items:center; gap:10px;
+  }
+  .section-label::after{content:""; height:1px; flex:1; background:var(--line);}
+
+  .ribbon{
+    background:var(--surface-2); border:1px solid var(--line); border-radius:10px;
+    padding:18px 22px; display:flex; flex-wrap:wrap; gap:10px 28px; align-items:baseline;
+  }
+  .ribbon .who{font-family:var(--mono); font-weight:700; font-size:13.5px; color:var(--ink);}
+  .ribbon .desc{color:var(--ink-dim); font-size:14px;}
+  .ribbon .files{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; width:100%;}
+
+  .f{
+    font-family:var(--mono); font-size:12.5px; background:var(--surface);
+    border:1px solid var(--line); border-radius:4px; padding:2px 6px; color:var(--ink);
+    white-space:nowrap;
+  }
+  .f.cube{border-color:var(--accent); color:var(--accent);}
+  .rw{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); font-family:var(--mono);}
+
+  .stage{ background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 24px; }
+  .step{ display:grid; grid-template-columns:34px 1fr; gap:2px 16px; padding:16px 0; border-bottom:1px solid var(--line); }
+  .step:last-child{border-bottom:none;}
+  .step .idx{ font-family:var(--mono); font-weight:700; font-size:13px; color:var(--ink-faint); padding-top:2px; }
+  .step .title{font-weight:600; font-size:14.5px; color:var(--ink); margin:0 0 4px;}
+  .step .title .fn{color:var(--accent); font-weight:700;}
+  .step p{margin:0 0 8px; color:var(--ink-dim); font-size:13.5px;}
+  .step .iorow{display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; font-size:12.5px;}
+
+  .branch-head{
+    text-align:center; margin-bottom:22px; font-family:var(--mono); color:var(--ink-faint);
+    font-size:12.5px; letter-spacing:.1em; text-transform:uppercase;
+  }
+  .lanes{display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start;}
+  @media (max-width:860px){ .lanes{grid-template-columns:1fr;} }
+  .lane{border-radius:10px; padding:18px 18px 6px; background:var(--surface); border:1px solid var(--line);}
+  .lane.fortran{border-top:3px solid var(--rust);}
+  .lane.js{border-top:3px solid var(--accent);}
+  .lane h3{ font-family:var(--mono); font-size:15px; margin:2px 0 2px; letter-spacing:-.01em; }
+  .lane.fortran h3{color:var(--rust);}
+  .lane.js h3{color:var(--accent);}
+  .lane .subhead{color:var(--ink-dim); font-size:12.5px; margin:0 0 18px;}
+  .lstep{padding:14px 0; border-top:1px solid var(--line);}
+  .lstep .idx{ font-family:var(--mono); font-size:11px; color:var(--ink-faint); letter-spacing:.08em; }
+  .lane.fortran .lstep .idx{color:var(--rust);}
+  .lane.js .lstep .idx{color:var(--accent);}
+  .lstep .title{font-weight:600; font-size:13.5px; margin:3px 0 5px;}
+  .lstep .title .fn{font-family:var(--mono); font-weight:700;}
+  .lane.fortran .lstep .title .fn{color:var(--rust);}
+  .lane.js .lstep .title .fn{color:var(--accent);}
+  .lstep p{margin:0 0 7px; color:var(--ink-dim); font-size:12.8px;}
+  .lstep .iorow{display:flex; flex-wrap:wrap; gap:5px 7px; font-size:12px;}
+  .fork{ margin-top:6px; padding:12px; border:1px dashed var(--line); border-radius:8px; background:var(--surface-2); }
+  .fork .path{padding:6px 0;}
+  .fork .path + .path{border-top:1px dashed var(--line);}
+  .fork .path b{font-family:var(--mono); font-size:12px;}
+
+  .callout{ border-radius:10px; padding:18px 22px; border:1px solid var(--line); background:var(--surface); border-left:4px solid var(--ink-faint); }
+  .callout.note{border-left-color:var(--accent);}
+  .callout.warn{border-left-color:var(--warn); background:linear-gradient(0deg, var(--surface) 0%, var(--warn-bg) 260%);}
+  .callout.stale{border-left-color:var(--stale);}
+  .callout h4{margin:0 0 8px; font-size:14px; font-family:var(--mono);}
+  .callout p{margin:0 0 8px; color:var(--ink-dim); font-size:13.8px;}
+  .callout p:last-child{margin-bottom:0;}
+  .callout ul{margin:0 0 8px; padding-left:20px; color:var(--ink-dim); font-size:13.8px;}
+  .callout li{margin-bottom:4px;}
+
+  .twrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--surface);}
+  table{width:100%; border-collapse:collapse; font-size:12.8px;}
+  thead th{
+    text-align:left; font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--ink-faint); padding:12px 14px; border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  tbody td{padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--surface-2);}
+  td.name{font-family:var(--mono); font-size:12.4px;}
+  td.note{color:var(--ink-dim); font-size:12.6px;}
+  .status{
+    display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px;
+    padding:3px 8px; border-radius:5px; font-weight:600; white-space:nowrap;
+  }
+  .status.same{background:var(--live-bg); color:var(--live);}
+  .status.port{background:var(--accent-bg); color:var(--accent);}
+  .status.pylang{background:var(--stale-bg); color:var(--stale);}
+  .status.none{background:var(--surface-2); color:var(--ink-faint);}
+
+  pre.json{
+    background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+    font-family:var(--mono); font-size:12px; overflow-x:auto; color:var(--ink-dim); line-height:1.6;
+  }
+  pre.json .k{color:var(--accent);}
+  pre.json .c{color:var(--ink-faint); font-style:italic;}
+
+  footer{ max-width:1180px; margin:40px auto 0; padding:24px; color:var(--ink-faint); font-size:12.5px; border-top:1px solid var(--line); }
+</style>
+
+<header class="head">
+  <div class="inner">
+    <p class="eyebrow">3KIDNAS · FitDriverScripts + third_party/DCP</p>
+    <h1>What actually runs, in what order, touching which files</h1>
+    <p class="lede">
+      Traced from current source. Built to show 1:1 correspondence between the fortran-local
+      (<span class="f">UseDCP=0</span>) and JS-local/JS-DCP (<span class="f">UseDCP=1</span>) legs
+      <span class="f">run_all_three.js</span> drives — every file read or written, and for every
+      piece of the pipeline, exactly which Fortran routine the JS (or Python) counterpart replaces,
+      by name.
+    </p>
+    <div class="legend">
+      <span class="chip lane-fortran"><span class="dot"></span>fortran-local lane</span>
+      <span class="chip lane-js"><span class="dot"></span>js-local / js-dcp lane</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <p class="section-label">Root inputs — read once, before anything else</p>
+    <div class="ribbon">
+      <span class="who">from the config .py</span>
+      <span class="desc">Every leg starts from the same two FITS files on disk, named by <span class="f">CubeName</span>/<span class="f">MaskName</span> (e.g. in run_all_three.js's own example galaxy):</span>
+      <div class="files">
+        <span class="f cube">WALLABY_J103538-484832_VelCube.fits</span> — the observed HI data cube
+        <span class="f cube">WALLABY_J103538-484832_mask.fits</span> — the source mask, used only by the ONE initial fit (GalaxyFitParameters.SetCurrentRunVariables copies CubeName→CubeNameU, MaskName→MaskNameU verbatim for that first call)
+      </div>
+      <div class="files">
+        <span class="rw">produced by the initial fit, read by everything downstream</span>
+        <span class="f cube">‹Obj›_AverageModel_v1.fits</span> — the best-fit model cube
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-label">run_all_three.js — before dispatch</p>
+    <div class="ribbon">
+      <span class="who">third_party/DCP/run_all_three.js</span>
+      <span class="desc">writes one config per leg into 3KIDNASTests/SingleGalaxyTest/, wipes each active leg's TargFolder, then shells <span class="f">python3 WRKP_GalaxyFitDriver.py &lt;config&gt;.py</span> once per leg, sequentially, cwd = SingleGalaxyTest.</span>
+      <div class="files">
+        <span class="f">run_all_three_fortran_local_config.py</span>
+        <span class="f">run_all_three_js_local_config.py</span>
+        <span class="f">run_all_three_js_dcp_config.py</span>
+      </div>
+      <div class="files">
+        <span class="rw">if --cloudDensity is passed</span>
+        <span class="desc" style="width:100%">overrides <span class="f">Inputs/SingleGalaxyTestFittingOptions_Base.txt</span>'s cloud particle density (400 by default — see the convergence callout below for why this matters) for ALL THREE legs, not just JS. Works through <span class="fn">GalaxyFitParameters.OverwriteDefaults</span>'s existing any-GeneralDict-key override mechanism (the same one <span class="f">BootstrapSeed</span> already used) — no Fortran or SetFileLocations.py change needed: writes a per-leg copy of the options file with the density line swapped, then adds <span class="f">WRKP_GeneralOptionsIn="&lt;copy path&gt;"</span> to that leg's own config .py.</span>
+        <span class="f">&lt;config&gt;_fitting_options.txt</span>
+      </div>
+      <div class="files">
+        <span class="rw">after each leg finishes</span>
+        <span class="desc" style="width:100%">writes a reproducibility sidecar into that leg's own output folder — seed, nBootstraps, CPU count used (null for js-dcp: that work runs on real DCP workers over the network, not a local pool, so there's no local core count to attribute it to), and the effective cloud density. Read back by both run_all_three.js's own report step and build_partial_report.js, so it stays correct for a leg reported from an entirely separate, earlier invocation.</span>
+        <span class="f" style="border-color:var(--accent); color:var(--accent)">‹Obj›_RunMeta.json</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-label">Stage 0 — shared, identical regardless of UseDCP</p>
+    <div class="stage">
+      <div class="step">
+        <div class="idx">01</div>
+        <div>
+          <p class="title"><span class="fn">GalaxyFitParameters</span> — read config, chdir, set CubeNameU/MaskNameU</p>
+          <p>Reads the config .py, resolves it to an absolute path, <span class="f">os.chdir()</span>s into its directory, then <span class="fn">SetCurrentRunVariables</span> copies CubeName→CubeNameU and MaskName→MaskNameU for this first call.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="idx">02</div>
+        <div>
+          <p class="title"><span class="fn">SoFiA_Driver.WriteSoFiACatFileForWRKP</span></p>
+          <div class="iorow"><span class="rw">writes</span><span class="f">‹Obj›_SoFiAShapeEstimate.txt</span></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="idx">03</div>
+        <div>
+          <p class="title"><span class="fn">RunWRKP.RunWRKP</span>(BSSwitch=0) — the one real initial fit</p>
+          <div class="iorow"><span class="rw">writes</span><span class="f">‹Obj›_WRKP_Input.txt</span><span class="f">‹Obj›_WRKP_Options.txt</span></div>
+          <div class="iorow" style="margin-top:5px"><span class="rw">shells</span><span class="f">Programs/SingleGalaxyFitter</span> reading <span class="f cube">‹CubeName›.fits</span><span class="f cube">‹MaskName›.fits</span></div>
+          <p style="margin-top:8px">Inside <span class="fn">SingleGalaxyFitTests.f</span>: <span class="f">PreGalaxyAnalysis()</span> runs, THEN <span class="f">DumpFittingFixture('diskfit_fixture.json')</span> — unconditional, every call — THEN the optimizer (<span class="f">GalaxyFit_Simple</span>) runs, THEN <span class="f">DumpBestFitModelCube('model_cube_bestfit.json')</span> — also unconditional. See the callout below: this is <em>every</em> call to this binary, not just the initial one.</p>
+          <div class="iorow"><span class="rw">fortran writes</span><span class="f">diskfit_fixture.json</span><span class="f">model_cube_bestfit.json</span><span class="f cube">‹Obj›/‹Obj›_AverageModel_v1.fits</span><span class="f">‹Obj›/‹Obj›_AvgModel_v1.txt</span></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="idx">04</div>
+        <div>
+          <p class="title">Branch point — only if <span class="fn">UseDCP=1</span></p>
+          <p>Moves the two Fortran dumps out of CWD into the DCP job directory.</p>
+          <div class="iorow"><span class="rw">moves</span><span class="f">diskfit_fixture.json</span><span class="f">model_cube_bestfit.json</span> → <span class="f">third_party/DCP/DCPjobData/</span></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="idx">05</div>
+        <div>
+          <p class="title"><span class="fn">ReadWRKPFit.ReadWRKPOutputFile</span> → GalaxyDict['BestFitModel']</p>
+          <div class="iorow"><span class="rw">reads</span><span class="f">‹Obj›/‹Obj›_AvgModel_v1.txt</span><span class="rw">records</span><span class="f cube">ModelCube = ‹Obj›_AverageModel_v1.fits</span></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="idx">06</div>
+        <div>
+          <p class="title"><span class="fn">Bootstrap_Error_Analysis.SetErrorAnalysisVariables</span> + <span class="fn">LoadSoFiATemplate</span></p>
+          <div class="iorow"><span class="rw">reads</span><span class="f cube">‹CubeName› header (astropy)</span><span class="f">template_par_file.par</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="callout warn">
+      <h4>Fixed: the two dumps used to happen on <em>every</em> call to SingleGalaxyFitter, not once</h4>
+      <p><span class="f">DumpFittingFixture</span>/<span class="f">DumpBestFitModelCube</span> used to be called unconditionally inside <span class="fn">SingleGalaxyFitTests.f</span>'s main program — the SAME compiled binary <span class="fn">RunWRKP.RunWRKP</span> shells out to for <em>both</em> the one-time initial fit (BSSwitch=0) <em>and</em> every fortran-local per-realization fit (BSSwitch=1, from <span class="fn">Bootstrap_Error_Analysis.GetBootstrapModel</span>). BSSwitch=1 only ever happens on the fortran-local leg — UseDCP=1 skips that whole loop in favor of <span class="fn">RunBootstrapsDCP</span> — so on a pure fortran-local run with N bootstraps, this binary re-dumped both files N+1 times, into the SAME two CWD filenames, from up to <span class="f">nProcessors</span> concurrent OS processes at once. Nothing on the fortran-local leg ever read them back — pure waste, and the source of the two stray multi-MB files that kept showing up in SingleGalaxyTest/ after a fortran-local run.</p>
+      <p><b>Does this explain minor fortran-vs-js/dcp differences? Traced it — no.</b>
+        Each leg's own initial fit (<span class="fn">RunWRKP</span>(BSSwitch=0)) is one single, synchronous, blocking call — <span class="f">os.system()</span> doesn't return until PreGalaxyAnalysis → dump → optimizer → dump is fully done. <span class="fn">FullSingleGalaxyFit.py</span>'s move-to-DCPJobData step runs immediately after that call returns, before the bootstrap loop starts. And UseDCP=1 configs never call <span class="f">RunWRKP</span> with BSSwitch=1 at all (they go through <span class="fn">RunBootstrapsDCP</span> instead) — so there was never a window where a per-realization dump could land in CWD before that leg's own move step swept it into DCPjobData. Each leg's fresh initial-fit dump always overwrites whatever a previous leg's process left behind, before it gets moved and consumed. Combined with run_all_three.js running all three legs strictly sequentially (never concurrently) in the same directory, there's no path for js/dcp to ever consume a stale bootstrap-realization fixture. The bug was real waste + an internal race, but it didn't leak across legs — worth ruling out as an explanation for any numerical divergence you're chasing separately.</p>
+      <p><b>What was actually in them</b> (fields confirmed by reading <span class="fn">DumpFittingFixture</span>/<span class="fn">DumpBestFitModelCube</span> directly):</p>
+      <pre class="json">diskfit_fixture.json  <span class="c">(8.3MB — one initial-fit parameter vector + per-ring geometry + cube header, every float written as its own ASCII line)</span>
+{
+  <span class="k">"nParams"</span>: 6, <span class="k">"param"</span>: [...], <span class="k">"paramLowerLims"</span>: [...], <span class="k">"paramUpperLims"</span>: [...],
+  <span class="k">"paramRange"</span>: [...], <span class="k">"cyclicSwitch"</span>: [...],
+  <span class="k">"nRings"</span>: 5, <span class="k">"nFittedParamsTotal"</span>: 16,
+  <span class="k">"constParams"</span>: [true, false, ...],   <span class="c">// 13 ring-property flags</span>
+  <span class="k">"fixedParams"</span>: [false, ...],
+  <span class="k">"radialProfiles"</span>: [ { <span class="k">"rmid"</span>:.., <span class="k">"inclination"</span>:.., <span class="k">"positionAngle"</span>:.., <span class="k">"vRot"</span>:.., <span class="k">"vDisp"</span>:.., ... }, ... ],
+  <span class="k">"observedDC"</span>: { <span class="k">"nPixelsX"</span>:.., <span class="k">"pixelSizeX"</span>:.., <span class="k">"channelSize"</span>:.., <span class="k">"refValX"</span>:.., ... }
+  <span class="c">// + observedBeam, cmode, ftol, idum, likelihoodSwitch, nRingsPerBeam, linearLogSDSwitch
+  //   (read by RunBootstrapsDCP.BuildRealizationPayload)</span>
+}
+
+model_cube_bestfit.json  <span class="c">(4.7MB — just header + the ENTIRE model cube flux array, flat, one value per line)</span>
+{ <span class="k">"nPixelsX"</span>: .., <span class="k">"nPixelsY"</span>: .., <span class="k">"nChannels"</span>: .., <span class="k">"nCells"</span>: ..,
+  <span class="k">"flux"</span>: [ 1.2345678901E-03, -4.5601234567E-04, ... ]  <span class="c">// nCells values</span> }</pre>
+      <p><b>Fix applied</b> (compiled, relinked, installed to Programs/SingleGalaxyFitter): a new trailing switch in the main input file, same backward-compatible pattern as <span class="f">FixtureOnlySwitch</span>/<span class="f">ProbeSwitch</span>/<span class="f">TraceSwitch</span> — <span class="f">DumpFixtureSwitch</span> (declared in <span class="fn">PipelineGlobals.f</span>, read in <span class="fn">SingleFitRuntimeInputs.f</span>, defaults to 0 if the line is absent). <span class="fn">RunWRKP.RunWRKP</span> computes <span class="f">DumpFixtureSwitch = 1 if (BSSwitch==0 and GalaxyDict.get('UseDCP')==1) else 0</span> from the <span class="f">BSSwitch</span> it already receives and passes it to <span class="fn">WriteWRKPMainFile</span>; <span class="fn">SingleGalaxyFitTests.f</span> now wraps both dump calls in <span class="f">if (DumpFixtureSwitch .eq. 1) then</span>. Net effect: the two dumps now happen exactly once per run — only for the one initial fit, only on a UseDCP=1 config — and fortran-local no longer touches these files at all.</p>
+      <p style="color:var(--ink-faint)">Not yet done: writing straight into DCPjobData instead of dump-then-move (same subroutines already take <span class="f">filename</span> as a plain argument, so this only needs one more trailing line carrying the target path) — separate, smaller follow-up if wanted.</p>
+    </div>
+  </section>
+
+  <p class="branch-head">↓ bootstrap loop — this is where the two legs genuinely diverge ↓</p>
+
+  <section style="padding-top:0">
+    <div class="lanes">
+
+      <div class="lane fortran">
+        <h3>Fortran-local · UseDCP=0</h3>
+        <p class="subhead"><span class="fn">Bootstrap_Error_Analysis.GetBootstrapModel</span>, once per realization, in
+          <span class="f">mp.Pool(processes=nProcessors)</span> — nProcessors now capped at
+          <span class="f">os.cpus()-1</span>. Three native binary calls per realization, fully
+          parallel across OS processes.</p>
+
+        <div class="lstep">
+          <div class="idx">STEP 1</div>
+          <p class="title"><span class="fn">MakeBootstrapSample</span></p>
+          <div class="iorow"><span class="rw">writes</span><span class="f">‹Obj›_Bootstrap_‹N›.txt</span></div>
+          <div class="iorow"><span class="rw">shells</span><span class="f">Programs/BootStrapSampler</span> reading <span class="f cube">‹CubeName›.fits</span><span class="f cube">‹Obj›_AverageModel_v1.fits</span></div>
+          <div class="iorow"><span class="rw">writes</span><span class="f cube">‹Obj›_Bootstrap_‹N›.fits</span> → BootstrapCubes/</div>
+        </div>
+        <div class="lstep">
+          <div class="idx">STEP 2</div>
+          <p class="title"><span class="fn">SoFiA_Driver.RunSoFiA</span></p>
+          <div class="iorow"><span class="rw">shells</span><span class="f">third_party/SoFiA-2…/sofia</span> on <span class="f cube">‹Obj›_Bootstrap_‹N›.fits</span></div>
+          <div class="iorow"><span class="rw">writes</span><span class="f">SoFiARuns/‹Obj›_Bootstrap_‹N›_cat.txt</span><span class="f cube">…_mask.fits</span></div>
+        </div>
+        <div class="lstep">
+          <div class="idx">STEP 3</div>
+          <p class="title"><span class="fn">LoadSoFiAOutput</span> (→ Python <span class="fn">GeometryEstimates.GetGeometryEstimates</span>) → <span class="fn">AdjustMaskFile</span></p>
+          <div class="iorow"><span class="rw">reads</span><span class="f">…_cat.txt</span><span class="rw">rewrites</span><span class="f cube">…_mask.fits</span> in place</div>
+        </div>
+        <div class="lstep">
+          <div class="idx">STEP 4</div>
+          <p class="title"><span class="fn">WriteSoFiACatFileForWRKP</span></p>
+          <div class="iorow"><span class="rw">writes</span><span class="f">‹Obj›_Bootstrap_‹N›_SoFiAShapeEstimate.txt</span></div>
+        </div>
+        <div class="lstep">
+          <div class="idx">STEP 5</div>
+          <p class="title"><span class="fn">RunWRKP</span>(BSSwitch=1) — full optimizer, pinned ring grid</p>
+          <div class="iorow"><span class="rw">shells</span><span class="f">Programs/SingleGalaxyFitter</span> reading <span class="f cube">‹Obj›_Bootstrap_‹N›.fits</span><span class="f cube">…_mask.fits</span></div>
+          <div class="iorow"><span class="rw">fortran writes</span><span class="f">‹Obj›_Bootstrap_‹N›/…_AvgModel_v1.txt</span><span class="f cube">…_AverageModel_v1.fits</span></div>
+          <div class="iorow" style="margin-top:5px; opacity:.8"><span class="rw">+ unconditionally, again</span><span class="f">diskfit_fixture.json</span><span class="f">model_cube_bestfit.json</span> (see finding above)</div>
+        </div>
+        <div class="lstep">
+          <div class="idx">STEP 6</div>
+          <p class="title"><span class="fn">ReadWRKPOutputFile</span> → this realization's model</p>
+          <p>Fixed this session: <span class="fn">BootstrapRuntimeInputs.f</span> no longer double-converts the PA this step's input file carries (was landing at ~5.78° instead of ~331.3°).</p>
+        </div>
+      </div>
+
+      <div class="lane js">
+        <h3>JS-local &amp; JS-DCP · UseDCP=1</h3>
+        <p class="subhead"><span class="fn">RunBootstrapsDCP.py</span> builds ONE shared payload, then
+          dispatches ALL realizations as a single DCP job — one slice per realization, resample→SoFiA→
+          InitialAnalysis→fit fully inside that slice. Zero native calls, zero per-realization disk files.</p>
+
+        <div class="lstep">
+          <div class="idx">STEP 1</div>
+          <p class="title"><span class="fn">GetCubeWCS</span> + <span class="fn">BuildRealizationPayload</span></p>
+          <div class="iorow"><span class="rw">reads</span><span class="f">DCPjobData/diskfit_fixture.json</span><span class="f">…/model_cube_bestfit.json</span></div>
+          <div class="iorow"><span class="rw">reads raw bytes</span><span class="f cube">‹CubeName›.fits</span><span class="f cube">‹Obj›_AverageModel_v1.fits</span> (base64, ONE time for the whole job — not per realization)</div>
+        </div>
+        <div class="lstep">
+          <div class="idx">STEP 2</div>
+          <p class="title"><span class="fn">LaunchDCPRealizationJob</span></p>
+          <div class="iorow"><span class="rw">writes</span><span class="f">DCPjobData/realization_payload.json</span><span class="rw">deletes stale</span><span class="f">…/dcp_realization_results.json</span></div>
+          <div class="fork">
+            <div class="path"><b>js-local</b> — no DCP_API_KEY (or DCP_FORCE_LOCAL=1): <span class="f">node bootstrap-realization-launcher.js --local N</span>. Own worker_threads pool sized <span class="f">min(nBootstraps, cpus)</span> — a separate cap from run_all_three.js's nProcessors; <span class="fn">nProcessors_Bootstraps is never read on this leg</span>. Each worker runs the pipeline in-process, in-memory (no disk cube files at all): resample → SoFiA-wasm → catalog+geometry → InitialAnalysis(JS) → tilted-ring/param-vector → beam-kernel+FFTW3-wasm convolution → galaxyFit_Simple → likelihood.</div>
+            <div class="path"><b>js-dcp</b> — DCP_API_KEY present: same launcher, <span class="f">dcp-client</span> → <span class="f">compute.for(...).exec()</span> ships the identical function to real remote DCP workers over the network.</div>
+          </div>
+          <div class="iorow" style="margin-top:8px"><span class="rw">either way, writes</span><span class="f">DCPjobData/dcp_realization_results.json</span></div>
+        </div>
+        <div class="lstep">
+          <div class="idx">STEP 3</div>
+          <p class="title"><span class="fn">AdaptResults</span> → BootstrapModels</p>
+          <div class="iorow"><span class="rw">reads back</span><span class="f">dcp_realization_results.json</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <p class="section-label">Fortran ↔ JS correspondence, module by module</p>
+    <div class="callout note" style="margin-bottom:18px">
+      <p>Four different relationships, not one — worth telling apart when judging whether a
+        divergence is expected:</p>
+      <p style="margin-bottom:0">
+        <span class="status same">same source</span> = literally the same C/Fortran source, compiled twice (native + wasm) — bit-identical output expected&nbsp;·&nbsp;
+        <span class="status port">JS port</span> = the algorithm reimplemented in JS — needs numerical verification, not guaranteed identical&nbsp;·&nbsp;
+        <span class="status pylang">python ↔ js</span> = native path does this in Python already, not Fortran — JS ports the Python, not Fortran&nbsp;·&nbsp;
+        <span class="status none">fortran-only</span> = no JS counterpart exists, not exercised by this pipeline
+      </p>
+    </div>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>concern</th><th>fortran</th><th>js / python</th><th>relationship</th></tr></thead>
+        <tbody>
+          <tr><td class="note">Bootstrap resampling</td><td class="name">BootstrapSampler/{FlippingBootstrap,GenerateBootstrap,CubeDifference,PhysCoordTransform}.f</td><td class="name">BootstrapSampler/{FlipBootstrap,GenerateBootstrap,CubeDifference,PhysCoordTransform,DataCubeFits}.js</td><td><span class="status port">JS port</span></td></tr>
+          <tr><td class="note">Source finding</td><td class="name">external <span class="f">sofia</span> binary (SoFiA-2 C source)</td><td class="name">sofia2wasm (same SoFiA-2 C source, Emscripten build)</td><td><span class="status same">same source</span></td></tr>
+          <tr><td class="note">FITS I/O</td><td class="name">linked cfitsio (native)</td><td class="name">cfitsio4wasm (same cfitsio-4.6.3 C source, Emscripten build)</td><td><span class="status same">same source</span></td></tr>
+          <tr><td class="note">Catalog parse + geometry estimate</td><td class="name">SoFiA_Driver.py (LoadSoFiAOutput) + GeometryEstimates.py</td><td class="name">SoFiACatalog/ParseSoFiACatalog.js + GeometryEstimates/GeometryEstimates.js</td><td><span class="status pylang">python ↔ js</span></td></tr>
+          <tr><td class="note">Pre-fit analysis (moment maps, shape, radial profile, noise)</td><td class="name">PreAnalysis/PreAnalysis.f (PreGalaxyAnalysis) → GetMomentMaps, EstimateShape, VelProfileAnalysis, EstimateRadialProfiles, ModellingInitializations, EstimateCubeNoise (.f)</td><td class="name">PreAnalysis/InitialAnalysis.js (initialAnalysis) → same 6 filenames (.js)</td><td><span class="status port">JS port</span></td></tr>
+          <tr><td class="note">Object/data structures</td><td class="name">ObjectDefinitions/{Beam,DataCube,ParameterVector,Particle,TiltedRing,ObjDict,SoFiACatalogue}.f</td><td class="name">ObjectDefinitions/{Beam,DataCube,ParameterVector,Particle,TiltedRing}.js</td><td><span class="status port">JS port</span> <span style="color:var(--ink-faint)">(ObjDict/SoFiACatalogue folded into plain JS objects)</span></td></tr>
+          <tr><td class="note">Tilted-ring model generation</td><td class="name">TiltedRingModelGeneration/{SingleRingGeneration,TiltedRingModelGeneration}.f</td><td class="name">same dir/names, .js</td><td><span class="status port">JS port</span></td></tr>
+          <tr><td class="note">Parameter vector ↔ ring interface</td><td class="name">ParameterToTiltedRingInterface/ParameterToTiltedRingVector.f</td><td class="name">same dir/name, .js</td><td><span class="status port">JS port</span></td></tr>
+          <tr><td class="note">Beam kernel + FFT convolution</td><td class="name">ConvolveCube/{CalculateBeamKernel,CubeKernelConvolution,TwoDConvolution,VelocitySmoothing}.f + linked FFTW3 (fftw-3.3.8)</td><td class="name">ConvolveCube/{CalculateBeamKernel,CubeKernelConvolution}.js + FFTW3WasmRank2.js → fftw3wasm-v3</td><td><span class="status port">JS port</span> kernel logic, <span class="status same">same source</span> FFT itself — see FFTW callout below</td></tr>
+          <tr><td class="note">Model comparison / likelihood</td><td class="name">CompareCubes/{CubeComparison,FullModelComparison,LikelihoodFunctions,MaskCube}.f</td><td class="name">CompareCubes/{FullModelComparison,MaskCube}.js</td><td><span class="status port">JS port</span> <span style="color:var(--ink-faint)">(CubeComparison/LikelihoodFunctions folded into FullModelComparison.js)</span></td></tr>
+          <tr><td class="note">Optimizer</td><td class="name">GalaxyAnalysis/GalaxyFit.f + GeneralMinimizationRoutines/DownhillSimplex.f (Nelder-Mead)</td><td class="name">GalaxyAnalysis/GalaxyFit.js (galaxyFit_Simple → amoeba)</td><td><span class="status port">JS port</span> <span style="color:var(--ink-faint)">— both sides independently carry a fix for the same historical shrink-step bug (DownhillSimplex.f:98-103 / GalaxyFit.js's amoeba, both restore y(i) after a shrink now — not a live divergence). ITMAX=5000 hardcoded in both. See the convergence callout below for what IS still unexplained.</span></td></tr>
+          <tr><td class="note">Math primitives</td><td class="name">StandardMath/{BasicConstants,FullCircTrig,Interpolation,SortArray,random}.f</td><td class="name">StandardMath/{BasicConstants,FullCircTrig,Interpolation,random}.js</td><td><span class="status port">JS port</span> <span style="color:var(--ink-faint)">(SortArray has no JS file)</span></td></tr>
+          <tr><td class="note">Transcendental math (sin/cos/exp/log)</td><td class="name">StandardMath/fdlibm_*.c (linked natively)</td><td class="name">StandardMath/fdlibm-wasm.js + fdlibm-module.js</td><td><span class="status same">same source</span></td></tr>
+          <tr><td class="note">Unit conversions</td><td class="name">UnitConversions/UnitConversions.f</td><td class="name">UnitConversions/UnitConversions.js</td><td><span class="status port">JS port</span></td></tr>
+          <tr><td class="note">Runtime input-file parsing</td><td class="name">Inputs/{BootstrapRuntimeInputs,DataCubeInput,FittingOptionsInputs,FullGalaxyInputs,PipelineRuntimeInputs,SingleFitRuntimeInputs,SofiaInputs,TiltedRingModelInput,…}.f</td><td class="name">—</td><td><span class="status none">fortran-only</span> <span style="color:var(--ink-faint)">— JS gets a pre-built JSON payload instead, no text parsing step exists</span></td></tr>
+          <tr><td class="note">Global constants</td><td class="name">Globals/{BootstrapGlobals,CubeGeneratorGlobals,PipelineGlobals}.f</td><td class="name">RunBootstrapsDCP.py's own literals (V_ROT_LIMS, SIZE_LIMS, LIN_SD_LIMS_MSOL) + StandardMath/BasicConstants.js</td><td><span class="status pylang">python ↔ js</span> <span style="color:var(--ink-faint)">— hand-replicated literals, not read from a shared file; re-check if PipelineGlobals.f ever changes</span></td></tr>
+          <tr><td class="note">Program entry points</td><td class="name">ProgramMains/{SingleGalaxyFitTests→SingleGalaxyFitter, BootStrapGenerator→BootStrapSampler}.f — 2 binaries</td><td class="name">bootstrap-realization-launcher.js's runBootstrapRealization — 1 function</td><td><span class="status port">architectural collapse</span> <span style="color:var(--ink-faint)">, not a line-for-line port</span></td></tr>
+          <tr><td class="note">Not exercised by this pipeline at all</td><td class="name">MomentMaps/CalculateMomentMaps.f <span style="color:var(--ink-faint)">(a different, standalone tool)</span>, PostAnalysis/PostGalaxyAnalysis.f, GenerateNoiseCubes/MakeNoiseCube.f, TiltedRingToDataCube/FillDataCubeByTiltedRing.f, GalaxyAnalysis/BBaroloFit.f <span style="color:var(--ink-faint)">(alternate fitter, not wired in — GalaxyFit=&gt;GalaxyFit_Simple)</span>, ParticleGeometryTransformations/Rotation.f</td><td class="name">—</td><td><span class="status none">fortran-only</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="callout note">
+      <h4>FFTW: what's actually live, confirmed by grepping the whole repo</h4>
+      <p><b>FFTW3JS (the hand-rolled engine) is retired from the live convolution path.</b>
+        <span class="fn">CubeKernelConvolution.js</span>'s own header says so directly: it imports
+        from <span class="f">FFTW3WasmRank2.js</span>, "not FFTW3JS's hand-ported engine (retired
+        from this file)". <span class="f">bootstrap-realization-launcher.js</span>'s require list
+        and its <span class="f">job.requires()</span> DCP-bundling list never pull in
+        <span class="f">src/FFTW3JS/*</span> at all — it's unreachable from the live per-realization
+        path. It's kept only as a secondary comparison inside <span class="f">FFTW3WasmRank2.js</span>'s
+        own self-test.</p>
+      <p><b>The live engine is <span class="f">fftw3wasm-v3</span></b> — the real FFTW 3.3.8 C source
+        (third_party/fftw-3.3.8, the same one Fortran links natively), Emscripten-compiled to wasm.
+        Not a reimplementation of the algorithm.</p>
+      <p><b>No "fftw3wasm-v2" exists anywhere in this repo</b> (grepped the whole tree). History per
+        the source comments: the local/unpublished package name is <span class="f">fftw3wasm</span>
+        (still what third_party/fftw-3.3.8/wasm/README.md calls it); publishing that name to DCP hit
+        a conflict, so it was republished directly as <span class="f">fftw3wasm-v3</span> — there was
+        never a "v2" checked in.</p>
+      <p><b>Correctness:</b> <span class="f">FFTW3WasmRank2.js</span>'s self-test checks its output
+        bit-exact against <span class="f">ground_truth_harness</span> — a real C binary linked against
+        this project's own compiled <span class="f">libfftw3.a</span>. FFTW3JS is only a secondary
+        check in that same test (~1e-14 relative agreement, not bit-exact) — it was never the ground
+        truth, and it isn't in the dependency path that could fail on a different galaxy.</p>
+      <p><b>Performance:</b> <span class="fn">CubeKernelConvolution.js</span> imports
+        <span class="f">rdft2R2cSyncNative</span>/<span class="f">rdft2C2rSyncNative</span> — FFTW's
+        own native 2D r2c/c2r planner, one <span class="f">fftw_execute</span> call per transform —
+        not the composed row-then-column 1D decomposition (~150–170 individual FFTW calls per
+        channel) that <span class="f">FFTW3WasmRank2.js</span> also exposes but the live code doesn't
+        use. The live path is already the faster of the two available options, on top of being the
+        one backed by real compiled FFTW3.</p>
+      <p>Net: the "might fail with a different galaxy" risk of the hand-rolled engine doesn't apply
+        to what's actually running today — it's out of the live dependency path, kept only as an
+        internal cross-check.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="callout warn">
+      <h4>Why some js-dcp realizations don't converge when fortran-local's don't struggle at all</h4>
+      <p><b>Most of the apparent divergence isn't a fit problem at all.</b> Traced against a real
+        1000-bootstrap run (seed=42): 110 js-dcp realizations initially looked like outliers by raw
+        wall-clock time, but only ~9-10 actually have an abnormal <span class="f">evalCount</span>
+        (~5000-5250, vs a typical ~400-450). The other ~101 have a completely normal evalCount — they
+        just landed on a slower or contended real DCP worker machine. That's inherent variance in a
+        heterogeneous distributed system, not a sign anything is wrong with those results (see
+        run_all_three_results.html's Performance table, which now keys its outlier test off evalCount
+        for exactly this reason, not raw totalMs).</p>
+      <p><b>The optimizer has a hard cap, shared by both implementations:</b>
+        <span class="f">ITMAX = 5000</span> (GalaxyFit.js's <span class="fn">amoeba</span>;
+        DownhillSimplex.f's own <span class="f">parameter(ITMAX=5000)</span>). A realization that hits
+        it returns <span class="f">noConvergence = true</span> rather than iterating forever — the
+        ~9-10 genuine js-dcp non-convergences above all clustered right at this cap (evalCount
+        5165-5247, i.e. ITMAX plus per-iteration overshoot).</p>
+      <p><b>Of those genuine non-convergences, two different things are going on.</b> Replaying the
+        exact same resample locally (bootstrapSeed=42 + realizationIndex is fully deterministic —
+        the real payload file reproduces it exactly): 4 of the 9 indices (142, 321, 893, 963) ALSO
+        show massively elevated fitMs in fortran-local for the identical resample (up to ~99×MAD from
+        fortran's own median) — these are intrinsically hard bootstrap draws, and both implementations
+        independently struggle on them. But 3 (259, 662, 914) are completely normal in fortran-local
+        (~0×MAD, typical fit time) while js-dcp needed 5000+ evaluations on the exact same data.</p>
+      <p><b>Root cause for the JS-only cases, empirically confirmed: cloud particle density.</b>
+        <span class="f">cloudBaseSurfDens</span> (Inputs/SingleGalaxyTestFittingOptions_Base.txt,
+        currently 400) sets particle count per ring (<span class="fn">SingleRingGeneration
+        .ring_CalcNumParticles</span>) — both fortran and js read the identical value from the same
+        shared file, so it's not a leg-to-leg mismatch. Replaying realizations 662, 914, 142, 178, and
+        400 with cloudBaseSurfDens raised to 500 (same seed, same resample, nothing else changed): all
+        5 went from hitting ITMAX with no convergence to converging cleanly, ~3.7-4× faster. 5 for 5.
+        Consistent with the model's flux discretization being coarse enough at 400 particles/ring that
+        the chi² surface carries enough Monte-Carlo noise for the simplex to never cleanly satisfy its
+        tolerance on certain resamples.</p>
+      <p style="color:var(--ink-faint)"><b>Still open:</b> exactly why js-dcp is the one sensitive to
+        this at density=400 when fortran-local isn't, given both now run the same corrected algorithm
+        at the same density on the same data. Leading candidates, not yet confirmed: JS's per-operation
+        <span class="f">Math.fround</span> float32 emulation accumulating rounding differently than
+        native REAL*4 across thousands of particle-flux summations, enough to occasionally send the
+        simplex down a measurably harder path on a sensitive resample; or a difference in the particle
+        *placement* algorithm itself (not just count) between SingleRingGeneration.js and its Fortran
+        counterpart at equal density. <span class="f">run_all_three.js --cloudDensity &lt;value&gt;</span>
+        (added this session) makes testing either the mitigation or further isolation a one-flag change.</p>
+    </div>
+  </section>
+
+  <p class="branch-head">↓ legs converge — same code runs for all three ↓</p>
+
+  <section style="padding-top:0">
+    <div class="stage">
+      <div class="step">
+        <div class="idx">07</div>
+        <div>
+          <p class="title">Uncertainty + geometry pass — <span style="color:var(--live)">all Python, no Fortran, no JS</span></p>
+          <p><span class="fn">EstimateUncertaintiesFromBootstraps</span> → <span class="fn">GetGlobalPositionAngle</span> → <span class="fn">CalcExtendedSDProfile</span> → <span class="fn">CalcScalingParams</span>. Pure computation over the BootstrapModels list — by this point it's already been normalized into the same Python dict/array shape by either <span class="fn">ReadWRKPOutputFile</span> (fortran-local, per realization) or <span class="fn">RunBootstrapsDCP.AdaptResults</span> (DCP, once for the whole batch). Which leg produced the data is invisible to this stage.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="idx">08</div>
+        <div>
+          <p class="title">Bootstrap_Outputs — final artifacts, same names on all three legs</p>
+          <p>Still Python. This is the shape run_all_three.js's own comparison depends on: identical filenames from all three legs is what makes the pairwise diff possible.</p>
+          <div class="iorow"><span class="rw">writes</span><span class="f">‹Obj›_BSModel.txt</span><span class="f">‹Obj›_BSModel.png</span><span class="f">‹Obj›_GeoBoxPlot.png</span></div>
+          <div class="iorow" style="margin-top:5px"><span class="rw">writes</span><span class="f cube">‹Obj›_PVMajor_Data.fits</span><span class="f cube">…_PVMinor_Data.fits</span><span class="f cube">…_PVMajor_Model.fits</span><span class="f cube">…_PVMinor_Model.fits</span></div>
+          <div class="iorow" style="margin-top:5px"><span class="rw">writes</span><span class="f" style="border-color:var(--accent); color:var(--accent)">‹Obj›_BootstrapFits.csv</span><span class="f">‹Obj›_BootstrapTimings.json</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-label">run_all_three.js — after all active legs finish</p>
+    <div class="ribbon">
+      <span class="who">back in run_all_three.js</span>
+      <span class="desc">reads each leg's CSV+timings, computes pairwise scalar diffs (fortran-local↔js-local, fortran-local↔js-dcp, js-local↔js-dcp), prints the report, writes it to disk.</span>
+      <div class="files">
+        <span class="f">reads ‹leg›/‹Obj›_BootstrapFits.csv</span>
+        <span class="f">reads …_BootstrapTimings.json</span>
+        <span class="f">writes run_all_three_report.json</span>
+      </div>
+    </div>
+    <div class="ribbon" style="margin-top:14px">
+      <span class="who">run_all_three_results.html</span>
+      <span class="desc">the result viewer — a self-contained static page (drag-and-drop <span class="f">run_all_three_report.json</span> onto it, nothing leaves the browser). Not generated by any script — it's a standalone tool you open directly, not a build artifact.</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="callout note">
+      <h4>On nProcessors_Bootstraps, directly</h4>
+      <p>It only ever reaches an <span class="f">mp.Pool(processes=…)</span> call inside
+        <span class="f">FullSingleGalaxyFit.py</span>, in the <span class="f">UseDCP=0</span> branch —
+        fortran-local only. js-local sizes its own worker_threads pool from
+        <span class="f">os.cpus()</span> directly, and js-dcp's concurrency is whatever the real DCP
+        network gives it; neither ever reads this key.</p>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Traced against the working tree on 2026-07-27 · fortran: src/Inputs/BootstrapRuntimeInputs.f, src/PreAnalysis/EstimateCubeNoise.f, src/ProgramMains/SingleGalaxyFitTests.f, src/GeneralMinimizationRoutines/DownhillSimplex.f · python: FitDriverScripts/*.py, GalaxyFitParameters.OverwriteDefaults · js: third_party/DCP/{bootstrap-realization-launcher,run_all_three,build_partial_report}.js, src/ConvolveCube/{CubeKernelConvolution,FFTW3WasmRank2}.js, src/GalaxyAnalysis/GalaxyFit.js, src/TiltedRingModelGeneration/SingleRingGeneration.js · note: this trace intentionally departs from ARCHITECTURE.md, which documents the prior two-DCP-round design (bootstrap-resample-launcher.js + bootstrap-fit-launcher.js) — both files no longer exist in the tree, replaced by the unified bootstrap-realization-launcher.js described above.
+</footer>

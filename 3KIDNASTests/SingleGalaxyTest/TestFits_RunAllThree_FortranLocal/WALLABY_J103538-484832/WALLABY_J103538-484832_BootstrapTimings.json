@@ -1,0 +1,2002 @@
+[
+  {
+    "realizationIndex": 0,
+    "resampleMs": 108.9479923248291,
+    "sofiaMs": 54.82220649719238,
+    "fixtureFitMs": null,
+    "fitMs": 42336.41290664673,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 42546.79822921753
+  },
+  {
+    "realizationIndex": 1,
+    "resampleMs": 104.53581809997559,
+    "sofiaMs": 60.96386909484863,
+    "fixtureFitMs": null,
+    "fitMs": 52060.98127365112,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 52269.19102668762
+  },
+  {
+    "realizationIndex": 2,
+    "resampleMs": 108.33525657653809,
+    "sofiaMs": 55.014848709106445,
+    "fixtureFitMs": null,
+    "fitMs": 40582.571029663086,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 40777.01473236084
+  },
+  {
+    "realizationIndex": 3,
+    "resampleMs": 102.84209251403809,
+    "sofiaMs": 61.18607521057129,
+    "fixtureFitMs": null,
+    "fitMs": 45889.24598693848,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 46095.93605995178
+  },
+  {
+    "realizationIndex": 4,
+    "resampleMs": 102.2341251373291,
+    "sofiaMs": 60.53304672241211,
+    "fixtureFitMs": null,
+    "fitMs": 45064.06092643738,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 45241.22595787048
+  },
+  {
+    "realizationIndex": 5,
+    "resampleMs": 86.50016784667969,
+    "sofiaMs": 49.555063247680664,
+    "fixtureFitMs": null,
+    "fitMs": 47028.30004692078,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 47177.03080177307
+  },
+  {
+    "realizationIndex": 6,
+    "resampleMs": 91.71819686889648,
+    "sofiaMs": 60.948848724365234,
+    "fixtureFitMs": null,
+    "fitMs": 46914.095878601074,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 47079.82325553894
+  },
+  {
+    "realizationIndex": 7,
+    "resampleMs": 87.39829063415527,
+    "sofiaMs": 51.99408531188965,
+    "fixtureFitMs": null,
+    "fitMs": 50663.6118888855,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 50819.809913635254
+  },
+  {
+    "realizationIndex": 8,
+    "resampleMs": 109.0388298034668,
+    "sofiaMs": 57.25908279418945,
+    "fixtureFitMs": null,
+    "fitMs": 45070.852279663086,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 45249.59993362427
+  },
+  {
+    "realizationIndex": 9,
+    "resampleMs": 205.13367652893066,
+    "sofiaMs": 68.80998611450195,
+    "fixtureFitMs": null,
+    "fitMs": 54615.95892906189,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 54910.070180892944
+  },
+  {
+    "realizationIndex": 10,
+    "resampleMs": 106.56189918518066,
+    "sofiaMs": 87.63384819030762,
+    "fixtureFitMs": null,
+    "fitMs": 46182.51276016235,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 46398.16498756409
+  },
+  {
+    "realizationIndex": 11,
+    "resampleMs": 111.85693740844727,
+    "sofiaMs": 57.01899528503418,
+    "fixtureFitMs": null,
+    "fitMs": 41832.139015197754,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 42010.57291030884
+  },
+  {
+    "realizationIndex": 12,
+    "resampleMs": 104.72488403320312,
+    "sofiaMs": 58.96329879760742,
+    "fixtureFitMs": null,
+    "fitMs": 40506.07109069824,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 40689.77689743042
+  },
+  {
+    "realizationIndex": 13,
+    "resampleMs": 93.90521049499512,
+    "sofiaMs": 48.80809783935547,
+    "fixtureFitMs": null,
+    "fitMs": 50392.908811569214,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 50546.10872268677
+  },
+  {
+    "realizationIndex": 14,
+    "resampleMs": 87.32724189758301,
+    "sofiaMs": 52.3221492767334,
+    "fixtureFitMs": null,
+    "fitMs": 51551.34391784668,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 51704.18167114258
+  },
+  {
+    "realizationIndex": 15,
+    "resampleMs": 90.37208557128906,
+    "sofiaMs": 48.26188087463379,
+    "fixtureFitMs": null,
+    "fitMs": 53670.09902000427,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53819.65613365173
+  },
+  {
+    "realizationIndex": 16,
+    "resampleMs": 99.81799125671387,
+    "sofiaMs": 55.670738220214844,
+    "fixtureFitMs": null,
+    "fitMs": 43476.93085670471,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 43642.926931381226
+  },
+  {
+    "realizationIndex": 17,
+    "resampleMs": 107.48004913330078,
+    "sofiaMs": 54.33011054992676,
+    "fixtureFitMs": null,
+    "fitMs": 47141.292095184326,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 47315.28878211975
+  },
+  {
+    "realizationIndex": 18,
+    "resampleMs": 99.04217720031738,
+    "sofiaMs": 51.985979080200195,
+    "fixtureFitMs": null,
+    "fitMs": 52917.60492324829,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53081.42185211182
+  },
+  {
+    "realizationIndex": 19,
+    "resampleMs": 99.53784942626953,
+    "sofiaMs": 52.73079872131348,
+    "fixtureFitMs": null,
+    "fitMs": 47486.78922653198,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 47653.00488471985
+  },
+  {
+    "realizationIndex": 20,
+    "resampleMs": 108.49499702453613,
+    "sofiaMs": 55.825233459472656,
+    "fixtureFitMs": null,
+    "fitMs": 53735.18204689026,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53912.24408149719
+  },
+  {
+    "realizationIndex": 21,
+    "resampleMs": 104.4008731842041,
+    "sofiaMs": 60.58812141418457,
+    "fixtureFitMs": null,
+    "fitMs": 49235.95213890076,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 49416.80908203125
+  },
+  {
+    "realizationIndex": 22,
+    "resampleMs": 110.40830612182617,
+    "sofiaMs": 56.23221397399902,
+    "fixtureFitMs": null,
+    "fitMs": 49281.58092498779,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 49461.692810058594
+  },
+  {
+    "realizationIndex": 23,
+    "resampleMs": 91.15409851074219,
+    "sofiaMs": 49.70908164978027,
+    "fixtureFitMs": null,
+    "fitMs": 46461.99011802673,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 46614.05301094055
+  },
+  {
+    "realizationIndex": 24,
+    "resampleMs": 108.37388038635254,
+    "sofiaMs": 59.609174728393555,
+    "fixtureFitMs": null,
+    "fitMs": 71200.17910003662,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 71381.6020488739
+  },
+  {
+    "realizationIndex": 25,
+    "resampleMs": 105.96704483032227,
+    "sofiaMs": 63.47489356994629,
+    "fixtureFitMs": null,
+    "fitMs": 52177.30188369751,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 52357.29098320007
+  },
+  {
+    "realizationIndex": 26,
+    "resampleMs": 106.93526268005371,
+    "sofiaMs": 54.08811569213867,
+    "fixtureFitMs": null,
+    "fitMs": 70689.70513343811,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 70868.61681938171
+  },
+  {
+    "realizationIndex": 27,
+    "resampleMs": 109.82012748718262,
+    "sofiaMs": 60.790061950683594,
+    "fixtureFitMs": null,
+    "fitMs": 48803.7428855896,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 48988.14296722412
+  },
+  {
+    "realizationIndex": 28,
+    "resampleMs": 120.74899673461914,
+    "sofiaMs": 63.25197219848633,
+    "fixtureFitMs": null,
+    "fitMs": 57265.21301269531,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57460.16597747803
+  },
+  {
+    "realizationIndex": 29,
+    "resampleMs": 102.53214836120605,
+    "sofiaMs": 63.33112716674805,
+    "fixtureFitMs": null,
+    "fitMs": 59578.58991622925,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 59755.23805618286
+  },
+  {
+    "realizationIndex": 30,
+    "resampleMs": 100.95691680908203,
+    "sofiaMs": 55.56821823120117,
+    "fixtureFitMs": null,
+    "fitMs": 50072.843074798584,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 50242.14506149292
+  },
+  {
+    "realizationIndex": 31,
+    "resampleMs": 116.31488800048828,
+    "sofiaMs": 66.28298759460449,
+    "fixtureFitMs": null,
+    "fitMs": 50261.067152023315,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 50456.260204315186
+  },
+  {
+    "realizationIndex": 32,
+    "resampleMs": 110.78000068664551,
+    "sofiaMs": 80.49201965332031,
+    "fixtureFitMs": null,
+    "fitMs": 52317.986249923706,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 52521.398067474365
+  },
+  {
+    "realizationIndex": 33,
+    "resampleMs": 111.82904243469238,
+    "sofiaMs": 55.233001708984375,
+    "fixtureFitMs": null,
+    "fitMs": 56438.94076347351,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 56618.290185928345
+  },
+  {
+    "realizationIndex": 34,
+    "resampleMs": 105.23772239685059,
+    "sofiaMs": 53.66659164428711,
+    "fixtureFitMs": null,
+    "fitMs": 59689.00990486145,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 59861.64093017578
+  },
+  {
+    "realizationIndex": 35,
+    "resampleMs": 109.85088348388672,
+    "sofiaMs": 61.88702583312988,
+    "fixtureFitMs": null,
+    "fitMs": 55582.83495903015,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55764.04905319214
+  },
+  {
+    "realizationIndex": 36,
+    "resampleMs": 109.50422286987305,
+    "sofiaMs": 57.32893943786621,
+    "fixtureFitMs": null,
+    "fitMs": 46837.934732437134,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 47017.86804199219
+  },
+  {
+    "realizationIndex": 37,
+    "resampleMs": 97.58210182189941,
+    "sofiaMs": 56.62274360656738,
+    "fixtureFitMs": null,
+    "fitMs": 52273.638010025024,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 52440.48810005188
+  },
+  {
+    "realizationIndex": 38,
+    "resampleMs": 108.53004455566406,
+    "sofiaMs": 69.51713562011719,
+    "fixtureFitMs": null,
+    "fitMs": 57126.14393234253,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57316.462993621826
+  },
+  {
+    "realizationIndex": 39,
+    "resampleMs": 117.02895164489746,
+    "sofiaMs": 59.19814109802246,
+    "fixtureFitMs": null,
+    "fitMs": 54895.01118659973,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55083.47392082214
+  },
+  {
+    "realizationIndex": 40,
+    "resampleMs": 106.60934448242188,
+    "sofiaMs": 80.72185516357422,
+    "fixtureFitMs": null,
+    "fitMs": 58199.70774650574,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 58400.08330345154
+  },
+  {
+    "realizationIndex": 41,
+    "resampleMs": 117.23995208740234,
+    "sofiaMs": 57.74521827697754,
+    "fixtureFitMs": null,
+    "fitMs": 50944.09704208374,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 51130.62405586243
+  },
+  {
+    "realizationIndex": 42,
+    "resampleMs": 112.52403259277344,
+    "sofiaMs": 62.70599365234375,
+    "fixtureFitMs": null,
+    "fitMs": 58075.68001747131,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 58282.723903656006
+  },
+  {
+    "realizationIndex": 43,
+    "resampleMs": 105.83686828613281,
+    "sofiaMs": 86.22431755065918,
+    "fixtureFitMs": null,
+    "fitMs": 55749.736070632935,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55954.77890968323
+  },
+  {
+    "realizationIndex": 44,
+    "resampleMs": 118.81327629089355,
+    "sofiaMs": 60.06503105163574,
+    "fixtureFitMs": null,
+    "fitMs": 55670.88723182678,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55861.92989349365
+  },
+  {
+    "realizationIndex": 45,
+    "resampleMs": 113.62695693969727,
+    "sofiaMs": 59.4637393951416,
+    "fixtureFitMs": null,
+    "fitMs": 61670.46403884888,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 61870.022773742676
+  },
+  {
+    "realizationIndex": 46,
+    "resampleMs": 117.68507957458496,
+    "sofiaMs": 65.68384170532227,
+    "fixtureFitMs": null,
+    "fitMs": 54944.53406333923,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55151.73697471619
+  },
+  {
+    "realizationIndex": 47,
+    "resampleMs": 122.36595153808594,
+    "sofiaMs": 66.12491607666016,
+    "fixtureFitMs": null,
+    "fitMs": 54675.694942474365,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 54881.25991821289
+  },
+  {
+    "realizationIndex": 48,
+    "resampleMs": 118.1330680847168,
+    "sofiaMs": 61.907052993774414,
+    "fixtureFitMs": null,
+    "fitMs": 55637.502908706665,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55830.008029937744
+  },
+  {
+    "realizationIndex": 49,
+    "resampleMs": 119.89712715148926,
+    "sofiaMs": 63.408851623535156,
+    "fixtureFitMs": null,
+    "fitMs": 59630.56802749634,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 59827.74591445923
+  },
+  {
+    "realizationIndex": 50,
+    "resampleMs": 117.80405044555664,
+    "sofiaMs": 58.80117416381836,
+    "fixtureFitMs": null,
+    "fitMs": 61259.96112823486,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 61451.78008079529
+  },
+  {
+    "realizationIndex": 51,
+    "resampleMs": 100.69489479064941,
+    "sofiaMs": 54.70991134643555,
+    "fixtureFitMs": null,
+    "fitMs": 58221.0738658905,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 58391.624212265015
+  },
+  {
+    "realizationIndex": 52,
+    "resampleMs": 117.61713027954102,
+    "sofiaMs": 62.432050704956055,
+    "fixtureFitMs": null,
+    "fitMs": 65505.7692527771,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 65702.56900787354
+  },
+  {
+    "realizationIndex": 53,
+    "resampleMs": 117.8731918334961,
+    "sofiaMs": 83.00209045410156,
+    "fixtureFitMs": null,
+    "fitMs": 65089.40601348877,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 65304.895877838135
+  },
+  {
+    "realizationIndex": 54,
+    "resampleMs": 163.7129783630371,
+    "sofiaMs": 86.06910705566406,
+    "fixtureFitMs": null,
+    "fitMs": 64666.46194458008,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 64940.250873565674
+  },
+  {
+    "realizationIndex": 55,
+    "resampleMs": 140.26212692260742,
+    "sofiaMs": 82.35812187194824,
+    "fixtureFitMs": null,
+    "fitMs": 62877.07281112671,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 63144.39678192139
+  },
+  {
+    "realizationIndex": 56,
+    "resampleMs": 125.42366981506348,
+    "sofiaMs": 65.90676307678223,
+    "fixtureFitMs": null,
+    "fitMs": 54552.310943603516,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 54757.06505775452
+  },
+  {
+    "realizationIndex": 57,
+    "resampleMs": 124.73821640014648,
+    "sofiaMs": 74.48410987854004,
+    "fixtureFitMs": null,
+    "fitMs": 79915.81106185913,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 80143.54181289673
+  },
+  {
+    "realizationIndex": 58,
+    "resampleMs": 113.96002769470215,
+    "sofiaMs": 65.34290313720703,
+    "fixtureFitMs": null,
+    "fitMs": 55346.088886260986,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55538.6118888855
+  },
+  {
+    "realizationIndex": 59,
+    "resampleMs": 119.9338436126709,
+    "sofiaMs": 75.10805130004883,
+    "fixtureFitMs": null,
+    "fitMs": 54070.16110420227,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 54276.91316604614
+  },
+  {
+    "realizationIndex": 60,
+    "resampleMs": 126.92570686340332,
+    "sofiaMs": 66.46323204040527,
+    "fixtureFitMs": null,
+    "fitMs": 59975.49796104431,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60188.07077407837
+  },
+  {
+    "realizationIndex": 61,
+    "resampleMs": 128.1411647796631,
+    "sofiaMs": 63.771963119506836,
+    "fixtureFitMs": null,
+    "fitMs": 68352.07772254944,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 68561.5930557251
+  },
+  {
+    "realizationIndex": 62,
+    "resampleMs": 101.37200355529785,
+    "sofiaMs": 55.416107177734375,
+    "fixtureFitMs": null,
+    "fitMs": 50423.95520210266,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 50593.661069869995
+  },
+  {
+    "realizationIndex": 63,
+    "resampleMs": 156.99100494384766,
+    "sofiaMs": 62.21199035644531,
+    "fixtureFitMs": null,
+    "fitMs": 65087.91208267212,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 65319.56696510315
+  },
+  {
+    "realizationIndex": 64,
+    "resampleMs": 134.60803031921387,
+    "sofiaMs": 73.20809364318848,
+    "fixtureFitMs": null,
+    "fitMs": 62739.99118804932,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 62977.094888687134
+  },
+  {
+    "realizationIndex": 65,
+    "resampleMs": 117.32196807861328,
+    "sofiaMs": 63.02309036254883,
+    "fixtureFitMs": null,
+    "fitMs": 66966.44926071167,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 67156.74114227295
+  },
+  {
+    "realizationIndex": 66,
+    "resampleMs": 115.61107635498047,
+    "sofiaMs": 63.706159591674805,
+    "fixtureFitMs": null,
+    "fitMs": 55360.9881401062,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55555.18817901611
+  },
+  {
+    "realizationIndex": 67,
+    "resampleMs": 106.62007331848145,
+    "sofiaMs": 64.04304504394531,
+    "fixtureFitMs": null,
+    "fitMs": 56956.13121986389,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57145.833015441895
+  },
+  {
+    "realizationIndex": 68,
+    "resampleMs": 114.98117446899414,
+    "sofiaMs": 61.689138412475586,
+    "fixtureFitMs": null,
+    "fitMs": 71254.2872428894,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 71443.70198249817
+  },
+  {
+    "realizationIndex": 69,
+    "resampleMs": 118.4840202331543,
+    "sofiaMs": 66.26200675964355,
+    "fixtureFitMs": null,
+    "fitMs": 68292.62495040894,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 68486.2892627716
+  },
+  {
+    "realizationIndex": 70,
+    "resampleMs": 115.79179763793945,
+    "sofiaMs": 62.81423568725586,
+    "fixtureFitMs": null,
+    "fitMs": 57428.33399772644,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57617.83003807068
+  },
+  {
+    "realizationIndex": 71,
+    "resampleMs": 132.2779655456543,
+    "sofiaMs": 62.58201599121094,
+    "fixtureFitMs": null,
+    "fitMs": 66986.04726791382,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 67192.83676147461
+  },
+  {
+    "realizationIndex": 72,
+    "resampleMs": 140.89179039001465,
+    "sofiaMs": 70.61600685119629,
+    "fixtureFitMs": null,
+    "fitMs": 72331.94017410278,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 72561.85603141785
+  },
+  {
+    "realizationIndex": 73,
+    "resampleMs": 133.5282325744629,
+    "sofiaMs": 71.58589363098145,
+    "fixtureFitMs": null,
+    "fitMs": 63903.2142162323,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 64123.40497970581
+  },
+  {
+    "realizationIndex": 74,
+    "resampleMs": 116.45007133483887,
+    "sofiaMs": 72.19409942626953,
+    "fixtureFitMs": null,
+    "fitMs": 68711.76791191101,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 68917.9117679596
+  },
+  {
+    "realizationIndex": 75,
+    "resampleMs": 132.5511932373047,
+    "sofiaMs": 71.38586044311523,
+    "fixtureFitMs": null,
+    "fitMs": 69511.42287254333,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 69729.73084449768
+  },
+  {
+    "realizationIndex": 76,
+    "resampleMs": 155.29918670654297,
+    "sofiaMs": 77.46505737304688,
+    "fixtureFitMs": null,
+    "fitMs": 67730.60607910156,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 67981.48798942566
+  },
+  {
+    "realizationIndex": 77,
+    "resampleMs": 111.20915412902832,
+    "sofiaMs": 73.94790649414062,
+    "fixtureFitMs": null,
+    "fitMs": 61259.29284095764,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 61456.52198791504
+  },
+  {
+    "realizationIndex": 78,
+    "resampleMs": 130.079984664917,
+    "sofiaMs": 71.2900161743164,
+    "fixtureFitMs": null,
+    "fitMs": 624401.7746448517,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 624614.0518188477
+  },
+  {
+    "realizationIndex": 79,
+    "resampleMs": 145.31612396240234,
+    "sofiaMs": 77.79932022094727,
+    "fixtureFitMs": null,
+    "fitMs": 51828.83596420288,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 52065.568923950195
+  },
+  {
+    "realizationIndex": 80,
+    "resampleMs": 117.38896369934082,
+    "sofiaMs": 62.83688545227051,
+    "fixtureFitMs": null,
+    "fitMs": 53471.34208679199,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53666.02802276611
+  },
+  {
+    "realizationIndex": 81,
+    "resampleMs": 116.34397506713867,
+    "sofiaMs": 62.77203559875488,
+    "fixtureFitMs": null,
+    "fitMs": 53595.179080963135,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53787.72592544556
+  },
+  {
+    "realizationIndex": 82,
+    "resampleMs": 131.17003440856934,
+    "sofiaMs": 67.06118583679199,
+    "fixtureFitMs": null,
+    "fitMs": 53196.1030960083,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53408.23817253113
+  },
+  {
+    "realizationIndex": 83,
+    "resampleMs": 116.24884605407715,
+    "sofiaMs": 61.92612648010254,
+    "fixtureFitMs": null,
+    "fitMs": 59377.8350353241,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 59568.09425354004
+  },
+  {
+    "realizationIndex": 84,
+    "resampleMs": 103.11007499694824,
+    "sofiaMs": 56.1680793762207,
+    "fixtureFitMs": null,
+    "fitMs": 60372.53522872925,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60545.494079589844
+  },
+  {
+    "realizationIndex": 85,
+    "resampleMs": 127.67910957336426,
+    "sofiaMs": 63.17901611328125,
+    "fixtureFitMs": null,
+    "fitMs": 65968.21403503418,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 66171.41699790955
+  },
+  {
+    "realizationIndex": 86,
+    "resampleMs": 112.59198188781738,
+    "sofiaMs": 66.51902198791504,
+    "fixtureFitMs": null,
+    "fitMs": 64184.91888046265,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 64385.38885116577
+  },
+  {
+    "realizationIndex": 87,
+    "resampleMs": 96.65107727050781,
+    "sofiaMs": 66.19000434875488,
+    "fixtureFitMs": null,
+    "fitMs": 50951.85089111328,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 51131.43181800842
+  },
+  {
+    "realizationIndex": 88,
+    "resampleMs": 111.4492416381836,
+    "sofiaMs": 65.14501571655273,
+    "fixtureFitMs": null,
+    "fitMs": 56486.70315742493,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 56679.311990737915
+  },
+  {
+    "realizationIndex": 89,
+    "resampleMs": 117.02513694763184,
+    "sofiaMs": 61.35201454162598,
+    "fixtureFitMs": null,
+    "fitMs": 46745.668172836304,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 46939.260959625244
+  },
+  {
+    "realizationIndex": 90,
+    "resampleMs": 120.61595916748047,
+    "sofiaMs": 63.97581100463867,
+    "fixtureFitMs": null,
+    "fitMs": 59115.01479148865,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 59314.81313705444
+  },
+  {
+    "realizationIndex": 91,
+    "resampleMs": 117.63787269592285,
+    "sofiaMs": 62.38985061645508,
+    "fixtureFitMs": null,
+    "fitMs": 55904.918909072876,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 56101.60422325134
+  },
+  {
+    "realizationIndex": 92,
+    "resampleMs": 108.64591598510742,
+    "sofiaMs": 60.41312217712402,
+    "fixtureFitMs": null,
+    "fitMs": 50352.61511802673,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 50535.98189353943
+  },
+  {
+    "realizationIndex": 93,
+    "resampleMs": 106.07194900512695,
+    "sofiaMs": 58.59804153442383,
+    "fixtureFitMs": null,
+    "fitMs": 53078.18698883057,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53261.17777824402
+  },
+  {
+    "realizationIndex": 94,
+    "resampleMs": 106.67920112609863,
+    "sofiaMs": 65.17696380615234,
+    "fixtureFitMs": null,
+    "fitMs": 52907.82403945923,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53095.11876106262
+  },
+  {
+    "realizationIndex": 95,
+    "resampleMs": 103.99484634399414,
+    "sofiaMs": 59.919118881225586,
+    "fixtureFitMs": null,
+    "fitMs": 63167.18792915344,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 63349.53188896179
+  },
+  {
+    "realizationIndex": 96,
+    "resampleMs": 103.0888557434082,
+    "sofiaMs": 58.670759201049805,
+    "fixtureFitMs": null,
+    "fitMs": 55479.07996177673,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55655.38716316223
+  },
+  {
+    "realizationIndex": 97,
+    "resampleMs": 117.98906326293945,
+    "sofiaMs": 57.485103607177734,
+    "fixtureFitMs": null,
+    "fitMs": 53545.39608955383,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53736.44971847534
+  },
+  {
+    "realizationIndex": 98,
+    "resampleMs": 109.97200012207031,
+    "sofiaMs": 62.06679344177246,
+    "fixtureFitMs": null,
+    "fitMs": 60582.64398574829,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60776.14498138428
+  },
+  {
+    "realizationIndex": 99,
+    "resampleMs": 107.15603828430176,
+    "sofiaMs": 63.33589553833008,
+    "fixtureFitMs": null,
+    "fitMs": 52765.300273895264,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 52953.73582839966
+  },
+  {
+    "realizationIndex": 100,
+    "resampleMs": 99.3950366973877,
+    "sofiaMs": 54.37183380126953,
+    "fixtureFitMs": null,
+    "fitMs": 57529.60395812988,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57700.79588890076
+  },
+  {
+    "realizationIndex": 101,
+    "resampleMs": 109.70473289489746,
+    "sofiaMs": 60.083866119384766,
+    "fixtureFitMs": null,
+    "fitMs": 67252.42900848389,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 67437.94107437134
+  },
+  {
+    "realizationIndex": 102,
+    "resampleMs": 124.07994270324707,
+    "sofiaMs": 60.214996337890625,
+    "fixtureFitMs": null,
+    "fitMs": 47757.83085823059,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 47954.233169555664
+  },
+  {
+    "realizationIndex": 103,
+    "resampleMs": 117.21134185791016,
+    "sofiaMs": 60.65678596496582,
+    "fixtureFitMs": null,
+    "fitMs": 53330.29103279114,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53529.22606468201
+  },
+  {
+    "realizationIndex": 104,
+    "resampleMs": 114.16506767272949,
+    "sofiaMs": 64.05115127563477,
+    "fixtureFitMs": null,
+    "fitMs": 48937.04915046692,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 49319.84996795654
+  },
+  {
+    "realizationIndex": 105,
+    "resampleMs": 102.25582122802734,
+    "sofiaMs": 53.440093994140625,
+    "fixtureFitMs": null,
+    "fitMs": 47475.393772125244,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 47827.66008377075
+  },
+  {
+    "realizationIndex": 106,
+    "resampleMs": 109.3130111694336,
+    "sofiaMs": 59.83400344848633,
+    "fixtureFitMs": null,
+    "fitMs": 57963.72294425964,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 58318.48192214966
+  },
+  {
+    "realizationIndex": 107,
+    "resampleMs": 110.8241081237793,
+    "sofiaMs": 59.24415588378906,
+    "fixtureFitMs": null,
+    "fitMs": 42400.90894699097,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 42583.3899974823
+  },
+  {
+    "realizationIndex": 108,
+    "resampleMs": 91.62116050720215,
+    "sofiaMs": 55.37581443786621,
+    "fixtureFitMs": null,
+    "fitMs": 57533.25390815735,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57694.48184967041
+  },
+  {
+    "realizationIndex": 109,
+    "resampleMs": 111.74392700195312,
+    "sofiaMs": 57.06906318664551,
+    "fixtureFitMs": null,
+    "fitMs": 55040.13276100159,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55226.892948150635
+  },
+  {
+    "realizationIndex": 110,
+    "resampleMs": 113.43002319335938,
+    "sofiaMs": 57.23905563354492,
+    "fixtureFitMs": null,
+    "fitMs": 58763.41390609741,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 58948.87280464172
+  },
+  {
+    "realizationIndex": 111,
+    "resampleMs": 106.8720817565918,
+    "sofiaMs": 69.52810287475586,
+    "fixtureFitMs": null,
+    "fitMs": 56009.10401344299,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 56200.390100479126
+  },
+  {
+    "realizationIndex": 112,
+    "resampleMs": 113.19088935852051,
+    "sofiaMs": 55.55891990661621,
+    "fixtureFitMs": null,
+    "fitMs": 53906.28218650818,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 54090.94595909119
+  },
+  {
+    "realizationIndex": 113,
+    "resampleMs": 96.94790840148926,
+    "sofiaMs": 50.44913291931152,
+    "fixtureFitMs": null,
+    "fitMs": 60287.219762802124,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60450.072050094604
+  },
+  {
+    "realizationIndex": 114,
+    "resampleMs": 107.3310375213623,
+    "sofiaMs": 64.72897529602051,
+    "fixtureFitMs": null,
+    "fitMs": 56152.58812904358,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 56338.021755218506
+  },
+  {
+    "realizationIndex": 115,
+    "resampleMs": 112.7769947052002,
+    "sofiaMs": 62.70909309387207,
+    "fixtureFitMs": null,
+    "fitMs": 53634.541273117065,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53829.26368713379
+  },
+  {
+    "realizationIndex": 116,
+    "resampleMs": 122.70903587341309,
+    "sofiaMs": 56.98990821838379,
+    "fixtureFitMs": null,
+    "fitMs": 54816.41888618469,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55011.90972328186
+  },
+  {
+    "realizationIndex": 117,
+    "resampleMs": 114.2120361328125,
+    "sofiaMs": 58.0601692199707,
+    "fixtureFitMs": null,
+    "fitMs": 59054.57901954651,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 59242.67101287842
+  },
+  {
+    "realizationIndex": 118,
+    "resampleMs": 101.45282745361328,
+    "sofiaMs": 63.931941986083984,
+    "fixtureFitMs": null,
+    "fitMs": 46770.81656455994,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 46949.76496696472
+  },
+  {
+    "realizationIndex": 119,
+    "resampleMs": 106.57405853271484,
+    "sofiaMs": 61.03396415710449,
+    "fixtureFitMs": null,
+    "fitMs": 56094.84887123108,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 56276.67999267578
+  },
+  {
+    "realizationIndex": 120,
+    "resampleMs": 115.46897888183594,
+    "sofiaMs": 61.979055404663086,
+    "fixtureFitMs": null,
+    "fitMs": 37373.743772506714,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 37564.441204071045
+  },
+  {
+    "realizationIndex": 121,
+    "resampleMs": 113.36493492126465,
+    "sofiaMs": 107.61189460754395,
+    "fixtureFitMs": null,
+    "fitMs": 59665.56000709534,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 59904.048204422
+  },
+  {
+    "realizationIndex": 122,
+    "resampleMs": 107.72395133972168,
+    "sofiaMs": 65.68193435668945,
+    "fixtureFitMs": null,
+    "fitMs": 60744.686126708984,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60927.820682525635
+  },
+  {
+    "realizationIndex": 123,
+    "resampleMs": 110.3057861328125,
+    "sofiaMs": 60.652971267700195,
+    "fixtureFitMs": null,
+    "fitMs": 55903.26118469238,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 56090.571880340576
+  },
+  {
+    "realizationIndex": 124,
+    "resampleMs": 120.81599235534668,
+    "sofiaMs": 65.17791748046875,
+    "fixtureFitMs": null,
+    "fitMs": 57711.700201034546,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57910.573959350586
+  },
+  {
+    "realizationIndex": 125,
+    "resampleMs": 120.81503868103027,
+    "sofiaMs": 75.31404495239258,
+    "fixtureFitMs": null,
+    "fitMs": 78435.09197235107,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 78648.83041381836
+  },
+  {
+    "realizationIndex": 126,
+    "resampleMs": 103.2562255859375,
+    "sofiaMs": 56.01191520690918,
+    "fixtureFitMs": null,
+    "fitMs": 69992.25401878357,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 70161.58890724182
+  },
+  {
+    "realizationIndex": 127,
+    "resampleMs": 118.22319030761719,
+    "sofiaMs": 75.88601112365723,
+    "fixtureFitMs": null,
+    "fitMs": 67248.30508232117,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 67452.60095596313
+  },
+  {
+    "realizationIndex": 128,
+    "resampleMs": 110.49103736877441,
+    "sofiaMs": 72.51405715942383,
+    "fixtureFitMs": null,
+    "fitMs": 60473.05202484131,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60675.25506019592
+  },
+  {
+    "realizationIndex": 129,
+    "resampleMs": 127.50887870788574,
+    "sofiaMs": 77.15082168579102,
+    "fixtureFitMs": null,
+    "fitMs": 53183.49480628967,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53411.27276420593
+  },
+  {
+    "realizationIndex": 130,
+    "resampleMs": 114.50386047363281,
+    "sofiaMs": 62.03794479370117,
+    "fixtureFitMs": null,
+    "fitMs": 57753.97324562073,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57948.11010360718
+  },
+  {
+    "realizationIndex": 131,
+    "resampleMs": 120.31197547912598,
+    "sofiaMs": 64.8949146270752,
+    "fixtureFitMs": null,
+    "fitMs": 70000.4391670227,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 70200.93202590942
+  },
+  {
+    "realizationIndex": 132,
+    "resampleMs": 134.91010665893555,
+    "sofiaMs": 100.95620155334473,
+    "fixtureFitMs": null,
+    "fitMs": 56224.04384613037,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 56479.363203048706
+  },
+  {
+    "realizationIndex": 133,
+    "resampleMs": 134.5689296722412,
+    "sofiaMs": 78.12190055847168,
+    "fixtureFitMs": null,
+    "fitMs": 67780.99608421326,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 68011.25597953796
+  },
+  {
+    "realizationIndex": 134,
+    "resampleMs": 117.00987815856934,
+    "sofiaMs": 61.32102012634277,
+    "fixtureFitMs": null,
+    "fitMs": 70563.69614601135,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 70755.74898719788
+  },
+  {
+    "realizationIndex": 135,
+    "resampleMs": 112.11228370666504,
+    "sofiaMs": 65.5968189239502,
+    "fixtureFitMs": null,
+    "fitMs": 57720.60704231262,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57909.37685966492
+  },
+  {
+    "realizationIndex": 136,
+    "resampleMs": 126.9073486328125,
+    "sofiaMs": 90.1801586151123,
+    "fixtureFitMs": null,
+    "fitMs": 76161.95583343506,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 76419.84272003174
+  },
+  {
+    "realizationIndex": 137,
+    "resampleMs": 140.5630111694336,
+    "sofiaMs": 72.49975204467773,
+    "fixtureFitMs": null,
+    "fitMs": 72444.80276107788,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 72671.23508453369
+  },
+  {
+    "realizationIndex": 138,
+    "resampleMs": 126.41787528991699,
+    "sofiaMs": 83.49609375,
+    "fixtureFitMs": null,
+    "fitMs": 70885.72692871094,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 71105.53884506226
+  },
+  {
+    "realizationIndex": 139,
+    "resampleMs": 111.6788387298584,
+    "sofiaMs": 65.54698944091797,
+    "fixtureFitMs": null,
+    "fitMs": 84957.81302452087,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 85145.04432678223
+  },
+  {
+    "realizationIndex": 140,
+    "resampleMs": 136.15727424621582,
+    "sofiaMs": 77.84008979797363,
+    "fixtureFitMs": null,
+    "fitMs": 65995.54371833801,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 66224.44987297058
+  },
+  {
+    "realizationIndex": 141,
+    "resampleMs": 180.64498901367188,
+    "sofiaMs": 89.75005149841309,
+    "fixtureFitMs": null,
+    "fitMs": 78244.28391456604,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 78532.0680141449
+  },
+  {
+    "realizationIndex": 142,
+    "resampleMs": 121.80709838867188,
+    "sofiaMs": 79.76794242858887,
+    "fixtureFitMs": null,
+    "fitMs": 65511.30223274231,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 65735.83793640137
+  },
+  {
+    "realizationIndex": 143,
+    "resampleMs": 170.30787467956543,
+    "sofiaMs": 75.97994804382324,
+    "fixtureFitMs": null,
+    "fitMs": 73778.76305580139,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 74037.45174407959
+  },
+  {
+    "realizationIndex": 144,
+    "resampleMs": 133.96787643432617,
+    "sofiaMs": 79.61797714233398,
+    "fixtureFitMs": null,
+    "fitMs": 82041.04495048523,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 82463.3641242981
+  },
+  {
+    "realizationIndex": 145,
+    "resampleMs": 147.5381851196289,
+    "sofiaMs": 86.50064468383789,
+    "fixtureFitMs": null,
+    "fitMs": 78818.78590583801,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 79064.00895118713
+  },
+  {
+    "realizationIndex": 146,
+    "resampleMs": 145.4000473022461,
+    "sofiaMs": 77.54993438720703,
+    "fixtureFitMs": null,
+    "fitMs": 78416.56017303467,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 78654.55174446106
+  },
+  {
+    "realizationIndex": 147,
+    "resampleMs": 149.84607696533203,
+    "sofiaMs": 80.74617385864258,
+    "fixtureFitMs": null,
+    "fitMs": 88602.4489402771,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 88844.49028968811
+  },
+  {
+    "realizationIndex": 148,
+    "resampleMs": 163.56897354125977,
+    "sofiaMs": 82.75413513183594,
+    "fixtureFitMs": null,
+    "fitMs": 83033.41102600098,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 83292.58799552917
+  },
+  {
+    "realizationIndex": 149,
+    "resampleMs": 145.83110809326172,
+    "sofiaMs": 81.78305625915527,
+    "fixtureFitMs": null,
+    "fitMs": 72522.15600013733,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 72763.64088058472
+  },
+  {
+    "realizationIndex": 150,
+    "resampleMs": 138.74101638793945,
+    "sofiaMs": 77.34990119934082,
+    "fixtureFitMs": null,
+    "fitMs": 71154.72483634949,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 71383.80885124207
+  },
+  {
+    "realizationIndex": 151,
+    "resampleMs": 128.38292121887207,
+    "sofiaMs": 72.36814498901367,
+    "fixtureFitMs": null,
+    "fitMs": 65597.48578071594,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 65813.20095062256
+  },
+  {
+    "realizationIndex": 152,
+    "resampleMs": 115.59700965881348,
+    "sofiaMs": 83.81915092468262,
+    "fixtureFitMs": null,
+    "fitMs": 65182.79814720154,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 65394.35696601868
+  },
+  {
+    "realizationIndex": 153,
+    "resampleMs": 126.89566612243652,
+    "sofiaMs": 65.87386131286621,
+    "fixtureFitMs": null,
+    "fitMs": 64502.047061920166,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 64706.82692527771
+  },
+  {
+    "realizationIndex": 154,
+    "resampleMs": 118.19100379943848,
+    "sofiaMs": 67.8870677947998,
+    "fixtureFitMs": null,
+    "fitMs": 60911.036014556885,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 61111.517906188965
+  },
+  {
+    "realizationIndex": 155,
+    "resampleMs": 118.20292472839355,
+    "sofiaMs": 64.90015983581543,
+    "fixtureFitMs": null,
+    "fitMs": 55799.35121536255,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55992.92302131653
+  },
+  {
+    "realizationIndex": 156,
+    "resampleMs": 109.83085632324219,
+    "sofiaMs": 62.42203712463379,
+    "fixtureFitMs": null,
+    "fitMs": 66025.57921409607,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 66210.23416519165
+  },
+  {
+    "realizationIndex": 157,
+    "resampleMs": 125.21600723266602,
+    "sofiaMs": 79.33211326599121,
+    "fixtureFitMs": null,
+    "fitMs": 58347.654819488525,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 58565.4661655426
+  },
+  {
+    "realizationIndex": 158,
+    "resampleMs": 117.49911308288574,
+    "sofiaMs": 61.25521659851074,
+    "fixtureFitMs": null,
+    "fitMs": 73162.28485107422,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 73355.45873641968
+  },
+  {
+    "realizationIndex": 159,
+    "resampleMs": 123.77500534057617,
+    "sofiaMs": 64.0408992767334,
+    "fixtureFitMs": null,
+    "fitMs": 60193.09902191162,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60393.441915512085
+  },
+  {
+    "realizationIndex": 160,
+    "resampleMs": 119.37189102172852,
+    "sofiaMs": 65.51074981689453,
+    "fixtureFitMs": null,
+    "fitMs": 63930.16791343689,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 64128.281116485596
+  },
+  {
+    "realizationIndex": 161,
+    "resampleMs": 118.68619918823242,
+    "sofiaMs": 67.77405738830566,
+    "fixtureFitMs": null,
+    "fitMs": 68448.94909858704,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 68649.78909492493
+  },
+  {
+    "realizationIndex": 162,
+    "resampleMs": 141.18194580078125,
+    "sofiaMs": 71.92516326904297,
+    "fixtureFitMs": null,
+    "fitMs": 64813.60697746277,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 65039.97802734375
+  },
+  {
+    "realizationIndex": 163,
+    "resampleMs": 118.1020736694336,
+    "sofiaMs": 70.69516181945801,
+    "fixtureFitMs": null,
+    "fitMs": 61248.14701080322,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 61449.641942977905
+  },
+  {
+    "realizationIndex": 164,
+    "resampleMs": 129.65011596679688,
+    "sofiaMs": 70.0368881225586,
+    "fixtureFitMs": null,
+    "fitMs": 64042.44804382324,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 64256.526947021484
+  },
+  {
+    "realizationIndex": 165,
+    "resampleMs": 129.49299812316895,
+    "sofiaMs": 69.5180892944336,
+    "fixtureFitMs": null,
+    "fitMs": 66227.33402252197,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 66440.02318382263
+  },
+  {
+    "realizationIndex": 166,
+    "resampleMs": 133.03208351135254,
+    "sofiaMs": 72.46685028076172,
+    "fixtureFitMs": null,
+    "fitMs": 55326.380014419556,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 55542.389154434204
+  },
+  {
+    "realizationIndex": 167,
+    "resampleMs": 119.18783187866211,
+    "sofiaMs": 63.41695785522461,
+    "fixtureFitMs": null,
+    "fitMs": 63621.26398086548,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 63816.77317619324
+  },
+  {
+    "realizationIndex": 168,
+    "resampleMs": 128.16381454467773,
+    "sofiaMs": 76.60412788391113,
+    "fixtureFitMs": null,
+    "fitMs": 60271.40974998474,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60492.51103401184
+  },
+  {
+    "realizationIndex": 169,
+    "resampleMs": 133.00800323486328,
+    "sofiaMs": 69.05603408813477,
+    "fixtureFitMs": null,
+    "fitMs": 59787.46581077576,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60001.54614448547
+  },
+  {
+    "realizationIndex": 170,
+    "resampleMs": 123.31008911132812,
+    "sofiaMs": 71.6552734375,
+    "fixtureFitMs": null,
+    "fitMs": 69463.55819702148,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 69673.23422431946
+  },
+  {
+    "realizationIndex": 171,
+    "resampleMs": 145.003080368042,
+    "sofiaMs": 79.65898513793945,
+    "fixtureFitMs": null,
+    "fitMs": 78538.48385810852,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 78778.27501296997
+  },
+  {
+    "realizationIndex": 172,
+    "resampleMs": 125.23388862609863,
+    "sofiaMs": 67.1529769897461,
+    "fixtureFitMs": null,
+    "fitMs": 59471.63891792297,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 59678.410053253174
+  },
+  {
+    "realizationIndex": 173,
+    "resampleMs": 132.86900520324707,
+    "sofiaMs": 76.89404487609863,
+    "fixtureFitMs": null,
+    "fitMs": 63470.84307670593,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 63692.72828102112
+  },
+  {
+    "realizationIndex": 174,
+    "resampleMs": 129.62937355041504,
+    "sofiaMs": 91.86792373657227,
+    "fixtureFitMs": null,
+    "fitMs": 60327.57091522217,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 60566.37191772461
+  },
+  {
+    "realizationIndex": 175,
+    "resampleMs": 133.41593742370605,
+    "sofiaMs": 73.56595993041992,
+    "fixtureFitMs": null,
+    "fitMs": 53437.84594535828,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 53657.82809257507
+  },
+  {
+    "realizationIndex": 176,
+    "resampleMs": 110.41593551635742,
+    "sofiaMs": 62.47591972351074,
+    "fixtureFitMs": null,
+    "fitMs": 67665.91000556946,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 67850.22306442261
+  },
+  {
+    "realizationIndex": 177,
+    "resampleMs": 127.2578239440918,
+    "sofiaMs": 68.71986389160156,
+    "fixtureFitMs": null,
+    "fitMs": 69592.80490875244,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 69801.24092102051
+  },
+  {
+    "realizationIndex": 178,
+    "resampleMs": 109.9100112915039,
+    "sofiaMs": 64.36514854431152,
+    "fixtureFitMs": null,
+    "fitMs": 67212.99695968628,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 67401.80015563965
+  },
+  {
+    "realizationIndex": 179,
+    "resampleMs": 122.27296829223633,
+    "sofiaMs": 66.75195693969727,
+    "fixtureFitMs": null,
+    "fitMs": 61972.96690940857,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 62177.44708061218
+  },
+  {
+    "realizationIndex": 180,
+    "resampleMs": 122.95770645141602,
+    "sofiaMs": 74.60403442382812,
+    "fixtureFitMs": null,
+    "fitMs": 65645.583152771,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 65854.84910011292
+  },
+  {
+    "realizationIndex": 181,
+    "resampleMs": 120.61285972595215,
+    "sofiaMs": 69.37122344970703,
+    "fixtureFitMs": null,
+    "fitMs": 56343.04404258728,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 56545.445919036865
+  },
+  {
+    "realizationIndex": 182,
+    "resampleMs": 122.24102020263672,
+    "sofiaMs": 71.28620147705078,
+    "fixtureFitMs": null,
+    "fitMs": 66102.52213478088,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 66308.24899673462
+  },
+  {
+    "realizationIndex": 183,
+    "resampleMs": 113.74807357788086,
+    "sofiaMs": 63.85397911071777,
+    "fixtureFitMs": null,
+    "fitMs": 67159.16085243225,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 67350.96096992493
+  },
+  {
+    "realizationIndex": 184,
+    "resampleMs": 120.46408653259277,
+    "sofiaMs": 67.25287437438965,
+    "fixtureFitMs": null,
+    "fitMs": 77754.89592552185,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 77954.81300354004
+  },
+  {
+    "realizationIndex": 185,
+    "resampleMs": 118.63279342651367,
+    "sofiaMs": 65.96684455871582,
+    "fixtureFitMs": null,
+    "fitMs": 81083.07409286499,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 81277.86588668823
+  },
+  {
+    "realizationIndex": 186,
+    "resampleMs": 140.61903953552246,
+    "sofiaMs": 69.2451000213623,
+    "fixtureFitMs": null,
+    "fitMs": 71135.90097427368,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 71360.36515235901
+  },
+  {
+    "realizationIndex": 187,
+    "resampleMs": 151.48019790649414,
+    "sofiaMs": 80.54924011230469,
+    "fixtureFitMs": null,
+    "fitMs": 71153.29504013062,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 71401.39698982239
+  },
+  {
+    "realizationIndex": 188,
+    "resampleMs": 148.73504638671875,
+    "sofiaMs": 71.64287567138672,
+    "fixtureFitMs": null,
+    "fitMs": 57465.41500091553,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 57697.97396659851
+  },
+  {
+    "realizationIndex": 189,
+    "resampleMs": 125.05817413330078,
+    "sofiaMs": 69.71287727355957,
+    "fixtureFitMs": null,
+    "fitMs": 74455.66892623901,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 74663.78283500671
+  },
+  {
+    "realizationIndex": 190,
+    "resampleMs": 112.94889450073242,
+    "sofiaMs": 70.97125053405762,
+    "fixtureFitMs": null,
+    "fitMs": 63119.49110031128,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 63317.7649974823
+  },
+  {
+    "realizationIndex": 191,
+    "resampleMs": 133.24904441833496,
+    "sofiaMs": 92.66114234924316,
+    "fixtureFitMs": null,
+    "fitMs": 69151.81088447571,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 69392.578125
+  },
+  {
+    "realizationIndex": 192,
+    "resampleMs": 142.5490379333496,
+    "sofiaMs": 79.8652172088623,
+    "fixtureFitMs": null,
+    "fitMs": 81570.68705558777,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 81805.03869056702
+  },
+  {
+    "realizationIndex": 193,
+    "resampleMs": 138.3190155029297,
+    "sofiaMs": 72.09110260009766,
+    "fixtureFitMs": null,
+    "fitMs": 49667.097091674805,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 49890.26212692261
+  },
+  {
+    "realizationIndex": 194,
+    "resampleMs": 117.76614189147949,
+    "sofiaMs": 64.01920318603516,
+    "fixtureFitMs": null,
+    "fitMs": 71658.98633003235,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 71854.43305969238
+  },
+  {
+    "realizationIndex": 195,
+    "resampleMs": 133.63099098205566,
+    "sofiaMs": 71.66481018066406,
+    "fixtureFitMs": null,
+    "fitMs": 59556.32996559143,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 59776.118993759155
+  },
+  {
+    "realizationIndex": 196,
+    "resampleMs": 129.51302528381348,
+    "sofiaMs": 74.90420341491699,
+    "fixtureFitMs": null,
+    "fitMs": 75887.00699806213,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 76104.13694381714
+  },
+  {
+    "realizationIndex": 197,
+    "resampleMs": 133.67176055908203,
+    "sofiaMs": 72.28899002075195,
+    "fixtureFitMs": null,
+    "fitMs": 71547.79314994812,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 71768.11814308167
+  },
+  {
+    "realizationIndex": 198,
+    "resampleMs": 135.25009155273438,
+    "sofiaMs": 71.92182540893555,
+    "fixtureFitMs": null,
+    "fitMs": 61117.70439147949,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 61338.21487426758
+  },
+  {
+    "realizationIndex": 199,
+    "resampleMs": 112.54596710205078,
+    "sofiaMs": 61.284780502319336,
+    "fixtureFitMs": null,
+    "fitMs": 62557.03139305115,
+    "convolveMs": null,
+    "convolveCalls": null,
+    "totalMs": 62743.49284172058
+  }
+]

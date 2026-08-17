@@ -1,0 +1,31 @@
+# Goodness Of Fit 
+   232926.328    
+# RMS noise 
+   5.04766467E-05
+# Total cube Cells 
+      179520
+# Normalized Goodness Of Fit 
+   1.29749513    
+# Size Flag (1-> <2beams, 2-> >10 beams)
+           0
+# Pre-analysis center Flag (1-> no convergence)
+           0
+Model Acceptence/Rejection Checks (0=fail, 1=Success)
+Initial Pipeline Fit Achieved 
+1
+The number of rings in the fits is >=2
+1
+The SoFiA estimated size (ell_maj) in beams is >=1.5
+1
+The model inclination is >=25.0
+1
+sin(i_max)-sin(i_min) <=0.15
+1
+The error on the systemic velocity is <=40.0
+1
+The error on the position angle is <=20.0
+1
+No geometric error terms are NaN's
+1
+The projected model rotation curve falls within the datacube
+1

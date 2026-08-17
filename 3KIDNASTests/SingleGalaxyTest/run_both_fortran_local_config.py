@@ -1,0 +1,11 @@
+CubeName="../TestData/WALLABY_Test_sources/WALLABY_J103538-484832/WALLABY_J103538-484832_VelCube.fits"
+MaskName="../TestData/WALLABY_Test_sources/WALLABY_J103538-484832/WALLABY_J103538-484832_mask.fits"
+ObjName="WALLABY_J103538-484832"
+TargFolder="TestFits_RunAllThree_FortranLocal/"
+PA_Estimate= 241.319
+Inc_Estimate=89.00
+nBootstraps= 200
+nProcessors_Bootstraps=4
+UseDCP=0
+BootstrapSeed=42
+WRKP_GeneralOptionsIn="/Users/dandesjardins/DCP/3KIDNAS/3KIDNASTests/SingleGalaxyTest/run_both_fortran_local_config_fitting_options.txt"

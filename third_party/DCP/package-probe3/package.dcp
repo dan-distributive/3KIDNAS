@@ -1,0 +1,9 @@
+{
+    "name": "3kidnas-probe3",
+    "version": "0.0.1",
+    "files": {
+        "EntryProbe.js": "EntryProbe.js",
+        "DepA.js": "DepA.js",
+        "DepB.js": "DepB.js"
+    }
+}

@@ -1,0 +1,286 @@
+'use strict';
+
+// =============================================================================
+// r2cf_25.js -- faithful JS port of rdft/scalar/r2cf/r2cf_25.c (non-FMA
+// branch). x[0..24] (real) -> O[0..24] packed halfcomplex: O[0..12]=Re0..
+// Re12, O[13..24]=Im12..Im1 (O[n-k]=Im_k, same convention as prior
+// r2cf_*.js). Several outputs are 3-term FMA/FNMS/FNMA sums -- each
+// macro's result is its own named intermediate, combined via simple
+// binary +/- in the C source's own left-to-right order (see n1_11.js /
+// r2cf_11.js's header for why: flattening changes rounding).
+// Source: FFTW3 (c) 2003, 2007-14 Matteo Frigo and MIT, GPLv2+.
+// =============================================================================
+
+const KP998026728 = 0.998026728428271561952336806863450553336905220;
+const KP125581039 = 0.125581039058626752152356449131262266244969664;
+const KP1_996053456 = 1.996053456856543123904673613726901106673810439;
+const KP062790519 = 0.062790519529313376076178224565631133122484832;
+const KP809016994 = 0.809016994374947424102293417182819058860154590;
+const KP309016994 = 0.309016994374947424102293417182819058860154590;
+const KP1_369094211 = 1.369094211857377347464566715242418539779038465;
+const KP728968627 = 0.728968627421411523146730319055259111372571664;
+const KP963507348 = 0.963507348203430549974383005744259307057084020;
+const KP876306680 = 0.876306680043863587308115903922062583399064238;
+const KP497379774 = 0.497379774329709576484567492012895936835134813;
+const KP968583161 = 0.968583161128631119490168375464735813836012403;
+const KP684547105 = 0.684547105928688673732283357621209269889519233;
+const KP1_457937254 = 1.457937254842823046293460638110518222745143328;
+const KP481753674 = 0.481753674101715274987191502872129653528542010;
+const KP1_752613360 = 1.752613360087727174616231807844125166798128477;
+const KP248689887 = 0.248689887164854788242283746006447968417567406;
+const KP1_937166322 = 1.937166322257262238980336750929471627672024806;
+const KP992114701 = 0.992114701314477831049793042785778521453036709;
+const KP250666467 = 0.250666467128608490746237519633017587885836494;
+const KP425779291 = 0.425779291565072648862502445744251703979973042;
+const KP1_809654104 = 1.809654104932039055427337295865395187940827822;
+const KP1_274847979 = 1.274847979497379420353425623352032390869834596;
+const KP770513242 = 0.770513242775789230803009636396177847271667672;
+const KP844327925 = 0.844327925502015078548558063966681505381659241;
+const KP1_071653589 = 1.071653589957993236542617535735279956127150691;
+const KP125333233 = 0.125333233564304245373118759816508793942918247;
+const KP1_984229402 = 1.984229402628955662099586085571557042906073418;
+const KP904827052 = 0.904827052466019527713668647932697593970413911;
+const KP851558583 = 0.851558583130145297725004891488503407959946084;
+const KP637423989 = 0.637423989748689710176712811676016195434917298;
+const KP1_541026485 = 1.541026485551578461606019272792355694543335344;
+const KP535826794 = 0.535826794978996618271308767867639978063575346;
+const KP1_688655851 = 1.688655851004030157097116127933363010763318483;
+const KP293892626 = 0.293892626146236564584352977319536384298826219;
+const KP475528258 = 0.475528258147576786058219666689691071702849317;
+const KP250000000 = 0.25;
+const KP559016994 = 0.559016994374947424102293417182819058860154590;
+const KP587785252 = 0.587785252292473129168705954639072768597652438;
+const KP951056516 = 0.951056516295153572116439333379382143405698634;
+
+function r2cf_25(x) {
+  const T8 = x[0];
+
+  const T4 = x[10], T5 = x[15];
+  const T6 = T4 + T5, T1k = T4 - T5;
+  const T1 = x[5], T2 = x[20];
+  const T3 = T1 + T2, T1j = T1 - T2;
+
+  const T1V = KP951056516 * T1k;
+  const T1l = KP951056516 * T1j + KP587785252 * T1k;
+  const T7 = KP559016994 * (T3 - T6);
+  const T9 = T3 + T6;
+  const Ta = T8 - KP250000000 * T9;
+
+  const T16 = x[3];
+  const TW = x[8], TX = x[23];
+  const T13 = TW + TX;
+  const TZ = x[13], T10 = x[18];
+  const T14 = TZ + T10;
+  const TY = TW - TX;
+  const T17 = T13 + T14;
+  const T11 = TZ - T10;
+
+  const T12 = KP475528258 * TY + KP293892626 * T11;
+  const T2u = T16 + T17;
+  const T1O = KP475528258 * T11 - KP293892626 * TY;
+  const T15 = KP559016994 * (T13 - T14);
+  const T18 = T16 - KP250000000 * T17;
+  const T19 = T15 + T18;
+  const T1P = T18 - T15;
+
+  const Tm = x[1];
+  const Tc = x[6], Td = x[21];
+  const Tj = Tc + Td;
+  const Tf = x[11], Tg = x[16];
+  const Tk = Tf + Tg;
+  const Te = Tc - Td;
+  const Tn = Tj + Tk;
+  const Th = Tf - Tg;
+
+  const Ti = KP475528258 * Te + KP293892626 * Th;
+  const T2r = Tm + Tn;
+  const T1K = KP475528258 * Th - KP293892626 * Te;
+  const Tl = KP559016994 * (Tj - Tk);
+  const To = Tm - KP250000000 * Tn;
+  const Tp = Tl + To;
+  const T1L = To - Tl;
+
+  const TB = x[4];
+  const Tr = x[9], Ts = x[24];
+  const Ty = Tr + Ts;
+  const Tu = x[14], Tv = x[19];
+  const Tz = Tu + Tv;
+  const Tt = Tr - Ts;
+  const TC = Ty + Tz;
+  const Tw = Tu - Tv;
+
+  const Tx = KP475528258 * Tt + KP293892626 * Tw;
+  const T2q = TB + TC;
+  const T1H = KP475528258 * Tw - KP293892626 * Tt;
+  const TA = KP559016994 * (Ty - Tz);
+  const TD = TB - KP250000000 * TC;
+  const TE = TA + TD;
+  const T1I = TD - TA;
+
+  const TR = x[2];
+  const TH = x[7], TI = x[22];
+  const TO = TH + TI;
+  const TK = x[12], TL = x[17];
+  const TP = TK + TL;
+  const TJ = TH - TI;
+  const TS = TO + TP;
+  const TM = TK - TL;
+
+  const TN = KP475528258 * TJ + KP293892626 * TM;
+  const T2t = TR + TS;
+  const T1R = KP475528258 * TM - KP293892626 * TJ;
+  const TQ = KP559016994 * (TO - TP);
+  const TT = TR - KP250000000 * TS;
+  const TU = TQ + TT;
+  const T1S = TT - TQ;
+
+  const T2s = T2q - T2r;
+  const T2v = T2t - T2u;
+
+  const O = new Float64Array(25);
+  O[20] = KP951056516 * T2s - KP587785252 * T2v;
+  O[15] = KP587785252 * T2s + KP951056516 * T2v;
+
+  const T2z = T8 + T9;
+  const T2w = T2r + T2q;
+  const T2x = T2t + T2u;
+  const T2y = KP559016994 * (T2w - T2x);
+  const T2A = T2w + T2x;
+  O[0] = T2z + T2A;
+  const T2B = T2z - KP250000000 * T2A;
+  O[5] = T2y + T2B;
+  O[10] = T2B - T2y;
+
+  const Tb = T7 + Ta;
+  const Tq = KP1_688655851 * Ti + KP535826794 * Tp;
+  const TF = KP1_541026485 * Tx + KP637423989 * TE;
+  const TG = Tq - TF;
+  const T1E = KP851558583 * TN + KP904827052 * TU;
+  const T1F = KP1_984229402 * T12 + KP125333233 * T19;
+  const T1G = T1E + T1F;
+  const T1B = KP1_071653589 * Ti - KP844327925 * Tp;
+  const T1C = KP770513242 * TE - KP1_274847979 * Tx;
+  const T1D = T1B + T1C;
+  const TV = KP1_809654104 * TN - KP425779291 * TU;
+  const T1a = KP250666467 * T12 - KP992114701 * T19;
+  const T1b = TV + T1a;
+
+  const T1m = KP1_937166322 * Ti + KP248689887 * Tp;
+  const T1n = KP1_071653589 * Tx + KP844327925 * TE;
+  const T1o = T1m + T1n;
+  const T1p = KP1_752613360 * TN + KP481753674 * TU;
+  const T1q = KP1_457937254 * T12 + KP684547105 * T19;
+  const T1r = T1p + T1q;
+  const T1s = T1o + T1r;
+  const T1z = T1q - T1p;
+  const T1x = T1n - T1m;
+
+  const T1c = KP968583161 * Tp - KP497379774 * Ti;
+  const T1d = KP535826794 * TE - KP1_688655851 * Tx;
+  const T1e = T1c + T1d;
+  const T1f = KP876306680 * TU - KP963507348 * TN;
+  const T1g = KP728968627 * T19 - KP1_369094211 * T12;
+  const T1h = T1f + T1g;
+  const T1i = T1e + T1h;
+  const T1u = T1f - T1g;
+  const T1t = T1d - T1c;
+
+  O[1] = Tb + T1i;
+  O[24] = -(T1l + T1s);
+  O[4] = Tb + TG + T1b;
+  O[21] = T1l + T1D - T1G;
+
+  const M16a = KP309016994 * T1D + T1l;
+  const M16b = KP587785252 * (T1a - TV) + KP809016994 * T1G;
+  O[16] = M16a + M16b - KP951056516 * (Tq + TF);
+
+  const M9a = KP309016994 * TG + Tb;
+  const M9b = KP951056516 * (T1B - T1C) + KP587785252 * (T1F - T1E);
+  O[9] = M9a + M9b - KP809016994 * T1b;
+
+  const T1v = KP250000000 * T1s - T1l;
+  const T1w = KP559016994 * (T1r - T1o);
+  const M14 = KP587785252 * T1t + KP951056516 * T1u;
+  O[14] = M14 + T1v - T1w;
+  const M19a = KP951056516 * T1t + T1v;
+  const M19b = T1w - KP587785252 * T1u;
+  O[19] = M19a + M19b;
+
+  const T1y = Tb - KP250000000 * T1i;
+  const T1A = KP559016994 * (T1e - T1h);
+  const M11a = KP587785252 * T1x + T1y;
+  const M11b = -(KP951056516 * T1z + T1A);
+  O[11] = M11a + M11b;
+  const M6a = KP951056516 * T1x + T1A;
+  const M6b = KP587785252 * T1z + T1y;
+  O[6] = M6a + M6b;
+
+  const T1W = T1V - KP587785252 * T1j;
+  const T1X = Ta - T7;
+  const T1J = KP1_984229402 * T1H - KP125333233 * T1I;
+  const T1M = KP1_457937254 * T1K + KP684547105 * T1L;
+  const T1N = T1J - T1M;
+  const T21 = KP062790519 * T1S - KP1_996053456 * T1R;
+  const T22 = KP1_541026485 * T1O + KP637423989 * T1P;
+  const T23 = T21 - T22;
+  const T1Q = KP1_274847979 * T1O - KP770513242 * T1P;
+  const T1T = KP125581039 * T1R + KP998026728 * T1S;
+  const T1U = T1Q - T1T;
+  const T1Y = KP728968627 * T1L - KP1_369094211 * T1K;
+  const T1Z = KP250666467 * T1H + KP992114701 * T1I;
+  const T20 = T1Y - T1Z;
+
+  const T24 = KP1_752613360 * T1K - KP481753674 * T1L;
+  const T25 = KP851558583 * T1H + KP904827052 * T1I;
+  const T26 = T24 - T25;
+  const T27 = KP1_071653589 * T1R - KP844327925 * T1S;
+  const T28 = KP125581039 * T1O - KP998026728 * T1P;
+  const T29 = T27 + T28;
+  const T2a = T26 + T29;
+  const T2k = T27 - T28;
+  const T2j = T24 + T25;
+
+  const T2b = KP1_809654104 * T1H - KP425779291 * T1I;
+  const T2c = KP963507348 * T1K + KP876306680 * T1L;
+  const T2l = T2c + T2b;
+  const T2g = KP1_688655851 * T1R + KP535826794 * T1S;
+  const T2h = KP1_996053456 * T1O + KP062790519 * T1P;
+  const T2m = T2g + T2h;
+  const T2d = T2b - T2c;
+  const T2o = T2l + T2m;
+  const T2i = T2g - T2h;
+
+  O[23] = T1W + T2a;
+  O[2] = T1X + T2o;
+  O[22] = T1N + T1U - T1W;
+  O[3] = T1X + T20 + T23;
+
+  const M8a = KP309016994 * T20 + T1X;
+  const M8b = -(KP809016994 * T23 + KP587785252 * (T1T + T1Q));
+  O[8] = M8a + M8b - KP951056516 * (T1M + T1J);
+
+  const M17a = KP309016994 * T1N - KP587785252 * (T21 + T22);
+  const M17b = -(KP809016994 * T1U + KP951056516 * (T1Y + T1Z));
+  O[17] = M17a + M17b - T1W;
+
+  const T2e = KP559016994 * (T26 - T29);
+  const T2f = T1W - KP250000000 * T2a;
+  const M18a = KP951056516 * T2d + T2e;
+  const M18b = T2f - KP587785252 * T2i;
+  O[18] = M18a + M18b;
+  const M13a = KP587785252 * T2d + T2f;
+  const M13b = KP951056516 * T2i - T2e;
+  O[13] = M13a + M13b;
+
+  const T2n = KP559016994 * (T2l - T2m);
+  const T2p = T1X - KP250000000 * T2o;
+  const M7 = KP951056516 * T2j + KP587785252 * T2k;
+  O[7] = M7 + T2n + T2p;
+  const M12a = KP587785252 * T2j + T2p;
+  const M12b = -(KP951056516 * T2k + T2n);
+  O[12] = M12a + M12b;
+
+  return O;
+}
+
+module.exports = { r2cf_25 };
