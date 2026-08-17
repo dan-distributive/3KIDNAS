@@ -668,12 +668,12 @@ async function runEstimateGeometryLocally(payload) {
   const previousRequire = window.require;
   window.require = function (name) {
     switch (name) {
-      case './src/SoFiACatalog/ParseSoFiACatalog': return window.ParseSoFiACatalog;
-      case './src/GeometryEstimates/GeometryEstimates': return window.GeometryEstimates;
+      case '../src/SoFiACatalog/ParseSoFiACatalog': return window.ParseSoFiACatalog;
+      case '../src/GeometryEstimates/GeometryEstimates': return window.GeometryEstimates;
       case 'cfitsio-wasm.js':
-      case '../cfitsio-4.6.3/wasm/cfitsio-wasm.js': return window.CfitsioWasm;
+      case '../../third_party/cfitsio-4.6.3/wasm/cfitsio-wasm.js': return window.CfitsioWasm;
       case 'sofia-wasm.js':
-      case '../SoFiA-2-master_2_5_1/wasm/sofia-wasm.js': return window.SofiaWasm;
+      case '../../third_party/SoFiA-2-master_2_5_1/wasm/sofia-wasm.js': return window.SofiaWasm;
       default: throw new Error('require: no browser-local shim for module "' + name + '"');
     }
   };
