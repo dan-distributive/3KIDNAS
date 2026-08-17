@@ -477,42 +477,38 @@ function getComputeGroups() {
 
 // ---------------------------------------------------------------------------
 // Identity + payment, established lazily on the first real dispatch -- no
-// separate "Connect" step (matches ~/DCP/ffmpeg-dcp/app.js's own
-// dispatchJob(), which does the identical thing on every dispatch rather
-// than gating behind a pre-connect button).
+// separate "Connect" step. Matches ~/DCP/ffmpeg-dcp/app.js's dispatchJob()
+// for real this time: identity and payment are two independent DCP
+// primitives, not one interchangeable credential.
 //
-// An API key (if provided) sets identity directly, no modal --
-// dcp.identity.set() accepts a raw key string just as readily as a Keystore
-// instance, and job.exec() accepts the same raw string for payment too (it
-// auto-wraps it into a Keystore internally) -- so providing an API key never
-// pops any modal at all. Left blank, falls back to DCP's own wallet picker
-// (wallet.get() pops a native modal -- keystore upload or OAuth -- and
-// resolves a Keystore instance), reused for both identity and payment so it
-// only prompts once per session, not once per dispatch.
+//   - Identity (who is running the job) is ALWAYS a plain API key string --
+//     dcp.identity.set(getApiKey()). Never a Keystore.
+//   - Payment (how the job gets funded) is a COMPLETELY SEPARATE, ALWAYS-run
+//     step -- dcp.wallet.get() (pops DCP's own wallet picker/unlock UI
+//     internally if needed -- no manual keystore.unlock() code needed here)
+//     followed by dcp.wallet.add(), which registers it as job.exec()'s
+//     funding source without needing to pass it as an explicit argument.
+//
+// The previous version of this function set identity from EITHER an API key
+// OR a wallet keystore, then reused whichever one was picked as the payment
+// source too -- conflating "who you are" with "what pays for this", and
+// silently skipping the wallet step entirely whenever an API key was set.
 // ---------------------------------------------------------------------------
-let keystore = null;
-let paymentArg = null;
+let connectedWallet = null;
 const runInitialFitBtn = document.getElementById('runInitialFitBtn');
 
-async function unlockKeystore(ks) {
-  const isEmpty = await ks.testPassphrase('').catch(() => false);
-  if (isEmpty) await ks.unlock('', 300, true);
-  else await ks.unlock(undefined, 300, true);
-  return ks;
-}
-
 async function ensureConnected() {
-  if (paymentArg) return; // already connected this session
+  if (connectedWallet) return; // already connected this session
+  // Payment: always fetched and registered, regardless of whether an API
+  // key is set below -- this is the step the old code silently skipped
+  // whenever an API key was present, leaving nothing funding the job.
+  connectedWallet = await dcp.wallet.get();
+  await dcp.wallet.add(connectedWallet);
+  // Identity: the API key if one was entered, otherwise the same wallet
+  // keystore just fetched above for payment -- a fallback for identity
+  // specifically, not a substitute for the payment step above.
   const apiKey = getApiKey();
-  if (apiKey) {
-    await dcp.identity.set(apiKey).catch((error) => { if (error.code !== 'EHAVEIDENTITY') throw error; });
-    paymentArg = apiKey;
-  } else {
-    keystore = await dcp.wallet.get();
-    await unlockKeystore(keystore);
-    await dcp.identity.set(keystore).catch((error) => { if (error.code !== 'EHAVEIDENTITY') throw error; });
-    paymentArg = keystore;
-  }
+  await dcp.identity.set(apiKey || connectedWallet).catch((error) => { if (error.code !== 'EHAVEIDENTITY') throw error; });
 }
 
 // ---------------------------------------------------------------------------
@@ -811,7 +807,9 @@ document.getElementById('runInitialFitBtn').addEventListener('click', async () =
     job.on('accepted', () => logLine(initialFitLog, 'job id: ' + job.id));
     job.on('error', (error) => logLine(initialFitLog, 'job error: ' + (error.message || error), 'err'));
 
-    const results = await job.exec(undefined, paymentArg);
+    // No explicit payment arg -- dcp.wallet.add() in ensureConnected()
+    // already registered connectedWallet as the funding source.
+    const results = await job.exec(undefined);
     const result = results[0];
     if (!result.FITAchieved) {
       throw new Error(result.error || 'did not converge');
@@ -921,7 +919,9 @@ async function runBootstrapFlow() {
     });
     job.on('error', (error) => logLine(bootstrapLog, 'job error: ' + (error.message || error), 'err'));
 
-    const results = await job.exec(undefined, paymentArg);
+    // No explicit payment arg -- dcp.wallet.add() in ensureConnected()
+    // already registered connectedWallet as the funding source.
+    const results = await job.exec(undefined);
     bootstrapResults = results;
     const nOk = results.filter((r) => !r.sofiaFailed).length;
     logLine(bootstrapLog, `${nOk}/${nBootstraps} realizations succeeded`, 'ok');
