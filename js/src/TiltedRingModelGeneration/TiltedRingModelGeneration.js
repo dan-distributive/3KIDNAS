@@ -9,7 +9,12 @@
 // -------------
 // Thin wrapper — all physics delegated to SingleRingGeneration.js.
 // rng: makeRng() object from random.js, shared across all rings.
+// dc/beam: the observed DataCube/Beam2D (js/src/ObjectDefinitions/{DataCube,
+// Beam}.js) — feed calcAvgChanPerPix below, matching Fortran's BuildTiltedRingModel
+// taking DC/BUse as of upstream commit 76ade48.
 // =============================================================================
+
+const f32 = Math.fround;
 
 const { ring_ParticleAllocation } = require('../ObjectDefinitions/TiltedRing.js');
 const {
@@ -20,22 +25,52 @@ const {
 
 
 // ---------------------------------------------------------------------------
+// calcAvgChanPerPix
+// Fortran: CalcAvgChanPerPix(ringIndx, TR, DC, BUse, AvgChanPerPix)
+//
+// How many spectral channels a ring's own velocity spread (rotation +
+// dispersion) covers, relative to how many beam-widths wide the ring is --
+// rings with a steep velocity gradient or wide dispersion smear their flux
+// across more channels per spatial pixel, so need proportionally more
+// particles to sample adequately. Floored at dDisp+1 so a ring with ~zero
+// rotation still gets at least dispersion-width coverage.
+// ---------------------------------------------------------------------------
+function calcAvgChanPerPix(ring, dc, beam) {
+  const chanSize = f32(Math.abs(dc.dh.channelSize));
+  const dv        = f32(f32(2.0 * f32(ring.vRot)) / chanSize);
+  const dDisp      = f32(f32(f32(2.0 * f32(Math.sqrt(2.0))) * f32(ring.vDisp)) / chanSize);
+  const dr         = f32(2.0 * f32(ring.rmid));
+
+  let avgChanPerPix = f32(f32(f32(beam.beamMajorAxis) / dr) * f32(dv + dDisp));
+  if (avgChanPerPix < f32(dDisp + 1.0)) {
+    avgChanPerPix = f32(dDisp + 1.0);
+  }
+  return avgChanPerPix;
+}
+
+
+// ---------------------------------------------------------------------------
 // buildTiltedRingModel
-// Fortran: BuildTiltedRingModel(TR, idum)
+// Fortran: BuildTiltedRingModel(TR, idum, Noise, DC, BUse)
 //
 // For each ring in TR:
-//   1. Calculate number of particles
-//   2. Allocate particle array
-//   3. Generate particle positions, velocities, and fluxes
+//   1. Calculate the ring's average channels-per-pixel (calcAvgChanPerPix)
+//   2. Calculate number of particles
+//   3. Allocate particle array
+//   4. Generate particle positions, velocities, and fluxes
 //
 // TR must already be allocated (tiltRing_Allocate called) and all ring
 // parameters set before calling this.
 //
 // rng: makeRng() object from random.js
+// noise: DC%DH%Uncertainty*abs(DC%DH%ChannelSize), computed by the caller
+//   (matches FullModelComparison.f / FitOutput.f's NoiseSpec/SpecNoise).
+// dc, beam: the observed DataCube/Beam2D, fed to calcAvgChanPerPix.
 // ---------------------------------------------------------------------------
-function buildTiltedRingModel(tr, rng) {
+function buildTiltedRingModel(tr, rng, noise, dc, beam) {
   for (let i = 0; i < tr.nRings; i++) {
-    ring_CalcNumParticles(tr.r[i], tr.cmode, tr.cloudBaseSurfDens);
+    const avgChanPerPix = calcAvgChanPerPix(tr.r[i], dc, beam);
+    ring_CalcNumParticles(tr.r[i], tr.cmode, tr.cloudBaseSurfDens, noise, avgChanPerPix);
     ring_ParticleAllocation(tr.r[i]);
     ring_ParticleGeneration(tr.r[i], rng);
   }
@@ -45,7 +80,7 @@ function buildTiltedRingModel(tr, rng) {
 // ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
-module.exports = { buildTiltedRingModel, warmUpWasmTrig };
+module.exports = { buildTiltedRingModel, calcAvgChanPerPix, warmUpWasmTrig };
 
 
 // ---------------------------------------------------------------------------
@@ -85,7 +120,10 @@ if (require.main === module) {
   }
 
   const rng = makeRng(-1);
-  buildTiltedRingModel(tr, rng);
+  const fakeDc = { dh: { channelSize: f32(4.0) } };
+  const fakeBeam = { beamMajorAxis: f32(3.0) };
+  const noise = f32(0.01);
+  buildTiltedRingModel(tr, rng, noise, fakeDc, fakeBeam);
 
   console.log('=== buildTiltedRingModel ===');
   for (let i = 0; i < 3; i++) {

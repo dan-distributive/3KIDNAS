@@ -25,6 +25,7 @@ c
       real,INTENT(OUT) :: chi2
       real pixelarea
       integer i
+      real NoiseSpec
 
       logical BadModelFlag
       integer TraceCallCounter
@@ -84,7 +85,10 @@ c      if Unphysical
 c        chi2=+1e20
 
 
-      call BuildTiltedRingModel(ModelTiltedRing,idum)
+      NoiseSpec=ObservedDC%DH%Uncertainty
+     &             *abs(ObservedDC%DH%ChannelSize)
+      call BuildTiltedRingModel(ModelTiltedRing,idum,NoiseSpec
+     &          ,ObservedDC,ObservedBeam)
       if (TraceSwitch.eq.1 .and. TraceCallCounter.eq.0) then
         call PrintStageChecksum('POSTGEN',ModelTiltedRing)
       endif

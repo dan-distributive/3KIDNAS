@@ -206,7 +206,9 @@ function tiltedRingModelComparison(testParams, state) {
   }
 
   // Step 5: build particle model
-  buildTiltedRingModel(modelTiltedRing, rng);
+  // Fortran: NoiseSpec=ObservedDC%DH%Uncertainty*abs(ObservedDC%DH%ChannelSize)
+  const noiseSpec = f32(f32(observedDC.dh.uncertainty) * f32(Math.abs(observedDC.dh.channelSize)));
+  buildTiltedRingModel(modelTiltedRing, rng, noiseSpec, observedDC, observedBeam);
   if (TRACE_DEBUG && traceCallCounter === 0) {
     printStageChecksum('POSTGEN', modelTiltedRing);
   }

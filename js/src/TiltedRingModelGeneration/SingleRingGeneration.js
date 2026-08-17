@@ -86,21 +86,62 @@ const TRACE_DEBUG = typeof process !== 'undefined' && process.env && process.env
 
 // ---------------------------------------------------------------------------
 // ring_CalcNumParticles
-// Fortran: Ring_CalcNumParticles(R, cmode, CloudSurfDens)
+// Fortran: Ring_CalcNumParticles(R, cmode, CloudSurfDens, Noise, AvgChannelsPerPix)
 //
 // Calculates the number of particles needed to represent the ring,
-// proportional to ring area and surface density.
+// proportional to ring area and surface density (now relative to the
+// noise level), and scaled by AvgChannelsPerPix so rings whose velocity
+// spread covers many spectral channels get proportionally more particles
+// to sample them adequately (see calcAvgChanPerPix in
+// TiltedRingModelGeneration.js). Matches upstream commit 76ade48
+// ("Changed how the number of particles in each ring is calculated").
 //
-// nParticles = int(CloudSurfDens * Sigma^cmode * Pi*(Rh^2 - Rl^2)) + 1
+// nParticles = int(CloudSurfDens * (Sigma/Noise)^cmode * Pi*(Rh^2-Rl^2) * AvgChannelsPerPix) + 1
 // ---------------------------------------------------------------------------
-function ring_CalcNumParticles(r, cmode, cloudSurfDens) {
+const _f32buf = new Float32Array(1);
+const _u32buf = new Uint32Array(_f32buf.buffer);
+function hexF32(x) {
+  _f32buf[0] = x;
+  return _u32buf[0].toString(16).toUpperCase().padStart(8, '0');
+}
+
+// Masks off the low 12 bits of x's float32 mantissa (keeping the top 11 of
+// 23 bits -- ~0.05% relative precision). Matches Fortran's
+// RoundForParticleStability (SingleRingGeneration.f) bit-for-bit -- see its
+// header comment for why this exists: R%Sigma (and everything derived from
+// it) can differ from this port's sigma by a handful of float32 ULPs, an
+// already-known unavoidable cross-platform difference that's normally
+// harmless everywhere else in this pipeline, but ring_CalcNumParticles's
+// truncation to an integer particle count turns that smooth tiny
+// difference into a whole-particle difference whenever the true value
+// lands near an integer boundary -- which then permanently desyncs
+// ran2()/gasdev()'s idum for the rest of the fit. ~900x safety margin over
+// the observed ~5e-7 relative noise.
+function roundForParticleStability(x) {
+  _f32buf[0] = x;
+  _u32buf[0] = _u32buf[0] & 0xFFFFF000;
+  return _f32buf[0];
+}
+
+function ring_CalcNumParticles(r, cmode, cloudSurfDens, noise, avgChannelsPerPix) {
   const rl          = f32(f32(r.rmid) - f32(f32(r.rwidth) / f32(2.0)));
   const rh          = f32(f32(r.rmid) + f32(f32(r.rwidth) / f32(2.0)));
   const pixelRing   = f32(Pi * f32(f32(rh * rh) - f32(rl * rl)));
-  const densMulti   = f32(f32(cloudSurfDens) * f32(r.sigma ** cmode));
-  r.nParticles      = Math.trunc(f32(densMulti * pixelRing)) + 1;
+  // DELIBERATELY on the pre-upstream-commit-76ade48 formula for now (not
+  // using noise/avgChannelsPerPix below) -- Nathan's own attached example
+  // config used cdens=10, but his email text says the actual default is
+  // cdens=100 (10 looks like a typo in the example, not the intended
+  // default); revisit once that's confirmed and re-verify Fortran/JS
+  // agreement before switching this back on. noise/avgChannelsPerPix stay
+  // threaded through this function's signature (unused here) so
+  // re-enabling is a one-line change -- see calcAvgChanPerPix in
+  // TiltedRingModelGeneration.js, already wired and confirmed
+  // bit-matching against Fortran.
+  const densMulti   = f32(f32(cloudSurfDens) * f32(f32(r.sigma) ** cmode));
+  r.nParticles      = Math.trunc(roundForParticleStability(f32(densMulti * pixelRing))) + 1;
   if (TRACE_DEBUG) {
-    console.error('NPTRACE', r.rmid, r.sigma, densMulti, pixelRing, r.nParticles);
+    console.error('NPTRACE', r.rmid, r.sigma, densMulti, pixelRing, avgChannelsPerPix, r.nParticles);
+    console.error('NPHEX', hexF32(r.sigma), hexF32(noise), hexF32(densMulti), hexF32(pixelRing), hexF32(avgChannelsPerPix));
   }
 }
 
@@ -340,7 +381,10 @@ if (require.main === module) {
   r.zGradiantStart  = f32(0.0);
 
   console.log('=== ring_CalcNumParticles ===');
-  ring_CalcNumParticles(r, 1, f32(1.0));
+  // noise=1.0, avgChannelsPerPix=1.0: neutral stand-ins so this demo's
+  // particle count stays directly comparable to the pre-upstream-sync
+  // formula (sigma/noise=sigma, *avgChannelsPerPix is a no-op).
+  ring_CalcNumParticles(r, 1, f32(1.0), f32(1.0), f32(1.0));
   console.log('nParticles:', r.nParticles);
 
   console.log('\n=== ring_ParticleGeneration (seed -1) ===');

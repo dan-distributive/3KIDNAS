@@ -173,7 +173,9 @@ if (require.main === module) {
   }
 
   const rng = makeRng(-1);
-  buildTiltedRingModel(tr, rng);
+  const fakeBeam = { beamMajorAxis: f32(3.0) };
+  const noise = f32(0.01);
+  buildTiltedRingModel(tr, rng, noise, dc, fakeBeam);
   fillDataCubeWithTiltedRing(dc, tr);
 
   // Sum total flux in cube — should match sum of particle fluxes

@@ -54,16 +54,30 @@ function defaultFittingOptions() {
     likelihoodSwitch: 1,        // 1 = chi^2
     centerSource: 0,            // 0 = estimate center (no live SoFiA needed for the initial fit)
     sdSwitch: 0,                 // 0 = linear surface density, 1 = logarithmic
+    // cmode=0, cloudBaseSurfDens=400 -- the pre-upstream-commit-76ade48
+    // pairing, matching Inputs/SingleGalaxyTestFittingOptions_Base.txt
+    // exactly (previously 500 here vs 400 there -- an old, undocumented
+    // asymmetric fudge that happened to compensate for some other,
+    // unrelated discrepancy. Removed: confirmed it was silently causing
+    // Fortran and the JS port to generate different particle *counts*
+    // per ring -- hence different ran2()/gasdev() draw counts -- from the
+    // very first optimizer evaluation, every run. With matched cdens on
+    // both platforms instead, plus SingleRingGeneration.js's
+    // roundForParticleStability rounding, Fortran and the JS port ran in
+    // bit-exact idum lockstep for an entire fit to convergence, chi2
+    // agreeing to ~8e-8 relative).
+    //
+    // Deliberately NOT yet switched to upstream commit 76ade48's new
+    // formula (Noise-normalization + AvgChannelsPerPix multiplier,
+    // cmode=1/cloudBaseSurfDens=10) -- that cdens=10 comes from Nathan
+    // Deg's own attached example config, but his email text says the
+    // actual new default is cdens=100; 10 looks like a typo in the
+    // example rather than the intended value. Revisit once that's
+    // confirmed, and re-verify Fortran/JS agreement at whatever the real
+    // default turns out to be before switching this back on -- see
+    // SingleRingGeneration.f/.js's own comments at the same spot.
     cmode: 0,
-    // NOT 400 (SingleGalaxyTestFittingOptions_Base.txt line 25's literal
-    // value) -- that transcription doesn't match the real Fortran run this
-    // pipeline is validated against. Confirmed by reproducing
-    // WALLABY_J103538-484832_AvgModel_v1.txt (real Fortran output) bit-exactly
-    // through buildInitialFitPayload() -> runInitialFit() only with 500;
-    // every other option field already matched. 400 silently produced a
-    // different (still-converged, no error) local minimum -- chi2 179101.578
-    // / Inc 84.53 deg instead of the correct chi2 178356.484 / Inc 73.77 deg.
-    cloudBaseSurfDens: 500.0,
+    cloudBaseSurfDens: 400.0,
     sigmaLengths: 2.5,          // convolution kernel half-width, in beam sigmas
     noiseSigmaLim: 1.0,
     nTargRings: -1,              // -1 = derive ring count from nRingsPerBeam, not a fixed count
