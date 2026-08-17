@@ -194,6 +194,11 @@
       </div>
     </div>
 
+    <p class="card-sub" style="margin-top:-6px">
+      No data on hand?
+      <button type="button" id="useSampleDataBtn" class="secondary" style="padding:3px 10px; font-size:12px">Use sample data (WALLABY_J103538-484832)</button>
+    </p>
+
     <div class="row">
       <div class="field" style="flex: 2 1 240px">
         <label for="objName">Object name</label>
@@ -723,6 +728,46 @@ cubeFileInput.addEventListener('change', async () => {
     console.error(error);
     estimateGeometryStatus.textContent = 'Couldn\'t auto-estimate from this cube (' + error.message + ') -- enter PA/Inc manually.';
     estimateGeometryStatus.style.color = '';
+  }
+});
+
+// Loads the bundled WALLABY_J103538-484832 cube+mask (sample-data/, a
+// self-contained sibling folder like local-testing-wasm/) into the same two
+// <input type=file> elements a real pick would fill, via DataTransfer --
+// so every downstream consumer (the change listener above, and Step 1's
+// own re-read of cubeFile/maskFile at dispatch time) sees this exactly the
+// same as a user-chosen file, no separate code path to keep in sync.
+const useSampleDataBtn = document.getElementById('useSampleDataBtn');
+useSampleDataBtn.addEventListener('click', async () => {
+  useSampleDataBtn.disabled = true;
+  const prevLabel = useSampleDataBtn.textContent;
+  useSampleDataBtn.textContent = 'Loading sample data…';
+  try {
+    const cubeName = 'WALLABY_J103538-484832_VelCube.fits';
+    const maskName = 'WALLABY_J103538-484832_mask.fits';
+    const [cubeBytes, maskBytes] = await Promise.all(
+      [cubeName, maskName].map(async (name) => {
+        const res = await fetch('sample-data/' + name);
+        if (!res.ok) throw new Error(`Could not load sample-data/${name} (HTTP ${res.status})`);
+        return res.arrayBuffer();
+      })
+    );
+
+    const cubeDT = new DataTransfer();
+    cubeDT.items.add(new File([cubeBytes], cubeName));
+    cubeFileInput.files = cubeDT.files;
+
+    const maskDT = new DataTransfer();
+    maskDT.items.add(new File([maskBytes], maskName));
+    document.getElementById('maskFile').files = maskDT.files;
+
+    cubeFileInput.dispatchEvent(new Event('change'));
+  } catch (error) {
+    console.error(error);
+    estimateGeometryStatus.textContent = 'Could not load sample data (' + error.message + ').';
+  } finally {
+    useSampleDataBtn.disabled = false;
+    useSampleDataBtn.textContent = prevLabel;
   }
 });
 
