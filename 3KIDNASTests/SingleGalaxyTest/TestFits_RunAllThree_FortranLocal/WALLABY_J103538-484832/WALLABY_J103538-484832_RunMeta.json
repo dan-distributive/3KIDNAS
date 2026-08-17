@@ -1,8 +1,8 @@
 {
   "seed": 42,
-  "nBootstraps": 200,
-  "nProcessors": 4,
+  "nBootstraps": 1,
+  "nProcessors": 1,
   "totalLogicalCores": 8,
   "cloudDensity": 500,
-  "timestamp": "2026-08-14T22:04:03.880Z"
+  "timestamp": "2026-08-17T15:32:58.145Z"
 }

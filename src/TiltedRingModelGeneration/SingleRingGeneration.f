@@ -82,9 +82,11 @@ c           Now go through all the particles
         call ParticlePos_NewCenter(R%P(i), R%CentPos)
         call Ring_CalcParticle_VSys(R,i,idum)
         call Ring_CalcParticleFlux_Basic(R,i, Area)
-        if (TraceSwitch.eq.1 .and. R%Rmid.lt.2. .and. i.lt.20) then
-          print*, "PARTTRACE",i,idum,R%P(i)%Pos(0),R%P(i)%Pos(1),
-     &            R%P(i)%Pos(2),R%P(i)%ProjectedVel(2)
+        if (TraceSwitch.eq.1 .and. i.lt.5) then
+          print*, "PARTTRACE",R%Rmid,i,idum,R%P(i)%Pos(0),
+     &            R%P(i)%Pos(1),R%P(i)%Pos(2),
+     &            R%P(i)%ProjectedPos(0),R%P(i)%ProjectedPos(1),
+     &            R%P(i)%ProjectedVel(2)
         endif
 
 c        print*, "Random Check", R%P(i)%AngPos, R%P(i)%Pos

@@ -9,11 +9,11 @@
 // -------------
 // FFT convolution via FFTW3WasmRank2.js -- the REAL compiled FFTW3 (through
 // third_party/fftw-3.3.8/wasm/fftw-wasm.js's synchronous 1D primitives),
-// not FFTW3JS's hand-ported engine (retired from this file -- see git
-// history / FFTW3JS/ for the prior version, kept only as size-limited
-// reference/verification fixtures). Since this is the actual library, not a
-// curated port, it handles ANY N0xN1 natively -- no isTransformSupported
-// gate or ndarray-fft fallback needed anymore.
+// never FFTW3JS's hand-ported engine (retired from this file, and disabled
+// outright everywhere else too -- src/FFTW3JS/ is unreferenced by any live
+// or self-test code path; see FFTW3WasmRank2.js's own header). Since this
+// is the actual library, not a curated port, it handles ANY N0xN1 natively
+// -- no isTransformSupported gate or ndarray-fft fallback needed anymore.
 //
 // SYNC, NOT ASYNC: FFTW3WasmRank2.js exposes rdft2R2cSync/rdft2C2rSync, both
 // synchronous once the wasm module has been warmed up once (see warmUp()

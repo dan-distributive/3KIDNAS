@@ -41,3 +41,10 @@ Programs/BootStrapSampler
 Programs/SingleGalaxyFitter
 /Programs
 third_party/fftw-3.3.8/config.log
+
+# Transient copies the build's `make install` step moves into Programs/
+# right after -- src/bin/SingleGalaxyFitter was accidentally committed in
+# the initial snapshot (present mid-build at commit time); this stops it
+# from recurring.
+src/bin/BootStrapSampler
+src/bin/SingleGalaxyFitter

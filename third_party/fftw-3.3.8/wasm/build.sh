@@ -45,6 +45,35 @@ echo "== emconfigure: generic codelets, no SIMD, no threads, no Fortran =="
     >"$WORK/configure.log" 2>&1 ) \
   || { echo "configure failed, see $WORK/configure.log" >&2; cat "$WORK/configure.log" >&2; exit 1; }
 
+# -ffp-contract=off: the native build's own configure picks this up
+# automatically (confirmed via its Makefile: CFLAGS = -O3
+# -fomit-frame-pointer -mtune=native -fstrict-aliasing -ffp-contract=off),
+# but emconfigure's cross-compile probe does NOT -- confirmed directly by
+# running the same ./configure invocation under emconfigure and diffing
+# the resulting Makefile's CFLAGS line, which comes out missing this flag.
+# That asymmetry lets the WASM build's FFTW codelets fuse multiply-add
+# into a single-rounding FMA instruction while the native build's don't --
+# a real, plausible source of the Fortran/JS model-cube divergence this
+# was built to chase down (same class of issue as random.js's own
+# documented gfortran FMA investigation, just in FFTW's codelets instead
+# of ran2). Appended via sed rather than pre-set in the CFLAGS
+# environment variable -- setting CFLAGS before configure SUPPRESSES its
+# own auto-detection entirely (confirmed directly: doing that drops
+# -O3/-fomit-frame-pointer/-mtune=native/-fstrict-aliasing too, leaving
+# only the one flag), so the flag has to be added to the Makefiles
+# configure already generated, not fed in ahead of time. FFTW is a
+# recursive-make project -- every subdirectory (kernel/, rdft/, dft/,
+# simd-support/, ...) gets its OWN independently-substituted CFLAGS line
+# from the SAME configure run, confirmed directly (kernel/Makefile and
+# rdft/Makefile both had the identical pre-patch CFLAGS line the top-level
+# Makefile did) -- patching only the top-level Makefile would leave every
+# actual codelet subdirectory still building with FMA contraction allowed.
+echo "== Patching every subdirectory Makefile's CFLAGS to add -ffp-contract=off (see comment above) =="
+( cd "$WORK/fftw-src" && find . -name Makefile -exec sed -i.bak 's/^CFLAGS = .*/& -ffp-contract=off/' {} \; \
+  && find . -name 'Makefile.bak' -delete )
+grep -rc '^CFLAGS = .*-ffp-contract=off' "$WORK/fftw-src" --include=Makefile | grep -v ':0$' | wc -l
+echo "Makefiles patched (of $(find "$WORK/fftw-src" -name Makefile | wc -l) total)"
+
 echo "== emmake: building (bench/tools failure below is expected and irrelevant -- see note) =="
 # `make` also builds tools/bench, which needs its own copy of fdlibm
 # linked in (via libbench2) that we don't provide here -- that's an

@@ -144,10 +144,10 @@ function ring_ParticleGeneration(r, rng) {
     particlePos_NewCenter(r.p[i], r.centPos);
     ring_CalcParticle_VSys(r, i, rng, sinIncl, cosIncl);
     ring_CalcParticleFlux_Basic(r, i, area);
-    if (TRACE_DEBUG && r.rmid < 2.0 && i < 20) {
+    if (TRACE_DEBUG && i < 5) {
       const p = r.p[i];
-      console.error('PARTTRACE', i, rng.state.ran2State.idum,
-        p.pos[0], p.pos[1], p.pos[2], p.projectedVel[2]);
+      console.error('PARTTRACE', r.rmid, i, rng.state.ran2State.idum,
+        p.pos[0], p.pos[1], p.pos[2], p.projectedPos[0], p.projectedPos[1], p.projectedVel[2]);
     }
   }
 }

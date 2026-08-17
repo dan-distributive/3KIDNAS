@@ -226,6 +226,15 @@ c       Store the best model in the PVModel object
       PVModel%Param(0:PVModel%nParams-1)=
      &              ParamGuesses(1,1:PVModel%nParams)
 
+c       One-off diagnostic (Fortran-vs-JS model-cube divergence
+c           investigation): dump the converged parameter vector at full
+c           REAL(4) precision, unambiguously labelled so it can be grepped
+c           straight out of the trace log and fed into the JS side's own
+c           model-cube resynthesis for a direct apples-to-apples compare.
+      if (TraceSwitch .eq. 1) then
+        print*, "CONVERGED_VECTOR", PVModel%Param(0:PVModel%nParams-1)
+     &          ,PVModel%BestLike
+      endif
 
       return
       end subroutine

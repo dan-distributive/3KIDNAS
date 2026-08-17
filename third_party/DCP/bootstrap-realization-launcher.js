@@ -325,6 +325,15 @@ async function runBootstrapRealization(realizationIndex, payload) {
     // ---- Write the bootstrap cube as real FITS bytes (feeds SoFiA) ----
     const cubeFitsBytes = await dataCubeToFitsBytes(cfitsio, bootstrapCube, resampleBeam);
 
+    // One-off diagnostic dump (Fortran-vs-JS resampled-cube divergence
+    // investigation) -- writes the exact bytes just built above to disk when
+    // set, so they can be numpy-diffed against Fortran's own
+    // BootstrapCubes/*_Bootstrap_N.fits for the same realization/seed. No
+    // effect unless TRACE_DUMP_RESAMPLE_PATH is set.
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_RESAMPLE_PATH) {
+      require('fs').writeFileSync(process.env.TRACE_DUMP_RESAMPLE_PATH, Buffer.from(cubeFitsBytes));
+    }
+
     // BUG FIX (2026, flagged by Dan, reported to Nathan): the geometry
     // estimate (paEst/incEst below) needs the beam size in pixels at the
     // SoFiA catalogue step, same as native's SoFiA_Driver.py.LoadSoFiAOutput,
@@ -1293,7 +1302,18 @@ async function runInitialFit(realizationIndex, payload) {
     // before writing the model cube. Deliberately AFTER getEvalStats() above,
     // so timings.evalCount stays exactly what a bootstrap realization reports
     // (pure optimizer evaluations), not polluted by this one extra call.
-    tiltedRingModelComparison(pvBest.param, state);
+    // One-off diagnostic (Fortran-vs-JS model-cube divergence investigation):
+    // substitute Fortran's own converged parameter vector in place of this
+    // fit's own (independently converged, <0.03% different) vector, so the
+    // resynthesized model cube can be compared apples-to-apples against
+    // Fortran's AverageModel_v1.fits using IDENTICAL inputs. No effect
+    // unless TRACE_OVERRIDE_PARAMS is set (a JSON array of 15 numbers).
+    let synthParams = pvBest.param;
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_OVERRIDE_PARAMS) {
+      synthParams = Float64Array.from(JSON.parse(process.env.TRACE_OVERRIDE_PARAMS));
+      console.error('TRACE using overridden params for resynthesis:', Array.from(synthParams));
+    }
+    tiltedRingModelComparison(synthParams, state);
     // BUG FIX (2026, flagged by Dan): tiltedRingModelComparison leaves
     // fitModelDC.flux in Jy/pixel (the units the fit's own chi2 comparison
     // needs, to match brightness-converted observedDC) -- but
@@ -1486,7 +1506,17 @@ async function runInitialFit(realizationIndex, payload) {
     // header for why these are computed here and not inside initialAnalysis()
     // itself (dead weight on the bootstrap-realization hot path).
     const diag = computeSNDiagnostics(initResult.maskedObservedDC, maskDC, initResult.noise, beamAreaPixels);
-    report.RMS = initResult.noise;
+    // mJy/beam, matching FitOutput.f:424-425's own conversion exactly
+    // (ObservedDC%DH%Uncertainty*ObservedBeam%BeamAreaPixels*1000.) --
+    // initResult.noise itself is the raw per-pixel internal-unit RMS
+    // (EstimateCubeNoise.js), never converted before this point. Missing
+    // this conversion previously left report.RMS (and everything
+    // downstream reading it, e.g. RunInitialFitDCP.py's BestFitModel)
+    // ~28,000x too small versus the Fortran-written _BSModel.txt/
+    // _AvgModel_v1.txt for this galaxy (beamAreaPixels~28.2, so
+    // ~28.2*1000) -- confirmed by comparing this session's matched-seed
+    // fortran-local vs js-dcp run_both.js output.
+    report.RMS = f32(f32(initResult.noise * beamAreaPixels) * 1000);
     report.SN_Integrated = diag.snInt;
     report.SN_Peak = diag.snPeak;
     report.SN_Avg = diag.snAvg;

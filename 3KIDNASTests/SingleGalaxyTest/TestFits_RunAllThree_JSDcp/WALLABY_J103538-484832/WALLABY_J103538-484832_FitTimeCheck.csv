@@ -1,7 +1,7 @@
 CheckPoint,RunTime
-Initial Fit,216.1860408782959
-Bootstrap Loop,3729.63951420784
+Initial Fit,193.98632717132568
+Bootstrap Loop,638.3563010692596
 DCP Resample+SoFiA+Local Prep,0.0
 "DCP Local Prep (native, overlaps above)",0.0
-DCP Dispatch,3729.568046092987
-Total,3954.8964989185333
+DCP Dispatch,638.2917730808258
+Total,836.1356251239777

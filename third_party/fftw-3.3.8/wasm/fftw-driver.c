@@ -98,7 +98,19 @@ int fftw_r2c_2d_wasm(double *re_in, double *re_out, double *im_out, int n0, int 
 
   memcpy(in, re_in, sizeof(double) * (size_t) n0 * n1);
 
-  fftw_plan p2 = fftw_plan_dft_r2c_2d(n0, n1, in, out, FFTW_ESTIMATE);
+  // FFTW_PRESERVE_INPUT matches TwoDConvolution.f's own
+  // dfftw_plan_dft_r2c_2d call exactly (FFTW_ESTIMATE,FFTW_PRESERVE_INPUT)
+  // -- omitting it here was a real, confirmed mismatch: this plan and
+  // Fortran's were asking FFTW for different guarantees on the same
+  // transform, letting the planner pick a different internal algorithm
+  // even though both ultimately call fftw_plan_dft_r2c_2d. Found via a
+  // bit-exact stage checksum (sum of the model cube's flux, printed as a
+  // hex double) taken right before and right after CubeBeamConvolution:
+  // the two implementations agreed to ~1e-9 relative before convolution
+  // and only ~1e-7 after -- convolution was the only step where the
+  // agreement measurably degraded.
+  fftw_plan p2 = fftw_plan_dft_r2c_2d(n0, n1, in, out,
+      FFTW_ESTIMATE | FFTW_PRESERVE_INPUT);
   if (!p2) { fftw_free(in); fftw_free(out); return 3; }
   fftw_execute(p2);
 
@@ -120,9 +132,22 @@ int fftw_r2c_2d_wasm(double *re_in, double *re_out, double *im_out, int n0, int 
  *
  * re_in/im_in are each n0*nc doubles (nc=n1/2+1, half-complex spectrum,
  * same layout fftw_r2c_2d_wasm produces). re_out is n0*n1 reals
- * (row-major). Note: fftw_plan_dft_c2r destroys its input by default (no
- * FFTW_PRESERVE_INPUT flag here) -- harmless, `in` below is a private
- * copy freed immediately after, never the caller's own buffer. */
+ * (row-major).
+ *
+ * FFTW_PRESERVE_INPUT: TRIED here to match TwoDConvolution.f's own
+ * dfftw_plan_dft_c2r_2d call (FFTW_ESTIMATE,FFTW_PRESERVE_INPUT) exactly --
+ * confirmed EMPIRICALLY NOT SUPPORTED by this build: fftw_plan_dft_c2r_2d
+ * returns NULL (this function's own return-3 path) the moment the flag is
+ * added, for this exact transform size. Fortran's native, fully-configured
+ * FFTW build has the codelets to honor it for a multi-dimensional c2r
+ * transform; this WASM build's deliberately reduced "generic, no-SIMD"
+ * codelet set (see build.sh) apparently doesn't. Reverted to plain
+ * FFTW_ESTIMATE here -- the forward r2c plan above keeps
+ * FFTW_PRESERVE_INPUT (that one DOES succeed), so the two sides are now
+ * matched on the forward transform and knowingly mismatched on the
+ * inverse one, for a build-configuration reason, not an oversight. See
+ * fftw_r2c_2d_wasm's own comment for the checksum trace that found the
+ * original discrepancy this was chasing. */
 EMSCRIPTEN_KEEPALIVE
 int fftw_c2r_2d_wasm(double *re_in, double *im_in, double *re_out, int n0, int n1) {
   if (n0 <= 0 || n1 <= 0) return 1;

@@ -1,10 +1,10 @@
 Object:	 WALLABY_J103538-484832
-Date: 	2026-8-14
+Date: 	2026-8-17
 KINVER: 	 3KIDNASv1.1
 
-nBootstraps	200
-nBootstrap_Fits	200
-Max_NOutliers	16
+nBootstraps	1
+nBootstrap_Fits	1
+Max_NOutliers	0
 
 Cube Noise
 RMS (mJy/beam) 	1.621815
@@ -15,44 +15,44 @@ SN_Median 	0.647947
 
 Geometry Parameters
 Param Name	 Value 	 Error 
-X_model (pixels) 	21.8195		0.1288
-Y_model (pixels) 	19.373		0.1113
-RA_model (degrees) 	158.909349		0.000328
-DEC_model (degrees) 	-48.809266		0.000172
-Inc_model (degrees) 	73.8		5.6
-PA_model (degrees) 	244.4		3.8
-PA_model_g (degrees) 	253.9		3.8
-VSys_model (km/s) 	5737.4		2.2
+X_model (pixels) 	21.8195		0.1103
+Y_model (pixels) 	19.373		0.0281
+RA_model (degrees) 	158.909349		0.000273
+DEC_model (degrees) 	-48.809266		5.3e-05
+Inc_model (degrees) 	73.8		10.4
+PA_model (degrees) 	244.4		2.5
+PA_model_g (degrees) 	253.9		2.5
+VSys_model (km/s) 	5737.4		0.5
 VDisp_model (km/s) 	10.0		0.0
 
 Rotation Curve
 nR=	5
 Rad 		 VROT_model 	 e_VRot_model  
 ('') 		 (km/s) 		    (km/s) 
-7.49		69.0		50.3
-22.48		111.1		4.6
-37.46		127.4		3.7
-52.44		79.2		51.2
-67.43		131.4		29.8
+7.49		69.0		60.9
+22.48		111.1		4.1
+37.46		127.4		11.3
+52.44		79.2		42.1
+67.43		131.4		18.5
 
 Surface Density Profile
 nR=	5
 Rad  		 SD_FO_model 	 e_SD_FO_inc_model 
 ('')		 (Msol/pc^2) 	 (Msol/pc^2)  
-7.49		3.3		1.86
-22.48		5.2		1.11
-37.46		3.7		0.77
-52.44		0.26		0.56
-67.43		0.08		0.09
+7.49		3.3		1.2
+22.48		5.2		0.6
+37.46		3.7		0.3
+52.44		0.26		0.1
+67.43		0.08		0.21
 
 RHI Extraction Method (0==3D profile, -1==Failure) and flags (0==fine, -1==failure) 
 0		0
 RHI and limits (arcsec) 
-49.22		45.05		53.38
+49.22		49.16		49.27
 RHI and limits (kpc) 
-19.56		17.9		21.21
+19.56		19.54		19.58
 
 VHI Extraction flag (0==no issues, -1==failure)
 0
 VHI and error (km/s) 
-89.57		39.67
+89.57		30.59

@@ -1,6 +1,6 @@
 Object:  WALLABY_J103538-484832
 Source:  MCGSuite
-Date:    14-08-2026
+Date:    17-08-2026
 Version: 1
   
 RMS (mJy/beam)                1.621815

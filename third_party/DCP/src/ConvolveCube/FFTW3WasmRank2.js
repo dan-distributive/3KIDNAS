@@ -30,9 +30,10 @@
 // existing convolve2DChannelFFTW3JS caller, which already does that
 // division itself.
 //
-// VERIFIED -- directly against REAL compiled FFTW3, not just against
-// FFTW3JS (that comparison is still in the self-test too, as a secondary
-// check, but the direct one below is the one that actually matters):
+// VERIFIED -- directly against REAL compiled FFTW3. FFTW3JS/
+// Rank2Orchestration.js (the earlier hand-ported engine) is NOT used here or
+// anywhere else in the live pipeline -- disabled outright (the self-test's
+// old secondary comparison against it was removed), not just unreferenced:
 // --------
 // Checked against src/FFTW3JS/verify/ground_truth_harness (a real C binary
 // linked against this project's own compiled libfftw3.a) at the production
@@ -279,16 +280,18 @@ if (require.main === module) {
       return m;
     }
 
-    console.log('\n=== SECONDARY: rdft2R2cSync vs FFTW3JS (Rank2Orchestration.js), production size 57x53 ===');
-    const { rdft2R2c } = require('../FFTW3JS/Rank2Orchestration.js');
+    // FFTW3JS (the hand-ported engine, src/FFTW3JS/Rank2Orchestration.js)
+    // is no longer invoked anywhere, including here -- Dan asked for it to
+    // be disabled outright, not just unused by the live pipeline (it
+    // already wasn't: not required by bootstrap-realization-launcher.js,
+    // not present in package/, only ever reachable via this self-test's
+    // now-removed secondary comparison). The PRIMARY check above (direct
+    // bit-exact comparison against the real compiled FFTW3 ground-truth
+    // harness) is the authoritative one; this secondary comparison against
+    // a hand-port added no verification value beyond that.
     const rnd = new Float64Array(N0 * N1);
     let seed = 12345;
     for (let i = 0; i < rnd.length; i++) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; rnd[i] = (seed / 0x7fffffff) * 2 - 1; }
-
-    const real = rdft2R2cSync(N0, N1, rnd);
-    const hand = rdft2R2c(N0, N1, rnd);
-    const diff = maxAbsDiffInterleaved(real, hand);
-    console.log(`  maxAbsDiff = ${diff.toExponential(3)} (expect ~1e-14, matches the earlier wasm-vs-FFTW3JS ground-truth check)`);
 
     console.log('\n=== round-trip (forward then inverse / (N0*N1)), production size 57x53 ===');
     const spectrum = rdft2R2cSync(N0, N1, rnd);
