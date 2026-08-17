@@ -19,14 +19,14 @@ def GetFileAndFolderLocationAndNames():
     #   Set the default WRKP Options file
     WRKP_GeneralOptionsIn=WRKPDir+"/Inputs/SingleGalaxyTestFittingOptions_Base.txt"
     #   DCP bootstrap distribution: everything DCP-related lives under a fixed
-    #       location, js/app/ (the JS/DCP port's browser+CLI application
-    #       layer -- see js/ARCHITECTURE.md for the full layout). These never
+    #       location, js/ (the JS/DCP port's browser+CLI application layer --
+    #       see js/ARCHITECTURE.md for the full layout). These never
     #       vary per-galaxy, so they're computed here rather than requiring
     #       every config to repeat an absolute, machine-specific path.
     #       FixtureFile is where FullSingleGalaxyFit moves the initial fit's
     #       fixture dump when UseDCP=1, so it has to stay derived from the
     #       same DCPJobDir.
-    DCPDir=WRKPDir+"/js/app"
+    DCPDir=WRKPDir+"/js"
     DCPJobDir=DCPDir+"/DCPjobData"
     #   One DCP job, one slice per bootstrap realization -- each slice runs
     #       the entire resample+SoFiA+InitialAnalysis+fit pipeline (see

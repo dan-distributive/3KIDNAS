@@ -6,7 +6,7 @@ Single-dispatch DCP bootstrap driver: one DCP job, one slice per bootstrap
 realization, each slice running the ENTIRE per-realization pipeline native
 Fortran runs atomically (Bootstrap_Error_Analysis.GetBootstrapModel):
 resample -> SoFiA -> InitialAnalysis -> fit. Mirrors
-js/app/bootstrap-realization-launcher.js.
+js/bootstrap-realization-launcher.js.
 
 Replaces the prior two-round-trip design (bootstrap-resample-launcher.js +
 local RunFixtureOnlyFit + bootstrap-fit-launcher.js): that design existed

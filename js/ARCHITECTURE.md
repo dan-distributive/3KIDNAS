@@ -48,7 +48,7 @@ else:
     # local path, below
 ```
 
-`DCPJobDir` is `js/app/DCPjobData/` (see `SetFileLocations.py`).
+`DCPJobDir` is `js/DCPjobData/` (see `SetFileLocations.py`).
 
 ## 2. Local/native path (`UseDCP=0`)
 
@@ -144,21 +144,20 @@ sequentially on one laptop.
 
 ## 5. Serving `galaxy-fit.html` locally
 
-`js/app/galaxy-fit.html` loads `../src/PipelineConfig/defaultFittingOptions.js`
-and `../src/PayloadBuilder/buildFitPayloads.js` as plain `<script>` tags --
-`src/` is a *sibling* of `app/`, not nested inside it, since the `js/`
-reorg. A static file server rooted at `js/app/` (e.g. `python3 -m
-http.server` run from inside `app/`) refuses to serve anything above its
-own root, so those two script tags 404 silently and every global they
-define (`DefaultFittingOptions`, `PayloadBuilder`) comes up `undefined`.
-
-Root the server one level up, at `js/` itself, and load the page via
-`/app/galaxy-fit.html`:
+`js/galaxy-fit.html` loads `src/PipelineConfig/defaultFittingOptions.js`
+and `src/PayloadBuilder/buildFitPayloads.js` as plain `<script>` tags --
+`src/` is a direct child of `js/`, same level as `galaxy-fit.html` itself
+(the former `js/app/` layer was dissolved: everything that used to live
+under it -- `galaxy-fit.html`, `run-galaxy-fit-cli.js`,
+`bootstrap-realization-launcher.js`, `dcp-client-browser/`, etc. -- now
+sits directly under `js/`, alongside `src/`, `package/`, and `tools/`).
+So a plain static file server rooted at `js/` itself serves everything the
+page needs with no cross-root issues:
 
 ```bash
 cd /Users/dandesjardins/DCP/3KIDNAS/js
 python3 -m http.server 8000
-# then open http://localhost:8000/app/galaxy-fit.html
+# then open http://localhost:8000/galaxy-fit.html
 ```
 
 ## 6. Running each side yourself

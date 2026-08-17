@@ -495,7 +495,7 @@ c      print*, "Central Position Deg", RA,DEC
         elseif(i .eq. 5) then
             PreambleStr="PA_kin (degrees)"
 c           MIRRORED IN JS: this -90 deg convention offset + [0,360) wrap is
-c           duplicated in js/app/bootstrap-realization-launcher.js's
+c           duplicated in js/bootstrap-realization-launcher.js's
 c           toKinematicPA() (the JS worker has no Fortran binary available at
 c           runtime, so it can't call back into this routine). If you change
 c           this transform, update that function too.

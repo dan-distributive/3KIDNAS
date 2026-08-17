@@ -53,7 +53,7 @@ src/bin/SingleGalaxyFitter
 # dumps-then-moves fixture/payload/result JSON through on every real run
 # (RunInitialFitDCP.py, os.makedirs(...,exist_ok=True)) -- regenerated
 # fresh every time, not test fixtures or reference data.
-js/app/DCPjobData/*.json
+js/DCPjobData/*.json
 
 # run_both.js writes these fresh on every invocation (writeConfig/
 # writeCloudDensityOptionsFile) -- not hand-authored config.
