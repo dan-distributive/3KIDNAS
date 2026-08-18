@@ -527,9 +527,25 @@ function drawChart(canvas, xs, ys) {
 // ---------------------------------------------------------------------------
 // Job dispatch helper
 // ---------------------------------------------------------------------------
+// identity.set()/wallet.get() only need to run once per page session --
+// dispatchJob() is called separately for the initial fit and the bootstrap
+// loop, so without caching, the second dispatch would re-set identity and
+// re-pop the wallet-picker modal. Cached on success; cleared on failure so
+// a bad key (or a cancelled wallet picker) can be retried cleanly rather
+// than permanently wedging every future dispatch attempt.
+let identityReady = null;
+function ensureIdentity() {
+  if (!identityReady) {
+    identityReady = (async () => {
+      await dcp.identity.set(getApiKey());
+      await dcp.wallet.add(await dcp.wallet.get());
+    })().catch((error) => { identityReady = null; throw error; });
+  }
+  return identityReady;
+}
+
 async function dispatchJob({ inputSet, workFn, payload, jobName, modules }) {
-  await dcp.identity.set(getApiKey());
-  await dcp.wallet.add(await dcp.wallet.get());
+  await ensureIdentity();
   const job = dcp.compute.for(inputSet, workFn, [payload]);
   job.requires(modules || window.INITIAL_FIT_AND_BOOTSTRAP_MODULES);
   job.computeGroups = getComputeGroups();
