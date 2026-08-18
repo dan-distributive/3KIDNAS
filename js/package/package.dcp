@@ -1,6 +1,6 @@
 {
     "name": "3kidnas-test1",
-    "version": "0.8.0",
+    "version": "0.8.1",
     "files": {
         "CubeDifference.js": "CubeDifference.js",
         "DataCubeFits.js": "DataCubeFits.js",

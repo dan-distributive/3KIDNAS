@@ -178,7 +178,7 @@ manifestFiles['initialFitEntry.js'] = 'initialFitEntry.js';
 
 const packageDcp = {
   name: '3kidnas-test1',
-  version: '0.8.0',
+  version: '0.8.1',
   files: manifestFiles,
 };
 fs.writeFileSync(path.join(OUT_ROOT, 'package.dcp'), JSON.stringify(packageDcp, null, 4) + '\n');
