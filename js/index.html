@@ -36,6 +36,8 @@
 
   h1 { font-size: 22px; margin: 0 0 4px; }
   .eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin: 0 0 8px; }
+  .attribution { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+  .attribution a { color: var(--muted); }
   .lede { color: var(--muted); font-size: 14px; max-width: 62ch; margin: 0 0 28px; }
 
   section.card {
@@ -144,6 +146,7 @@
 
   <p class="eyebrow">3KIDNAS &middot; JS/DCP pipeline</p>
   <h1>Galaxy Fit</h1>
+  <p class="attribution">Source code adapted from <a href="https://github.com/NateDeg/3KIDNAS" target="_blank" rel="noopener">https://github.com/NateDeg/3KIDNAS</a></p>
   <p class="lede">
     Fits one HI data cube's kinematics via a Nelder&ndash;Mead tilted-ring model, entirely in JS/DCP
     &mdash; no Fortran, no Python. Runs as two separate DCP jobs: an initial/anchor fit, then a
@@ -282,7 +285,7 @@
     <div class="row">
       <div class="field">
         <label for="nBootstraps">Number of realizations</label>
-        <input type="number" id="nBootstraps" value="50" min="1" step="1">
+        <input type="number" id="nBootstraps" value="200" min="1" step="1">
       </div>
       <div class="field">
         <label for="bootstrapSeed">Debug seed (optional, 0 = time-based)</label>
