@@ -532,17 +532,14 @@ function drawChart(canvas, xs, ys) {
 // loop. The identityReady cache below already prevents a second call
 // within one page load, but dcp.identity.set() throws "identity has
 // already been set" if dcp-client's own internal state already has an
-// identity from outside that cache too -- so check via identity.get()
-// (throws if nothing's set yet, per bootstrap-realization-launcher.js's
-// own comment on this exact function) before ever calling set(), rather
-// than assuming our own cache is the only source of truth.
+// identity from outside that cache too -- so gate it on identity.check()
+// (returns whether one's already set) rather than assuming our own cache
+// is the only source of truth.
 let identityReady = null;
 function ensureIdentity() {
   if (!identityReady) {
     identityReady = (async () => {
-      let alreadySet = false;
-      try { await dcp.identity.get(); alreadySet = true; } catch (error) { /* not set yet */ }
-      if (!alreadySet) await dcp.identity.set(getApiKey());
+      if (!dcp.identity.check()) await dcp.identity.set(getApiKey());
       await dcp.wallet.add(await dcp.wallet.get());
     })().catch((error) => { identityReady = null; throw error; });
   }
