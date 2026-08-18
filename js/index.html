@@ -111,7 +111,7 @@
     margin-top: 12px; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--panel-2); display: flex; gap: 14px; align-items: center;
   }
-  .join-cluster #qrcode { background: #fff; padding: 6px; border-radius: 6px; flex: 0 0 auto; line-height: 0; }
+  .join-cluster #qrcode, .join-cluster #qrcodeInitial { background: #fff; padding: 6px; border-radius: 6px; flex: 0 0 auto; line-height: 0; }
   .join-cluster .join-text h3 { margin: 0 0 4px; font-size: 13px; }
   .join-cluster .join-text p { margin: 0; font-size: 12px; color: var(--muted); }
 
@@ -269,6 +269,14 @@
     </label>
 
     <div class="log" id="initialFitLog" hidden></div>
+
+    <div class="join-cluster" id="joinClusterPanelInitial" hidden>
+      <div id="qrcodeInitial"></div>
+      <div class="join-text">
+        <h3>Join the compute cluster</h3>
+        <p>Scan to turn your phone or laptop into a worker for the compute group this job is running on -- more workers join mid-job, and it visibly speeds up.</p>
+      </div>
+    </div>
 
     <div class="results" id="initialFitResults" hidden>
       <table class="kv" id="initialFitTable"></table>
@@ -466,23 +474,25 @@ function getComputeGroups() {
 }
 
 // ---------------------------------------------------------------------------
-// "Join the compute cluster" QR code -- points at dcp.live's join flow for
-// whichever compute group the bootstrap job is about to dispatch to (same
-// pattern as ffmpeg-dcp/app.js). Only ever points at one group -- dcp.live's
-// join flow is for joining a single compute group, not several; several
+// "Join the compute cluster" QR codes -- one per step (initial fit,
+// bootstrap loop), each points at dcp.live's join flow for whichever
+// compute group that job is about to dispatch to (same pattern as
+// ffmpeg-dcp/app.js). Only ever points at one group -- dcp.live's join
+// flow is for joining a single compute group, not several; several
 // configured points at the first (same one job.computeGroups puts first).
 // None configured (public): plain dcp.live, no query param needed.
 // ---------------------------------------------------------------------------
-const joinClusterQrCode = new QRCode(document.getElementById('qrcode'), { width: 128, height: 128 });
-function updateJoinClusterQrCode() {
+const joinClusterQrCode = new QRCode(document.getElementById('qrcode'), { width: 192, height: 192 });
+const joinClusterQrCodeInitial = new QRCode(document.getElementById('qrcodeInitial'), { width: 192, height: 192 });
+function updateJoinClusterQrCode(qrCode) {
   const groups = getComputeGroups();
   if (groups.length === 1 && groups[0].joinKey === 'public') {
-    joinClusterQrCode.makeCode('https://dcp.live');
+    qrCode.makeCode('https://dcp.live');
     return;
   }
   const first = groups[0];
   const raw = first.joinSecret ? `${first.joinKey},${first.joinSecret}` : first.joinKey;
-  joinClusterQrCode.makeCode(`https://dcp.live/?computeGroups=${encodeURIComponent(raw)}`);
+  qrCode.makeCode(`https://dcp.live/?computeGroups=${encodeURIComponent(raw)}`);
 }
 
 
@@ -678,6 +688,7 @@ document.getElementById('runInitialFitBtn').addEventListener('click', async () =
   setPill(initialFitStatus, 'running', 'building payload…');
   initialFitLog.hidden = false; initialFitLog.innerHTML = '';
   document.getElementById('initialFitResults').hidden = true;
+  document.getElementById('joinClusterPanelInitial').hidden = true;
 
   try {
     const opts = readOptionsFromForm();
@@ -689,7 +700,9 @@ document.getElementById('runInitialFitBtn').addEventListener('click', async () =
 
     setPill(initialFitStatus, 'running', 'dispatching…');
     logLine(initialFitLog, `dispatching initial fit for ${objName}...`);
-    
+    updateJoinClusterQrCode(joinClusterQrCodeInitial);
+    document.getElementById('joinClusterPanelInitial').hidden = false;
+
     // DCP JOB
     const job = await dispatchJob({ inputSet: [0], workFn: runInitialFit, payload, jobName: objName + ' (initial fit)', modules: window.INITIAL_FIT_ONLY_MODULES });
     
@@ -715,6 +728,7 @@ document.getElementById('runInitialFitBtn').addEventListener('click', async () =
     logLine(initialFitLog, `converged: chi2=${result.chi2.toFixed(3)}`, 'ok');
     setPill(initialFitStatus, 'ok', 'converged  chi2=' + result.chi2.toFixed(1));
 
+    document.getElementById('joinClusterPanelInitial').hidden = true;
     renderInitialFitResults(result);
     document.getElementById('runBootstrapBtn').disabled = false;
     if (!document.getElementById('pauseAfterInitialFit').checked) {
@@ -724,6 +738,7 @@ document.getElementById('runInitialFitBtn').addEventListener('click', async () =
     console.error(error);
     logLine(initialFitLog, 'error: ' + error.message, 'err');
     setPill(initialFitStatus, 'err', error.message);
+    document.getElementById('joinClusterPanelInitial').hidden = true;
   } finally {
     btn.disabled = false;
   }
@@ -800,7 +815,7 @@ async function runBootstrapFlow() {
 
     setPill(bootstrapStatus, 'running', `dispatching ${nBootstraps} realization(s)…`);
     logLine(bootstrapLog, `dispatching ${nBootstraps} bootstrap realization(s) for ${objName}...`);
-    updateJoinClusterQrCode();
+    updateJoinClusterQrCode(joinClusterQrCode);
     document.getElementById('joinClusterPanel').hidden = false;
 
     // INPUT SET
