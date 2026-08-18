@@ -314,11 +314,9 @@
 
 </main>
 
-<!-- dcp-client, loaded from a local sibling folder (must be served, not opened as file://,
-     for the scheduler to be reachable). load-css="false" since our folder isn't named
-     "dcp-client" -- dcp-client.js's own CSS auto-loader wouldn't find the stylesheet. -->
-<script src="dcp-client-browser/dcp-client.js" scheduler="https://scheduler.distributed.computer/" load-css="false"></script>
-<link rel="stylesheet" href="dcp-client-browser/assets/dcp-client.css">
+<!-- dcp-client -->
+<script src="https://scheduler.distributed.computer/dcp-client/dcp-client.js"></script>
+
 
 <!-- The fit engine + shared config/payload-builder modules. bootstrap-realization-launcher.js
      defines runInitialFit/runBootstrapRealization as globals; compute.for() only ships their
@@ -337,11 +335,6 @@
 <script>
 'use strict';
 
-// dcp-client.js signals readiness via a window event, not a global promise --
-// wrap it once here so the rest of this page can just `await dcpReady`.
-const dcpReady = new Promise((resolve) => {
-  window.addEventListener('dcpclientready', () => resolve(), { once: true });
-});
 
 function setPill(el, kind, text) {
   el.className = 'status-pill ' + kind;
@@ -535,7 +528,6 @@ function drawChart(canvas, xs, ys) {
 // Job dispatch helper
 // ---------------------------------------------------------------------------
 async function dispatchJob({ inputSet, workFn, payload, jobName, modules }) {
-  await dcpReady;
   await dcp.identity.set(getApiKey());
   await dcp.wallet.add(await dcp.wallet.get());
   const job = dcp.compute.for(inputSet, workFn, [payload]);
@@ -839,9 +831,6 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// dispatchJob() awaits dcpReady and surfaces its own failures -- this is
-// just a console breadcrumb for the case where dcp-client never even loads.
-dcpReady.catch((error) => { console.error('dcp-client failed to load:', error); });
 
 if (location.protocol === 'file:') {
   document.getElementById('fileProtocolWarning').hidden = false;
