@@ -32,7 +32,7 @@
 //     [--objName <name>] [--out <path>] \
 //     [--apiKey <key> | --local] [--computeGroups a,b] [--slicePrice 1.0]
 //
-// galaxy-fit.html is the browser equivalent of this same flow -- both call
+// index.html is the browser equivalent of this same flow -- both call
 // the same buildFitPayloads.js functions; only the dispatch entry point
 // differs (this file uses dcp-client's Node identity.set(apiKey) path via
 // the launcher's own CLI tail; the browser uses dcp.wallet.get()).

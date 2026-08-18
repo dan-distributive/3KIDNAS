@@ -6,7 +6,7 @@
 // GeometryCorrection.py:GetGlobalPositionAngle (WCS-corrected global PA).
 // See ~/.claude/plans/breezy-launching-nova.md Phase 4.
 //
-// Runs entirely client-side, on data galaxy-fit.html already holds after a
+// Runs entirely client-side, on data index.html already holds after a
 // bootstrap run (initialFitResult as the Python's BestFitModel, and the
 // bootstrapResults array as BootstrapModels) -- no new server-side/DCP-
 // dispatched computation needed for this phase.

@@ -4,7 +4,7 @@
 // radialProfilePlot.js
 // The "R plots" from the bootstrap comparison tooling (run_all_three_results.
 // html's gbpBuildProfile / "Rotation curve" & "Surface density" cards),
-// adapted for galaxy-fit.html's single-galaxy bootstrap results: one V_rot-
+// adapted for index.html's single-galaxy bootstrap results: one V_rot-
 // vs-R and one Sigma-vs-R panel, each showing every bootstrap realization's
 // own radial profile as a thin translucent line (the spread IS the point --
 // unlike run_all_three's multi-run comparison, there's no separate

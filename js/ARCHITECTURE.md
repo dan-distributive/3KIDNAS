@@ -142,13 +142,13 @@ sequentially on one laptop.
 | `<Obj>_BootstrapFits.csv` | `Bootstrap_Outputs.StoreBootstrappedModels_CSV` | `TargFolder/<Obj>/` | Final per-realization results (both paths, same format) |
 | `<Obj>_FitTimeCheck.csv` | `FullSingleGalaxyFit.py` | `TargFolder/<Obj>/` | Timing checkpoints (both paths) |
 
-## 5. Serving `galaxy-fit.html` locally
+## 5. Serving `index.html` locally
 
-`js/galaxy-fit.html` loads `src/PipelineConfig/defaultFittingOptions.js`
+`js/index.html` loads `src/PipelineConfig/defaultFittingOptions.js`
 and `src/PayloadBuilder/buildFitPayloads.js` as plain `<script>` tags --
-`src/` is a direct child of `js/`, same level as `galaxy-fit.html` itself
+`src/` is a direct child of `js/`, same level as `index.html` itself
 (the former `js/app/` layer was dissolved: everything that used to live
-under it -- `galaxy-fit.html`, `run-galaxy-fit-cli.js`,
+under it -- `index.html`, `run-galaxy-fit-cli.js`,
 `bootstrap-realization-launcher.js`, `dcp-client-browser/`, etc. -- now
 sits directly under `js/`, alongside `src/`, `package/`, and `tools/`).
 So a plain static file server rooted at `js/` itself serves everything the
@@ -157,7 +157,7 @@ page needs with no cross-root issues:
 ```bash
 cd /Users/dandesjardins/DCP/3KIDNAS/js
 python3 -m http.server 8000
-# then open http://localhost:8000/galaxy-fit.html
+# then open http://localhost:8000/index.html
 ```
 
 ## 6. Running each side yourself

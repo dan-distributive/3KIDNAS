@@ -13,7 +13,7 @@
 // bytes as Uint8Array, numbers, the fitting-options object from
 // defaultFittingOptions.js) and returns plain data out (a JSON-serializable
 // payload object). No `require`, no `fs`, no wasm module of its own -- the
-// caller (a Node CLI script, or galaxy-fit.html in a browser) is responsible
+// caller (a Node CLI script, or index.html in a browser) is responsible
 // for getting bytes off disk/a file input and for eventually handing the
 // returned payload to `compute.for`. This is what lets the SAME file be
 // `require()`'d by Node and loaded via a plain <script> tag in a browser.

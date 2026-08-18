@@ -29,7 +29,7 @@
 
 // Node-only globals, used by the CLI/local-pool tail at the bottom of this
 // file. Guarded so this same file can also be loaded via a plain <script>
-// tag in a browser (galaxy-fit.html): compute.for() never actually EXECUTES
+// tag in a browser (index.html): compute.for() never actually EXECUTES
 // runBootstrapRealization/runInitialFit locally in either environment (it
 // only ships their source to a remote DCP sandbox), so the only code here
 // that needs to run in-process is this module-scope setup and the CLI tail
@@ -630,7 +630,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
 // (SoFiA_Driver.WriteSoFiACatFileForWRKP just echoes whatever PA/Inc numbers
 // it's given -- see that function's own comment for why there's no
 // automated derivation on the initial-fit path today). This gives
-// galaxy-fit.html a real, in-pipeline way to produce that same estimate
+// index.html a real, in-pipeline way to produce that same estimate
 // instead of requiring it be done by hand beforehand: identical
 // SoFiA-run/parse/GeometryEstimates chain runBootstrapRealization already
 // runs live for every bootstrap realization, just once, on the un-resampled
@@ -1606,7 +1606,7 @@ async function runInitialFit(realizationIndex, payload) {
 
 // module.exports for Node (require()'d by the CLI tail below and by
 // RunInitialFitDCP.py/RunBootstrapsDCP.py's subprocess dispatch); globals
-// for a browser <script> include (galaxy-fit.html), where `module` doesn't
+// for a browser <script> include (index.html), where `module` doesn't
 // exist at all.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { runBootstrapRealization, runInitialFit, estimateGeometry, parseComputeGroups };
@@ -1703,7 +1703,7 @@ const INITIAL_FIT_AND_BOOTSTRAP_MODULES = [
   './src/StandardMath/fdlibm-wasm',
   './src/StandardMath/fdlibm-module',
 ];
-// Exposed for galaxy-fit.html, which needs the exact same list for its own
+// Exposed for index.html, which needs the exact same list for its own
 // job.requires() call -- kept as this ONE array (not a second, hand-copied
 // list) so the two dispatch entry points (this file's CLI tail, the
 // browser page) can never drift apart. No-op in Node (module.exports above
@@ -1841,7 +1841,7 @@ function parseComputeGroups(flagValue) {
 // is what makes the bare `return;` statements below legal there -- but a
 // browser <script> tag has no such wrapper, so without this IIFE those same
 // `return`s are a SyntaxError at PARSE time (not just unreached code) the
-// moment this file is loaded via <script src="..."> in galaxy-fit.html,
+// moment this file is loaded via <script src="..."> in index.html,
 // even though isNode being false means cliMain() itself is never called.
 if (isNode && isMainThread && require.main === module) { (function cliMain() {
   function arg(name, def) {

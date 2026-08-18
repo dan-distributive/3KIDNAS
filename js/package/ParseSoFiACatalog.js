@@ -97,7 +97,7 @@ function parseSoFiACatalog(catalogText) {
 //     `module.exports` being already-truthy (the previous, broken version
 //     of this code) silently skipped the assignment there, and real
 //     bootstrap dispatch failed with "parseSoFiACatalog is not a function".
-//   - globalThis.ParseSoFiACatalog: galaxy-fit.html's own
+//   - globalThis.ParseSoFiACatalog: index.html's own
 //     runEstimateGeometryLocally() loads this file as a raw <script> tag
 //     (no module wrapper, `module` genuinely undefined there) and its
 //     require() shim reads window.ParseSoFiACatalog directly -- removing

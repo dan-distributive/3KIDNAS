@@ -65,9 +65,9 @@ function valuesFor(param, realizations, bestVal) {
 
 // ---------------------------------------------------------------------------
 // drawCornerPlot(canvas, bootstrapResults, bestFit)
-// bootstrapResults: array of runBootstrapRealization reports (galaxy-fit.html's
+// bootstrapResults: array of runBootstrapRealization reports (index.html's
 //   own `bootstrapResults` variable -- already exactly this shape).
-// bestFit: the runInitialFit report (galaxy-fit.html's `initialFitResult`).
+// bestFit: the runInitialFit report (index.html's `initialFitResult`).
 // ---------------------------------------------------------------------------
 function drawCornerPlot(canvas, bootstrapResults, bestFit) {
   const ok = bootstrapResults.filter((r) => !r.sofiaFailed);

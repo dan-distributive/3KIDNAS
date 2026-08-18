@@ -66,7 +66,7 @@ function paEstimate(kinPA, ellPA) {
 // BOTH assignments, unconditionally -- see ParseSoFiACatalog.js's identical
 // comment for the full reasoning (two real, independent consumers: every
 // require()-based context needs module.exports set unconditionally;
-// galaxy-fit.html's raw-<script>-tag local-estimate loader needs
+// index.html's raw-<script>-tag local-estimate loader needs
 // globalThis.GeometryEstimates, which the previous if/else version of this
 // code dropped whichever branch didn't fire).
 if (typeof module !== 'undefined') {
