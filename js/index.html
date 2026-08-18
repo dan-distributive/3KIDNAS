@@ -107,6 +107,14 @@
   .log .line.err { color: var(--err); }
   .log .line.ok { color: var(--ok); }
 
+  .join-cluster {
+    margin-top: 12px; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel-2); display: flex; gap: 14px; align-items: center;
+  }
+  .join-cluster #qrcode { background: #fff; padding: 6px; border-radius: 6px; flex: 0 0 auto; line-height: 0; }
+  .join-cluster .join-text h3 { margin: 0 0 4px; font-size: 13px; }
+  .join-cluster .join-text p { margin: 0; font-size: 12px; color: var(--muted); }
+
   .results { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
   table.kv { width:100%; border-collapse: collapse; font-size: 13px; }
   table.kv td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
@@ -299,6 +307,14 @@
 
     <div class="log" id="bootstrapLog" hidden></div>
 
+    <div class="join-cluster" id="joinClusterPanel" hidden>
+      <div id="qrcode"></div>
+      <div class="join-text">
+        <h3>Join the compute cluster</h3>
+        <p>Scan to turn your phone or laptop into a worker for the compute group this job is running on -- more workers join mid-job, and it visibly speeds up.</p>
+      </div>
+    </div>
+
     <div class="results" id="bootstrapResults" hidden>
       <table class="kv" id="bootstrapTable"></table>
       <div class="charts">
@@ -316,6 +332,9 @@
 
 <!-- dcp-client -->
 <script src="https://scheduler.distributed.computer/dcp-client/dcp-client.js"></script>
+
+<!-- QR code rendering for the "join the compute cluster" panel -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
 
 <!-- The fit engine + shared config/payload-builder modules. bootstrap-realization-launcher.js
@@ -444,6 +463,26 @@ function getComputeGroups() {
     .filter((g) => g.joinKey);
   if (!groups.length) return [{ joinKey: 'public' }];
   return groups.map((g) => (g.joinSecret ? g : { joinKey: g.joinKey }));
+}
+
+// ---------------------------------------------------------------------------
+// "Join the compute cluster" QR code -- points at dcp.live's join flow for
+// whichever compute group the bootstrap job is about to dispatch to (same
+// pattern as ffmpeg-dcp/app.js). Only ever points at one group -- dcp.live's
+// join flow is for joining a single compute group, not several; several
+// configured points at the first (same one job.computeGroups puts first).
+// None configured (public): plain dcp.live, no query param needed.
+// ---------------------------------------------------------------------------
+const joinClusterQrCode = new QRCode(document.getElementById('qrcode'), { width: 128, height: 128 });
+function updateJoinClusterQrCode() {
+  const groups = getComputeGroups();
+  if (groups.length === 1 && groups[0].joinKey === 'public') {
+    joinClusterQrCode.makeCode('https://dcp.live');
+    return;
+  }
+  const first = groups[0];
+  const raw = first.joinSecret ? `${first.joinKey},${first.joinSecret}` : first.joinKey;
+  joinClusterQrCode.makeCode(`https://dcp.live/?computeGroups=${encodeURIComponent(raw)}`);
 }
 
 
@@ -650,12 +689,19 @@ document.getElementById('runInitialFitBtn').addEventListener('click', async () =
 
     setPill(initialFitStatus, 'running', 'dispatching…');
     logLine(initialFitLog, `dispatching initial fit for ${objName}...`);
+    
+    // DCP JOB
     const job = await dispatchJob({ inputSet: [0], workFn: runInitialFit, payload, jobName: objName + ' (initial fit)', modules: window.INITIAL_FIT_ONLY_MODULES });
+    
+    // EVENTS
     job.on('readystatechange', (ev) => logLine(initialFitLog, 'state: ' + ev));
     job.on('accepted', () => logLine(initialFitLog, 'job id: ' + job.id));
     job.on('error', (error) => logLine(initialFitLog, 'job error: ' + (error.message || error), 'err'));
+    job.on('nofunds', (ev) => logLine(initialFitLog, ev));
 
-    const results = await job.exec(undefined);
+    // EXEC
+    const results = await job.exec();
+
     const result = results[0];
     if (!result.FITAchieved) {
       throw new Error(result.error || 'did not converge');
@@ -734,6 +780,7 @@ async function runBootstrapFlow() {
   bootstrapLog.hidden = false; bootstrapLog.innerHTML = '';
   document.getElementById('bootstrapResults').hidden = true;
   document.getElementById('downloadBtn').hidden = true;
+  document.getElementById('joinClusterPanel').hidden = true;
 
   try {
     const opts = readOptionsFromForm();
@@ -753,9 +800,16 @@ async function runBootstrapFlow() {
 
     setPill(bootstrapStatus, 'running', `dispatching ${nBootstraps} realization(s)…`);
     logLine(bootstrapLog, `dispatching ${nBootstraps} bootstrap realization(s) for ${objName}...`);
+    updateJoinClusterQrCode();
+    document.getElementById('joinClusterPanel').hidden = false;
+
+    // INPUT SET
     const inputSet = Array.from({ length: nBootstraps }, (_, i) => i);
+    
+    // DCP JOB
     const job = await dispatchJob({ inputSet, workFn: runBootstrapRealization, payload, jobName: objName + ' (bootstrap)', modules: window.BOOTSTRAP_ONLY_MODULES });
 
+    // EVENTS
     let completed = 0;
     job.on('readystatechange', (ev) => logLine(bootstrapLog, 'state: ' + ev));
     job.on('accepted', () => logLine(bootstrapLog, 'job id: ' + job.id));
@@ -764,19 +818,24 @@ async function runBootstrapFlow() {
       setPill(bootstrapStatus, 'running', `${completed}/${nBootstraps} realizations complete…`);
     });
     job.on('error', (error) => logLine(bootstrapLog, 'job error: ' + (error.message || error), 'err'));
+    job.on('nofunds', (ev) => logLine(bootstrapLog, ev));
 
-    const results = await job.exec(undefined);
+    // EXEC
+    const results = await job.exec();
+
     bootstrapResults = results;
     const nOk = results.filter((r) => !r.sofiaFailed).length;
     logLine(bootstrapLog, `${nOk}/${nBootstraps} realizations succeeded`, 'ok');
     setPill(bootstrapStatus, 'ok', `${nOk}/${nBootstraps} succeeded`);
 
+    document.getElementById('joinClusterPanel').hidden = true;
     renderBootstrapResults(results, initialFitResult);
     document.getElementById('downloadBtn').hidden = false;
   } catch (error) {
     console.error(error);
     logLine(bootstrapLog, 'error: ' + error.message, 'err');
     setPill(bootstrapStatus, 'err', error.message);
+    document.getElementById('joinClusterPanel').hidden = true;
   } finally {
     btn.disabled = false;
   }
@@ -799,6 +858,23 @@ function medianMadUncertainty(values, bestFitVal) {
   return { median: med, err };
 }
 
+// Decimal places needed to show x with `sig` significant figures -- e.g.
+// sigFigDecimals(3.222, 2) -> 1, so an uncertainty of 3.222 rounds to 3.2
+// and its paired mean/median rounds to that same 1 decimal place, rather
+// than mismatched precision like "248.708 +/- 3.2". More than 2 sig figs
+// isn't meaningful for a bootstrap MAD. Matches tools/run_both_report.html's
+// sigFigDecimals exactly.
+function sigFigDecimals(x, sig) {
+  if (!Number.isFinite(x) || x === 0) return 0;
+  const intDigits = Math.floor(Math.log10(Math.abs(x))) + 1;
+  return Math.max(0, sig - intDigits);
+}
+function fmtValErr(val, err) {
+  if (!Number.isFinite(err)) return Number.isFinite(val) ? val.toFixed(3) : '&mdash;';
+  const decimals = sigFigDecimals(err, 2);
+  return `${val.toFixed(decimals)} &plusmn; ${err.toFixed(decimals)}`;
+}
+
 function renderBootstrapResults(results, best) {
   const ok = results.filter((r) => !r.sofiaFailed);
   const params = [
@@ -814,7 +890,7 @@ function renderBootstrapResults(results, best) {
     const bestVal = pick(best);
     if (!values.length) return `<tr><td>${label}</td><td>&mdash;</td></tr>`;
     const { median, err } = medianMadUncertainty(values, bestVal);
-    return `<tr><td>${label}</td><td class="tabular">${median.toFixed(3)} &plusmn; ${err.toFixed(3)}</td></tr>`;
+    return `<tr><td>${label}</td><td class="tabular">${fmtValErr(median, err)}</td></tr>`;
   });
   rows.unshift(`<tr><td>Converged</td><td class="tabular">${ok.length} / ${results.length}</td></tr>`);
 
@@ -823,10 +899,10 @@ function renderBootstrapResults(results, best) {
   // extra dispatch needed. See scalingParams.js.
   const scaling = ScalingParams.computeScalingParams(best, ok);
   rows.push(`<tr><td>R<sub>HI</sub> (kpc)</td><td class="tabular">${
-    Number.isFinite(scaling.RHI_kpc) ? scaling.RHI_kpc.toFixed(2) + (Number.isFinite(scaling.RHI_kpc_err) ? ' &plusmn; ' + scaling.RHI_kpc_err.toFixed(2) : '') : '&mdash;'
+    Number.isFinite(scaling.RHI_kpc) ? fmtValErr(scaling.RHI_kpc, scaling.RHI_kpc_err) : '&mdash;'
   }</td></tr>`);
   rows.push(`<tr><td>V<sub>HI</sub> (km/s)</td><td class="tabular">${
-    Number.isFinite(scaling.VHI) ? scaling.VHI.toFixed(1) + (Number.isFinite(scaling.VHI_err) ? ' &plusmn; ' + scaling.VHI_err.toFixed(1) : '') : '&mdash;'
+    Number.isFinite(scaling.VHI) ? fmtValErr(scaling.VHI, scaling.VHI_err) : '&mdash;'
   }</td></tr>`);
   if (best.wcsHeader && best.momentMaps) {
     const paGlobal = ScalingParams.computeGlobalPA(best, best.wcsHeader, best.momentMaps.beamMajPix);
