@@ -128,6 +128,11 @@ ccccccc
       integer, INTENT(INOUT) :: idum          !idum is a seed for the random number generator
       integer i
       real Rmin,Rmax, Area       !The minimum and maximum radii of the ring and the ring area
+      character(64) BisectEnvVal
+      integer BisectEnvLen
+
+      call get_environment_variable("TRACE_OVERRIDE_IDUM",
+     &          BisectEnvVal,BisectEnvLen)
 
 c           To randomly sample the ring area we need Rmin and Rmax
       Rmin=R%Rmid-R%Rwidth/2.       !We need Rmin and Rmax for the ring first
@@ -152,6 +157,17 @@ c           Now go through all the particles
      &            R%P(i)%Pos(1),R%P(i)%Pos(2),
      &            R%P(i)%ProjectedPos(0),R%P(i)%ProjectedPos(1),
      &            R%P(i)%ProjectedVel(2)
+        endif
+c           One-off diagnostic (Fortran-vs-JS gasdev-desync bisection,
+c               Dan 2026-08-18): checkpoint every 200th particle (plus the
+c               very last one) across the FULL ring, not just the first 5
+c               PARTTRACE covers -- to localize exactly where a desync
+c               (re)starts, if one does, deeper into a ring's particle
+c               loop. Gated on TRACE_OVERRIDE_IDUM.
+        if (BisectEnvLen .gt. 0 .and.
+     &          (mod(i,200).eq.0 .or. i.eq.R%nParticles-1)) then
+          print '(A,F10.6,1X,I6,1X,I12,1X,F14.8)', 'BISECTTRACE',
+     &        R%Rmid,i,idum,R%P(i)%ProjectedVel(2)
         endif
 
 c        print*, "Random Check", R%P(i)%AngPos, R%P(i)%Pos

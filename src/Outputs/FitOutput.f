@@ -180,6 +180,13 @@ c               TRACE_OVERRIDE_IDUM is set.
 c       Create the point-source data cube
       call FillDataCubeWithTiltedRing(ModelDC,ModelTiltedRing)
 c      print*, "Filled DC", sum(ModelDC%Flux),pixelarea
+c           One-off diagnostic (Fortran-vs-JS pre/post-convolution
+c               isolation, Dan 2026-08-18): checksum the model cube right
+c               before beam convolution, so a residual divergence can be
+c               attributed to particle generation/binning (present here
+c               already) vs convolution (introduced after this point).
+c               Gated on TRACE_OVERRIDE_IDUM.
+      call MaybeTracePreConvChecksum(ModelDC)
 c        Convolve the cube with the beam
 c           Note that it is assumed that the real beam kernel has already been calculated
       call CubeBeamConvolution(ModelDC,ObservedBeam)
@@ -846,6 +853,34 @@ c           controlled-comparison run.
         print '(A,4F14.6)', 'RINGTRACE2',
      &      TR%R(0)%z0,TR%R(0)%zGradiantStart,
      &      TR%R(0)%CentPos(0),TR%R(0)%CentPos(1)
+      endif
+
+      return
+      end subroutine
+ccccccc
+
+ccccccc
+c       MaybeTracePreConvChecksum: one-off diagnostic (Fortran-vs-JS
+c           pre/post-convolution isolation, Dan 2026-08-18) -- prints a
+c           sum/min/max checksum of the model cube's flux right before
+c           beam convolution runs. Gated on TRACE_OVERRIDE_IDUM.
+      subroutine MaybeTracePreConvChecksum(DC)
+      use DataCubeMod
+      implicit none
+      Type(DataCube), INTENT(IN) :: DC
+      character(64) EnvVal
+      integer EnvLen
+
+      call get_environment_variable("TRACE_OVERRIDE_IDUM",EnvVal,
+     &          EnvLen)
+      if (EnvLen .gt. 0) then
+        print '(A,ES25.17,1X,ES25.17,1X,ES25.17)', 'PRECONVTRACE',
+     &      sum(DC%Flux), minval(DC%Flux), maxval(DC%Flux)
+        print '(A,8F16.8)', 'PRECONVPIX',
+     &      DC%Flux(14,23,89),DC%Flux(14,23,90),
+     &      DC%Flux(14,24,89),DC%Flux(14,24,90),
+     &      DC%Flux(15,23,89),DC%Flux(15,23,90),
+     &      DC%Flux(15,24,89),DC%Flux(15,24,90)
       endif
 
       return

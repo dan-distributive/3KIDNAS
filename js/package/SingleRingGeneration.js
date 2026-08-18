@@ -191,6 +191,17 @@ function ring_ParticleGeneration(r, rng) {
       console.error('PARTTRACE', r.rmid, i, rng.state.ran2State.idum,
         p.pos[0], p.pos[1], p.pos[2], p.projectedPos[0], p.projectedPos[1], p.projectedVel[2]);
     }
+    // One-off diagnostic (Fortran-vs-JS gasdev-desync bisection, Dan
+    // 2026-08-18): checkpoint every 200th particle (plus the very last
+    // one) across the FULL ring, not just the first 5 PARTTRACE covers --
+    // to localize exactly where a desync (re)starts, if one does, deeper
+    // into a ring's particle loop. Gated on TRACE_OVERRIDE_IDUM. Matches
+    // Fortran's equivalent in this same function.
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_OVERRIDE_IDUM
+        && (i % 200 === 0 || i === r.nParticles - 1)) {
+      console.error('BISECTTRACE', r.rmid.toFixed(6), i, rng.state.ran2State.idum,
+        r.p[i].projectedVel[2].toFixed(8));
+    }
   }
 }
 

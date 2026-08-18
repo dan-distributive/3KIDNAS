@@ -1,12 +1,16 @@
 # Bootstrap-resampling Fortran/JS divergence — investigation log
 
-**Status as of 2026-08-18: a real, confirmed root-cause mechanism found and
-partially fixed — a `gasdev` cached-spare-value asymmetry between platforms
-(see "Hypothesis 5, corrected" below). Fixing it produced a real, measured
-improvement, but did not fully close the gap; a residual divergence remains,
-not yet fully explained.** Four earlier hypotheses were tested and disproven
-before this one. This doc exists so the investigation can be picked up cold,
-by anyone (including a future session with no memory of how we got here).
+**Status as of 2026-08-18 (later pass): a genuine, unresolved paradox.**
+The `gasdev` cache-reset fix (below) is now verified, via fine-grained
+bisection, to hold **perfectly across all 5 rings' entire particle loops**
+(every 200th particle plus the last one — `idum` and velocity bit-exact,
+every checkpoint). And yet the pre-convolution model cube, checked via a
+separate, independently-verified diagnostic print, still shows real,
+repeatable, substantial divergence at the same tracked pixels. These two
+findings are individually solid but contradict each other, and that
+contradiction is not yet resolved — see "The bisection paradox" near the
+end. This doc exists so the investigation can be picked up cold, by anyone
+(including a future session with no memory of how we got here).
 
 ## The problem, precisely
 
@@ -204,48 +208,100 @@ either cube compared here).
 
 ## Where this leaves us
 
-The `gasdev` cache-reset fix is real, confirmed at the particle level, and
-measurably shrinks the divergence — but does not eliminate it. The next
-concrete step is figuring out where the residual comes from. Candidates,
-in rough priority order:
+**Ruled out, all confirmed bit-identical between platforms in the
+gasdev-fixed controlled test:**
+- The model cube's own header fields (`start`, `channelSize`, `refVal`) —
+  `HEADERTRACE`.
+- Every field `generalizedParamVectorToTiltedRing` produces for ring 0,
+  both actively-fitted (`Rmid`, `Inclination`, `PositionAngle`, `VSys`,
+  `VRot`, `SigUse`, `CentPos`) and fixed/constant (`VRad`, `VDisp`, `Vvert`,
+  `dvdz`, `z0`, `zGradiantStart`) — `RINGTRACE`/`RINGTRACE2`.
+- `X**2.` vs `X*X` in `gasdev`'s rejection-sampling loop (`rsq=v1**2.+v2**2.`)
+  — a real, plausible-sounding lead (Fortran real-exponent power vs JS's
+  plain multiply aren't guaranteed identical by the language standard) —
+  directly tested with a standalone gfortran program across 10
+  representative values spanning the `[-1,1]` range `ran2` draws produce;
+  bit-identical (verified via hex dump of the IEEE754 representation) in
+  every case at `-O0`. Not the cause.
+- Other Fortran `SAVE` state: audited every `SAVE` statement in `src/`
+  (`grep -rniE "^\s*save\b"`) — only 4 exist. `ran2`'s own `iv/iy/idum2`
+  resets reliably (its own `if(idum.le.0)` check is the first thing that
+  runs, and `ran2` is always the first RNG call for a fresh `idum`, unlike
+  `gasdev`'s problem). `ran0`/`ran1`/`ran3` have their own `SAVE`'d state
+  but are never called anywhere outside `random.f` itself (confirmed via
+  grep) — dead code, not a concern. `FullModelComparison.f`'s
+  `TraceCallCounter` only gates `print` statements, confirmed no effect on
+  any computed value.
+- JS module-level persistent state: audited every top-level `let`/`var` in
+  `js/src/` — all are either load-once caches for pure/deterministic
+  functions (fdlibm-wasm module handles, FFT twiddle-factor memoization in
+  `RaderSolver.js`'s `_omegaCache`) or purely-diagnostic counters
+  (`traceCallCounter`, `evalCount`, `convolveMs`/`convolveCalls`, all
+  reset once per realization via their own `resetXStats()` calls). None
+  hold sequence-dependent state the way `gasdev`'s cache did.
 
-**Ruled out, both confirmed bit-identical between platforms in the
-gasdev-fixed controlled test (`HEADERTRACE`/`RINGTRACE` — see table
-below):** the model cube's own header fields (`start`, `channelSize`,
-`refVal`), and every field `generalizedParamVectorToTiltedRing` produces
-for ring 0 (both the actively-fitted ones and the fixed/constant ones like
-`VDisp`, `VRad`, `Vvert`, `dvdz`, `z0`, `zGradiantStart`). Neither is the
-residual's cause.
+**The bisection paradox — genuinely unresolved.** Added a coarse
+checkpoint trace (`BISECTTRACE`, every 200th particle plus the last one)
+across each ring's *entire* particle loop, not just `PARTTRACE`'s first 5.
+Under the same controlled test (matched idum, matched params): **every
+single checkpoint, across all 5 rings, matches bit-exactly between
+platforms** — both `idum` and the per-particle velocity. Since `ran2`/
+`gasdev` are pure functions of `idum` (given the now-fixed cache), and
+`idum` matching at every 200-particle boundary should mathematically force
+every particle in between to also match, this looks like proof that the
+*entire* particle-generation stage is now correct, ring to ring, top to
+bottom.
 
-Open candidates, in rough priority order:
+**And yet** the pre-convolution model cube — checked via `PRECONVTRACE`/
+`PRECONVPIX`, a simple, direct, `console.error`/`print` style checksum and
+8-sample-pixel dump, re-verified consistent and reproducible across
+multiple independent runs of the identical controlled test — still shows
+real, substantial divergence at the same tracked pixels (e.g. Fortran
+`0.00025334` vs JS `0.00032994` at one cell — not noise-floor, a genuine
+~30% difference), unchanged from before this session's bisection work.
 
-- **A similar gasdev-cache desync resurfacing later in a ring's particle
-  loop.** `PARTTRACE` only dumps the first 5 particles per ring (out of
-  7,837-70,529). The fix is confirmed correct at initialization (all 5
-  rings' first 5 particles now match bit-exactly, including `idum`), but
-  nothing yet confirms the `iset` toggle parity stays correct for
-  particle 6, 100, or 5000. Since particle counts per ring are confirmed
-  identical (7837/23505/39185/54849/70529, all odd — so `iset`'s net
-  parity flips predictably each ring if nothing else interferes), a
-  divergence resurfacing mid-ring would mean something *else* also touches
-  `gasdev`/`ran2` unevenly between the two platforms somewhere in that
-  loop. **Not yet localized — bisect by moving `PARTTRACE`'s `i<5` cutoff
-  or adding a targeted mid-loop trace.**
-- **Beam convolution (FFTW).** Both compared cubes (`AverageModel_v1.fits`,
-  `modelCubeFitsB64`) are the *post-convolution* model, matching what
-  `Bootstrap_Error_Analysis`/bootstrap resampling actually uses — but this
-  investigation has not isolated the *pre-convolution* (raw particle-binned)
-  cube to check whether it already matches perfectly post-gasdev-fix, with
-  100% of the residual coming from convolution. This project already
-  established a real, accepted FFTW native-vs-WASM precision difference
-  earlier this session (a different investigation) — worth checking whether
-  that's simply what's left over here, rather than a new bug. **Not yet
-  checked — compare `modelDC.flux` (JS) / `ModelDC%Flux` (Fortran)
-  immediately after `FillDataCubeWithTiltedRing`, before convolution.**
-- Not yet ruled out: some other input to `Ring_ParticleGeneration` besides
-  idum/Sigma/ring-geometry (e.g. `CloudBaseSurfDens`, `cmode` — simple
-  scalars, unlikely but not directly re-verified in this specific
-  controlled test).
+These two results cannot both be true under the model of the code this
+investigation has built up. One of them is wrong, or there's a mechanism
+neither test is sensitive to. **Not yet resolved.**
+
+**A dead end, noted so it isn't repeated:** attempted to resolve the
+paradox with a full pixel-by-pixel dump of the pre-convolution cube (FITS
+via `WriteDataCubeToFITS` on the Fortran side, a raw synchronous
+`Float32Array` dump on the JS side). The dumped cubes' aggregate sum and
+max did not match *either platform's own* `PRECONVTRACE` print from the
+exact same run (Fortran: FITS-dump sum `0.718` vs its own print `0.620`)
+— meaning `WriteDataCubeToFITS` (or something in that path) applies some
+transform not present in a direct in-memory read, making it unsuitable for
+this specific unscaled, pre-convolution diagnostic. This code was added,
+found unreliable, and **removed** rather than left in the tree — don't
+rebuild it without first understanding what `WriteDataCubeToFITS` does
+differently from a raw read (check `WriteFITSHeader`/`WriteFITSBody` for
+implicit scaling, e.g. BSCALE/BZERO or a beam-area-style conversion, before
+trusting a FITS round-trip for cubes that aren't already in the final
+output's unit convention).
+
+Concrete next steps, in rough priority order:
+
+1. **Resolve the paradox directly.** Since `BISECTTRACE` only checks
+   velocity (a `gasdev` output) at 200-particle intervals, add a similar
+   checkpoint for *position* (`Pos(0)`/`Pos(1)`, the `ran2`-only outputs)
+   at the *same* checkpoints, and — more importantly — narrow the
+   checkpoint interval (e.g. every particle, or binary-search within a
+   200-particle window) specifically around whichever ring turns out to
+   contribute to the tracked pixel region, to find the first individual
+   particle where Fortran and JS actually disagree. If none is found even
+   at full resolution, the bug is downstream of particle generation after
+   all (binning or convolution) and the aggregate checksum divergence
+   needs a *correctly-scaled* full-cube comparison (fix the `WriteDataCubeToFITS`
+   scaling issue above, or find another synchronous, unscaled dump path).
+2. Which ring(s) actually contribute flux to the tracked pixel region
+   (`x∈{14,15}, y∈{23,24}, ch∈{89,90}`) has never been directly confirmed
+   — only estimated from radius. Multiple rings' particles can land in the
+   same output cell. Confirming this would narrow where to look.
+3. Not yet ruled out: some other input to `Ring_ParticleGeneration` besides
+   idum/Sigma/ring-geometry (e.g. `CloudBaseSurfDens`, `cmode` — simple
+   scalars, unlikely but not directly re-verified in this specific
+   controlled test).
 
 ## Diagnostic infrastructure now in place (kept in the codebase, TRACE-gated)
 
@@ -266,6 +322,16 @@ their own dedicated env vars — safe to leave in place, zero cost when unset.
 | `HEADERTRACE` | model cube header: `nPixels, nChannels, Start(0:2), RefVal(0:2), ChannelSize` — fires once, gated on `TRACE_OVERRIDE_IDUM` | `src/TiltedRingToDataCube/FillDataCubeByTiltedRing.f`, `js/src/TiltedRingToDataCube/FillDataCubeByTiltedRing.js` |
 | `RINGTRACE` / `RINGTRACE2` | ring 0's full field set (`Rmid, Rwidth, Inclination, PositionAngle, VSys, VRot, VRad, VDisp, Vvert, dvdz, SigUse, z0, zGradiantStart, CentPos`) right after param-vector deserialization — gated on `TRACE_OVERRIDE_IDUM`, fires every evaluation (grab the **last** occurrence for the override-resynthesis call) | `src/Outputs/FitOutput.f` (`MaybeTraceRingFields`), `js/src/CompareCubes/FullModelComparison.js` |
 | `PARTTRACE` | per-particle `Rmid, i, idum, Pos(0:2), ProjectedPos(0:1), ProjectedVel(2)` for the first 5 particles of **every ring** | `src/TiltedRingModelGeneration/SingleRingGeneration.f`, `js/src/TiltedRingModelGeneration/SingleRingGeneration.js` (pre-existing, gated on `WRKP_TRACE_DEBUG=1`/`TRACE_DEBUG=1`, not `TRACE_OVERRIDE_IDUM`) — this is what actually caught the gasdev-cache bug |
+| `BISECTTRACE` | `Rmid, i, idum, ProjectedVel(2)` for **every 200th particle plus the last one, across every ring's full loop** (not just the first 5) — gated on `TRACE_OVERRIDE_IDUM`. Verified: matches bit-exactly at every checkpoint, all 5 rings, in the gasdev-fixed controlled test | `src/TiltedRingModelGeneration/SingleRingGeneration.f`, `js/src/TiltedRingModelGeneration/SingleRingGeneration.js` (added this session) |
+| `PRECONVTRACE` / `PRECONVPIX` | model-cube `sum/min/max` checksum and 8 tracked pixel values (`x∈{14,15}, y∈{23,24}, ch∈{89,90}`), taken right **before** beam convolution — gated on `TRACE_OVERRIDE_IDUM`. Verified reproducible across independent runs; this is what caught the still-unresolved residual divergence | `src/Outputs/FitOutput.f` (`MaybeTracePreConvChecksum`), `js/src/CompareCubes/FullModelComparison.js` (added this session) |
+
+**Tried and removed — do not rebuild without reading this first:** a full
+pixel-by-pixel pre-convolution cube dump (`MaybeDumpPreConvCube` in
+Fortran via `WriteDataCubeToFITS`, plus a matching raw `Float32Array`
+dump in JS, both gated on a `TRACE_DUMP_PRECONV_PATH` env var). Removed
+after its own aggregate sum/max didn't match `PRECONVTRACE`'s print from
+the identical run — see "A dead end, noted so it isn't repeated" above.
+Neither the Fortran subroutine nor the JS block exist in the tree anymore.
 
 **To retarget the hardcoded pixel/index values above to a different cell**,
 just edit the literal `if` conditions at each trace site — they're
@@ -306,6 +372,20 @@ effect on the actual divergence (see hypothesis 5 above):
    fix only touches the diagnostic path; the real bootstrap resampling
    flow was never confirmed to have a matching cache-desync issue,
    only proven capable of one in a controlled, artificial test.
+
+**Audit for other state-preservation bugs of the same class (requested
+explicitly, completed this session, came up empty):** every Fortran
+`SAVE` statement in `src/` and every module-level `let`/`var` in
+`js/src/` was enumerated and individually checked (see "Ruled out" list
+above for the specifics). No second instance of gasdev's
+reset-timing-asymmetry pattern — a cache whose correctness depends on
+call order, initialized via a "reset on negative seed" convention that a
+downstream caller's earlier RNG call can silently skip — was found
+anywhere else in the codebase. If a similar bug is suspected elsewhere,
+the pattern to grep for is: (1) a `SAVE`/module-level variable, (2) whose
+reset is gated on a condition that's only true on the "true first" call
+of a sequence, (3) where another stateful call can run first and disturb
+that condition before the guarded code ever sees it.
 
 ## How to reproduce / continue this investigation
 

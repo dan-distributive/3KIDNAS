@@ -37,6 +37,7 @@ const { buildTiltedRingModel }          = require('../TiltedRingModelGeneration/
 const { fillDataCubeWithTiltedRing }    = require('../TiltedRingToDataCube/FillDataCubeByTiltedRing.js');
 const { cubeBeamConvolution }           = require('../ConvolveCube/CubeKernelConvolution.js');
 const { cubeCompare }                   = require('./CubeComparison.js');
+const { flatIndxCalc }                  = require('../ObjectDefinitions/DataCube.js');
 
 // Investigative-only, paired against Fortran's TraceSwitch (FullModelComparison.f):
 // print call counter, idum (RNG state), chi2, PA (testParams[3]) per call, gated
@@ -236,6 +237,28 @@ function tiltedRingModelComparison(testParams, state) {
   fillDataCubeWithTiltedRing(modelDC, modelTiltedRing);
   if (TRACE_DEBUG && traceCallCounter === 0) {
     console.error('STAGE POSTFILL', sumArrayDouble(modelDC.flux));
+  }
+
+  // One-off diagnostic (Fortran-vs-JS pre/post-convolution isolation, Dan
+  // 2026-08-18): checksum + tracked-region pixel values right before beam
+  // convolution, so a residual divergence can be attributed to particle
+  // generation/binning (present here already) vs convolution (introduced
+  // after this point). Gated on TRACE_OVERRIDE_IDUM. Matches Fortran's
+  // MaybeTracePreConvChecksum (FitOutput.f).
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_OVERRIDE_IDUM) {
+    const dh = modelDC.dh;
+    let sum = 0, mn = Infinity, mx = -Infinity;
+    for (let idx = 0; idx < modelDC.flux.length; idx++) {
+      const v = modelDC.flux[idx];
+      sum += v;
+      if (v < mn) mn = v;
+      if (v > mx) mx = v;
+    }
+    console.error('PRECONVTRACE', sum.toExponential(17), mn.toExponential(17), mx.toExponential(17));
+    const px = (i, j, k) => modelDC.flux[flatIndxCalc(i, j, k, dh)].toFixed(8);
+    console.error('PRECONVPIX',
+      px(14, 23, 89), px(14, 23, 90), px(14, 24, 89), px(14, 24, 90),
+      px(15, 23, 89), px(15, 23, 90), px(15, 24, 89), px(15, 24, 90));
   }
 
   // Step 7: beam convolution
