@@ -529,15 +529,20 @@ function drawChart(canvas, xs, ys) {
 // ---------------------------------------------------------------------------
 // identity.set()/wallet.get() only need to run once per page session --
 // dispatchJob() is called separately for the initial fit and the bootstrap
-// loop, so without caching, the second dispatch would re-set identity and
-// re-pop the wallet-picker modal. Cached on success; cleared on failure so
-// a bad key (or a cancelled wallet picker) can be retried cleanly rather
-// than permanently wedging every future dispatch attempt.
+// loop. The identityReady cache below already prevents a second call
+// within one page load, but dcp.identity.set() throws "identity has
+// already been set" if dcp-client's own internal state already has an
+// identity from outside that cache too -- so check via identity.get()
+// (throws if nothing's set yet, per bootstrap-realization-launcher.js's
+// own comment on this exact function) before ever calling set(), rather
+// than assuming our own cache is the only source of truth.
 let identityReady = null;
 function ensureIdentity() {
   if (!identityReady) {
     identityReady = (async () => {
-      await dcp.identity.set(getApiKey());
+      let alreadySet = false;
+      try { await dcp.identity.get(); alreadySet = true; } catch (error) { /* not set yet */ }
+      if (!alreadySet) await dcp.identity.set(getApiKey());
       await dcp.wallet.add(await dcp.wallet.get());
     })().catch((error) => { identityReady = null; throw error; });
   }
