@@ -123,7 +123,24 @@ function checkIfInCube(cellIndex, dc) {
 // Resets DC flux to 0, then splats every particle from every ring
 // into the appropriate voxel.
 // ---------------------------------------------------------------------------
+let _headerTraced = false;
 function fillDataCubeWithTiltedRing(dc, tr) {
+  // One-off diagnostic (Fortran-vs-JS model-cube divergence investigation,
+  // Dan 2026-08-17): dump the model cube's header fields the very first
+  // time this runs, so they can be diffed directly against Fortran's
+  // equivalent -- see FillDataCubeByTiltedRing.f's matching HEADERTRACE
+  // for why. Gated on TRACE_OVERRIDE_IDUM being set so it only fires
+  // during a deliberate controlled-comparison run.
+  if (!_headerTraced && typeof process !== 'undefined' && process.env
+      && process.env.TRACE_OVERRIDE_IDUM) {
+    const dh = dc.dh;
+    console.error('HEADERTRACE', dh.nPixels[0], dh.nPixels[1], dh.nChannels, 0,
+      dh.start[0].toFixed(6), dh.start[1].toFixed(6), dh.start[2].toFixed(6),
+      dh.refVal[0].toFixed(6), dh.refVal[1].toFixed(6), dh.refVal[2].toFixed(6),
+      dh.channelSize.toFixed(6));
+    _headerTraced = true;
+  }
+
   // Reset cube to zero — Fortran: DC%Flux=0.
   dc.flux.fill(0);
 

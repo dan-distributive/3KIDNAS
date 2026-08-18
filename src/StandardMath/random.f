@@ -1,5 +1,20 @@
 
       module BasicRanNumGen
+c           gasdev's cached-spare-value state, moved from a function-local
+c               SAVE variable to module level (2026-08-18, Dan) so
+c               ResetGasdevCache below can clear it from outside gasdev --
+c               needed for the Fortran-vs-JS idum-divergence proof
+c               diagnostic (MaybeOverrideIdum in FitOutput.f): idum only
+c               stays negative until the FIRST ran2() call inside it, which
+c               happens (via position generation) BEFORE gasdev is ever
+c               reached, so gasdev's own `if (idum.lt.0) iset=0` never
+c               actually fires except on the true first-ever call of the
+c               whole program run -- meaning a mid-run idum reset alone
+c               does NOT reset this cache the way a fresh JS rng object
+c               does. Purely a location change -- identical behavior for
+c               every existing call site.
+      integer :: GasdevIset = 0
+      real :: GasdevGset = 0.0
       contains
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -238,32 +253,44 @@ c
       implicit none
 c
       integer, INTENT(INOUT) :: idum
-      integer iset
-      real fac, gset, rsq, v1,v2
+      real fac, rsq, v1,v2
       real fd_log
       external fd_log
-      save iset, gset
-      data iset/0/
 c
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c
-      if (idum.lt. 0) iset=0
-      if(iset .eq. 0) then
+      if (idum.lt. 0) GasdevIset=0
+      if(GasdevIset .eq. 0) then
  1      v1=2.*ran2(idum)-1.
         v2=2.*ran2(idum)-1.
         rsq=v1**2.+v2**2.
         if(rsq .ge. 1. .or. rsq .eq. 0.) goto 1
         fac=sqrt(-2.*fd_log(rsq)/rsq)
-        gset=v1*fac
+        GasdevGset=v1*fac
         gasdev=v2*fac
-        iset=1
+        GasdevIset=1
       else
-        gasdev=gset
-        iset=0
+        gasdev=GasdevGset
+        GasdevIset=0
       endif
       return
       end function
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+ccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c       ResetGasdevCache: one-off diagnostic (Fortran-vs-JS
+c           idum-divergence proof, Dan 2026-08-18) -- forces GasdevIset
+c           back to 0, so a caller can guarantee gasdev's next call
+c           computes a fresh pair instead of returning a stale cached
+c           spare left over from earlier in the program's run. See this
+c           module's header comment for why a mid-run idum reset alone
+c           doesn't achieve this.
+      subroutine ResetGasdevCache()
+      implicit none
+      GasdevIset=0
+      return
+      end subroutine
+ccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       end module
 

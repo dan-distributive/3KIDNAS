@@ -174,6 +174,7 @@ c               resulting model cubes compared with every other variable
 c               (parameters, idum) controlled for. No effect unless
 c               TRACE_OVERRIDE_IDUM is set.
       call MaybeOverrideIdum(idum)
+      call MaybeTraceRingFields(ModelTiltedRing)
       call BuildTiltedRingModel(ModelTiltedRing,idum,SpecNoise
      &          ,ObservedDC,ObservedBeam)
 c       Create the point-source data cube
@@ -817,12 +818,48 @@ c      write(10,*) PFlags%LikelihoodSwitch
 ccccccc
 
 ccccccc
+c       MaybeTraceRingFields: one-off diagnostic (Fortran-vs-JS ring-
+c           geometry divergence proof, Dan 2026-08-17) -- dumps ring 0's
+c           full field set (not just the 13 fields TRACE_OVERRIDE_PARAMS
+c           actually controls -- constant/fixed fields like VDisp, VRad,
+c           Vvert, dvdz, z0, zGradiantStart are pulled from this fit's own
+c           TiltedRingFittingOptions defaults, not from the param vector,
+c           and were never forced to match between platforms). Gated on
+c           TRACE_OVERRIDE_IDUM so it only fires during a deliberate
+c           controlled-comparison run.
+      subroutine MaybeTraceRingFields(TR)
+      use TiltedRingGenerationMod
+      implicit none
+      Type(TiltedRingModel), INTENT(IN) :: TR
+      character(64) EnvVal
+      integer EnvLen
+
+      call get_environment_variable("TRACE_OVERRIDE_IDUM",EnvVal,
+     &          EnvLen)
+      if (EnvLen .gt. 0) then
+        print '(A,11F14.6)', 'RINGTRACE',
+     &      TR%R(0)%Rmid,TR%R(0)%Rwidth,
+     &      TR%R(0)%Inclination,TR%R(0)%PositionAngle,
+     &      TR%R(0)%VSys,TR%R(0)%VRot,TR%R(0)%VRad,
+     &      TR%R(0)%VDisp,TR%R(0)%Vvert,TR%R(0)%dvdz,
+     &      TR%R(0)%SigUse
+        print '(A,4F14.6)', 'RINGTRACE2',
+     &      TR%R(0)%z0,TR%R(0)%zGradiantStart,
+     &      TR%R(0)%CentPos(0),TR%R(0)%CentPos(1)
+      endif
+
+      return
+      end subroutine
+ccccccc
+
+ccccccc
 c       MaybeOverrideIdum: one-off diagnostic (Fortran-vs-JS idum-
 c           divergence proof, Dan 2026-08-17) -- reads TRACE_OVERRIDE_IDUM
 c           from the environment and, if set to a valid integer,
 c           overwrites idum with it. No effect otherwise (leaves idum
 c           untouched, including on a blank/unset/unparseable value).
       subroutine MaybeOverrideIdum(idum)
+      use BasicRanNumGen
       implicit none
       integer, INTENT(INOUT) :: idum
       character(64) EnvVal
@@ -836,6 +873,12 @@ c           untouched, including on a blank/unset/unparseable value).
           print*, "TRACE using overridden idum for resynthesis:",
      &          NewIdum
           idum=NewIdum
+c               See random.f's module header for why a mid-run idum
+c                   reset alone doesn't reset gasdev's separate cached-
+c                   spare-value state -- must clear it explicitly too,
+c                   for a true apples-to-apples reset against JS's
+c                   always-fresh makeRng().
+          call ResetGasdevCache()
         endif
       endif
 

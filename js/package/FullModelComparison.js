@@ -185,6 +185,26 @@ function tiltedRingModelComparison(testParams, state) {
   // Step 2: deserialize PV → TiltedRing
   paramToTiltedRing(pvModel, modelTiltedRing, trFittingOptions);
 
+  // One-off diagnostic (Fortran-vs-JS ring-geometry divergence proof, Dan
+  // 2026-08-17): dump ring 0's full field set -- not just the 13 fields
+  // TRACE_OVERRIDE_PARAMS actually controls -- constant/fixed fields like
+  // vDisp, vRad, vvert, dvdz, z0, zGradiantStart are pulled from this
+  // fit's own trFittingOptions defaults, not from the param vector, and
+  // were never forced to match between platforms. Gated on
+  // TRACE_OVERRIDE_IDUM so it only fires during a deliberate
+  // controlled-comparison run. Matches Fortran's MaybeTraceRingFields
+  // (FitOutput.f).
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_OVERRIDE_IDUM) {
+    const r0 = modelTiltedRing.r[0];
+    console.error('RINGTRACE', r0.rmid.toFixed(6), r0.rwidth.toFixed(6),
+      r0.inclination.toFixed(6), r0.positionAngle.toFixed(6),
+      r0.vSys.toFixed(6), r0.vRot.toFixed(6), r0.vRad.toFixed(6),
+      r0.vDisp.toFixed(6), r0.vvert.toFixed(6), r0.dvdz.toFixed(6),
+      r0.sigUse.toFixed(6));
+    console.error('RINGTRACE2', r0.z0.toFixed(6), r0.zGradiantStart.toFixed(6),
+      r0.centPos[0].toFixed(6), r0.centPos[1].toFixed(6));
+  }
+
   // Step 3: apply SD switch
   for (let i = 0; i < modelTiltedRing.nRings; i++) {
     const r = modelTiltedRing.r[i];

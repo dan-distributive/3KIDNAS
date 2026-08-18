@@ -27,6 +27,34 @@ ccccc
 
       Type(Particle) PTest
 
+      logical, save :: HeaderTraced = .false.
+      character(64) EnvVal
+      integer EnvLen
+
+c       One-off diagnostic (Fortran-vs-JS model-cube divergence
+c           investigation, Dan 2026-08-17): dump the model cube's header
+c           fields the very first time this runs, so they can be diffed
+c           directly against the JS port's equivalent -- per-particle
+c           channel binning below depends directly on DC%DH%Start(2) and
+c           DC%DH%ChannelSize, so if these don't actually match between
+c           platforms, every particle's channel assignment would shift
+c           systematically. Gated on TRACE_OVERRIDE_IDUM being set so it
+c           only fires during a deliberate controlled-comparison run, not
+c           every normal evaluation.
+      if (.not. HeaderTraced) then
+        call get_environment_variable("TRACE_OVERRIDE_IDUM",EnvVal,
+     &          EnvLen)
+        if (EnvLen .gt. 0) then
+          print '(A,3I5,1X,I5,1X,3F16.6,1X,3F16.6,1X,F16.6)',
+     &      'HEADERTRACE',DC%DH%nPixels(0),DC%DH%nPixels(1),
+     &      DC%DH%nChannels,0,
+     &      DC%DH%Start(0),DC%DH%Start(1),DC%DH%Start(2),
+     &      DC%DH%RefVal(0),DC%DH%RefVal(1),DC%DH%RefVal(2),
+     &      DC%DH%ChannelSize
+          HeaderTraced = .true.
+        endif
+      endif
+
 c      print*, "Filling DataCube"
 c           Make sure the initial cube is empty
 c      print*, "Cube center", DC%DH%Start(0:2)

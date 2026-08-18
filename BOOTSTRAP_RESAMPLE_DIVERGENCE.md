@@ -1,9 +1,12 @@
 # Bootstrap-resampling Fortran/JS divergence — investigation log
 
-**Status as of 2026-08-17: unresolved.** Four distinct, well-evidenced hypotheses
-tested and disproven. Root cause not yet identified. This doc exists so the
-investigation can be picked up cold, by anyone (including a future session
-with no memory of how we got here).
+**Status as of 2026-08-18: a real, confirmed root-cause mechanism found and
+partially fixed — a `gasdev` cached-spare-value asymmetry between platforms
+(see "Hypothesis 5, corrected" below). Fixing it produced a real, measured
+improvement, but did not fully close the gap; a residual divergence remains,
+not yet fully explained.** Four earlier hypotheses were tested and disproven
+before this one. This doc exists so the investigation can be picked up cold,
+by anyone (including a future session with no memory of how we got here).
 
 ## The problem, precisely
 
@@ -53,7 +56,7 @@ the coordinate flip/rotation math, trilinear interpolation, boundary
 checks, or corner-pixel selection. It is definitively IN: how each
 platform's own model cube gets populated with particles.
 
-## Hypotheses tested and disproven (all four, with hard evidence)
+## Hypotheses tested, with hard evidence (four disproven, one confirmed)
 
 ### 1. Discrete corner-selection flip in `GetFluxAtPoint`/`getFluxAtPoint`
 **Theory:** `int(Pt)` truncation picks which 8 corners get trilinear-interpolated;
@@ -120,7 +123,7 @@ the tracked pixels essentially unchanged (same magnitude, same sign, same
 cells). This ruled out parameter differences as the cause and strongly
 implied `idum` state was the remaining variable... which led to:
 
-### 5. `idum` divergence from differing Nelder-Mead search paths — TESTED AND DISPROVEN
+### 5. `idum` divergence from differing Nelder-Mead search paths — initially (wrongly) marked disproven, then confirmed via a corrected test
 **Theory:** even when two independent fits converge to nearly the same
 final answer, the *sequence* of evaluations each platform's optimizer
 takes to get there is not guaranteed identical (this project's own
@@ -130,53 +133,119 @@ resynthesized *after* convergence using whatever `idum` happens to be at
 that point, the two platforms could easily be drawing from completely
 different, uncorrelated positions in their own (individually bit-exact)
 `ran2`/`gasdev` streams.
-**Direct test built and run:** added `TRACE_OVERRIDE_IDUM` on both
-platforms — an env var read right before the final model-cube resynthesis
-call (`OutputCube` in `src/Outputs/FitOutput.f` via a new
-`MaybeOverrideIdum` subroutine; `runInitialFit` in
+
+**First test (flawed) — appeared to disprove this.** Added
+`TRACE_OVERRIDE_IDUM` on both platforms — an env var read right before the
+final model-cube resynthesis call (`OutputCube` in `src/Outputs/FitOutput.f`
+via a new `MaybeOverrideIdum` subroutine; `runInitialFit` in
 `js/bootstrap-realization-launcher.js`, replacing `state.rng` with a fresh
 `makeRng(overrideIdum)` right before `tiltedRingModelComparison`). Ran both
-platforms with **the same fixed idum (-12345) AND the same fixed 15-param
-vector** (Fortran's own converged values).
-**Result: DISPROVEN.** If this were the cause, forcing both idum and
-params identical should have collapsed the divergence to near-zero. It did
-not — max abs diff at the tracked pixels was actually slightly *larger*
-(0.00115 vs 0.00049 in the params-only test), and the overall cube diff
-did not meaningfully improve.
-**Verified the override mechanism was actually wired correctly** before
-trusting this result: `tiltedRingModelComparison` destructures `state.rng`
-at its own top and passes it straight to `buildTiltedRingModel` — the
-override was confirmed to reach particle generation, not silently
-bypassed.
+platforms with the same fixed idum (-12345) AND the same fixed 15-param
+vector (Fortran's own converged values). The divergence persisted
+essentially unchanged, which looked like a clean disproof.
+
+**The test itself was confounded — found by tracing individual particles.**
+`Ring_ParticleGeneration`'s first 5 particles per ring are already dumped by
+pre-existing `PARTTRACE` instrumentation (gated on `WRKP_TRACE_DEBUG=1`/
+`TRACE_DEBUG=1`). Running it under the override test showed: **particle 0's
+*position* matched bit-exactly between platforms, but its *velocity*
+(`Ring_CalcParticle_VSys`, which draws one `gasdev` call) did not, and
+`idum`'s value right after particle 0 had already diverged.** That
+pinpointed the mismatch to `gasdev` specifically, not `ran2` or particle
+positions.
+
+**Root cause: `gasdev`'s cached-spare-value state is not reset the same way
+`idum` is.** The classic Numerical-Recipes `gasdev` (Box-Muller transform)
+generates a *pair* of Gaussian values per expensive computation, returns one,
+and caches the other (`gset`) for the very next call — governed by a toggle
+flag (`iset`). Fortran's `iset`/`gset` were `SAVE`'d local variables,
+persisting for the *entire program run*, only cleared by the line
+`if (idum.lt.0) iset=0` — i.e. only when `gasdev` observes `idum` as
+negative *at the moment it's called*. But `ran2`'s own reinitialization block
+(`if(idum.le.0) then idum=max(-idum,1) ... end if`) converts a negative seed
+to a positive working value on its *very first call* — and position
+generation (`Ring_ParticlePosSelect`, 3 `ran2` calls) always runs before
+`Ring_CalcParticle_VSys`'s `gasdev` call. So by the time `gasdev` is ever
+reached for particle 0, `idum` is already positive, and the reset never
+fires — Fortran's `gasdev` used whatever cache state was left over from
+**the fit's entire prior evaluation history**, completely unrelated to the
+override. JS's `makeRng(idum)`, by contrast, allocates a brand-new
+`gasdevState` object every time it's called, starting at `iset=0`
+unconditionally — always "fresh," regardless of the override.
+
+**This means the "disproof" was itself an artifact of the test, not a real
+result about the underlying theory.**
+
+**Fix:** moved `gasdev`'s `iset`/`gset` from function-local `SAVE` variables
+to module-level variables in `BasicRanNumGen` (`src/StandardMath/random.f`),
+and added `ResetGasdevCache()`, called from `MaybeOverrideIdum` right after
+setting the overridden `idum` — giving the diagnostic override a real,
+complete RNG reset on both platforms for the first time.
+Files: `src/StandardMath/random.f`, `src/Outputs/FitOutput.f`.
+
+**Result, re-tested with the fix: real, measured, but partial improvement.**
+Re-ran the identical-idum + identical-params test:
+- Particle-level (`PARTTRACE`, first 5 particles of **all 5 rings**):
+  bit-exact match on both platforms — position, velocity, and `idum` state,
+  every single one. Confirms the fix works correctly at the point it's
+  applied.
+- Full model-cube diff: max abs diff dropped from 0.00115 (broken cache) to
+  **0.00049** (fixed cache) — real, substantial, reproducible improvement —
+  but not zero. 1743 cells still exceed 1e-4 (down from 2683).
+
+**So this is a real, confirmed bug, now fixed** — but it does not fully
+explain the divergence by itself. Since only the first 5 particles per ring
+are traced (not all 7,837-70,529), the residual could be a *similar* desync
+that resurfaces later in a ring's particle loop (not yet localized), or
+could be unrelated noise (e.g. the already-characterized FFTW native-vs-WASM
+convolution precision difference from earlier this session, since beam
+convolution runs after particle binning and hasn't been isolated out of
+either cube compared here).
 
 ## Where this leaves us
 
-With idum and parameters both forced identical, the model cubes should be
-bit-identical (up to the accepted noise floor) if `Ring_ParticleGeneration`
-is a faithful port and nothing else differs. They aren't. That means
-**something else still differs between the two `BuildTiltedRingModel` call
-environments that hasn't been identified yet.** Candidates not yet tested:
+The `gasdev` cache-reset fix is real, confirmed at the particle level, and
+measurably shrinks the divergence — but does not eliminate it. The next
+concrete step is figuring out where the residual comes from. Candidates,
+in rough priority order:
 
-- **The model cube's own header fields** (`start`, `channelSize`,
-  `refVal`/`refLocation`, etc.) — `FindParticleCellLocation`'s channel
-  binning depends directly on `DC%DH%Start(2)`/`dh.start[2]` and
-  `ChannelSize`. If these aren't actually identical between the two
-  `state`/`GalaxyDict` setups (even for "the same" galaxy), every
-  particle's channel assignment would shift systematically — which would
-  produce exactly this kind of large, localized, non-noise-floor
-  divergence. **Not yet checked directly.**
-- **`generalizedParamVectorToTiltedRing`'s deserialization** — converts
-  the raw 15-number vector into per-ring `Rmid`, `Rwidth`, `Inclination`,
-  `PositionAngle`, `VSys`, etc. Even with the raw 15 numbers forced
-  identical, this deserialization step itself does real arithmetic
-  (unit conversions, trig) that hasn't been checked line-by-line the way
-  `PhysCoordTransform` was. A bug or an unmatched-trig-function here would
-  explain a real, continuous ring-geometry difference feeding directly
-  into `Ring_ParticleGeneration`.
+**Ruled out, both confirmed bit-identical between platforms in the
+gasdev-fixed controlled test (`HEADERTRACE`/`RINGTRACE` — see table
+below):** the model cube's own header fields (`start`, `channelSize`,
+`refVal`), and every field `generalizedParamVectorToTiltedRing` produces
+for ring 0 (both the actively-fitted ones and the fixed/constant ones like
+`VDisp`, `VRad`, `Vvert`, `dvdz`, `z0`, `zGradiantStart`). Neither is the
+residual's cause.
+
+Open candidates, in rough priority order:
+
+- **A similar gasdev-cache desync resurfacing later in a ring's particle
+  loop.** `PARTTRACE` only dumps the first 5 particles per ring (out of
+  7,837-70,529). The fix is confirmed correct at initialization (all 5
+  rings' first 5 particles now match bit-exactly, including `idum`), but
+  nothing yet confirms the `iset` toggle parity stays correct for
+  particle 6, 100, or 5000. Since particle counts per ring are confirmed
+  identical (7837/23505/39185/54849/70529, all odd — so `iset`'s net
+  parity flips predictably each ring if nothing else interferes), a
+  divergence resurfacing mid-ring would mean something *else* also touches
+  `gasdev`/`ran2` unevenly between the two platforms somewhere in that
+  loop. **Not yet localized — bisect by moving `PARTTRACE`'s `i<5` cutoff
+  or adding a targeted mid-loop trace.**
+- **Beam convolution (FFTW).** Both compared cubes (`AverageModel_v1.fits`,
+  `modelCubeFitsB64`) are the *post-convolution* model, matching what
+  `Bootstrap_Error_Analysis`/bootstrap resampling actually uses — but this
+  investigation has not isolated the *pre-convolution* (raw particle-binned)
+  cube to check whether it already matches perfectly post-gasdev-fix, with
+  100% of the residual coming from convolution. This project already
+  established a real, accepted FFTW native-vs-WASM precision difference
+  earlier this session (a different investigation) — worth checking whether
+  that's simply what's left over here, rather than a new bug. **Not yet
+  checked — compare `modelDC.flux` (JS) / `ModelDC%Flux` (Fortran)
+  immediately after `FillDataCubeWithTiltedRing`, before convolution.**
 - Not yet ruled out: some other input to `Ring_ParticleGeneration` besides
-  idum/Sigma/ring-geometry (e.g. `CloudBaseSurfDens`, `cmode` — though
-  these are simple scalars, unlikely but not directly re-verified in this
-  specific controlled test).
+  idum/Sigma/ring-geometry (e.g. `CloudBaseSurfDens`, `cmode` — simple
+  scalars, unlikely but not directly re-verified in this specific
+  controlled test).
 
 ## Diagnostic infrastructure now in place (kept in the codebase, TRACE-gated)
 
@@ -193,7 +262,10 @@ their own dedicated env vars — safe to leave in place, zero cost when unset.
 | `SRCTRACE` | observed/model/diff flux values for a **hardcoded** pixel range (currently `i∈{14,15}, j∈{23,24}, k∈{89,90}`) | `src/BootstrapSampler/CubeDifference.f`, `js/src/BootstrapSampler/CubeDifference.js` |
 | `NPTRACE` | per-ring `Rmid, Sigma, DensMultiplications, PixelRing, nParticles` | `src/TiltedRingModelGeneration/SingleRingGeneration.f`, `.js` (pre-existing, from earlier session work) |
 | `TRACE_OVERRIDE_PARAMS` | forces the 15-param vector used for the post-convergence model resynthesis (JSON array of 15 numbers) | `js/bootstrap-realization-launcher.js` only (pre-existing) — **no Fortran equivalent exists**; Fortran's own converged vector is read from its `CONVERGED_VECTOR` trace line instead |
-| `TRACE_OVERRIDE_IDUM` | forces `idum` used for that same resynthesis call, on **both** platforms | `src/Outputs/FitOutput.f` (`MaybeOverrideIdum`), `js/bootstrap-realization-launcher.js` (new, added during this investigation) |
+| `TRACE_OVERRIDE_IDUM` | forces `idum` used for that same resynthesis call, on **both** platforms, AND now also resets `gasdev`'s cached-spare-value state (via `ResetGasdevCache`) — a true full RNG reset, not just the LCG portion | `src/Outputs/FitOutput.f` (`MaybeOverrideIdum`), `js/bootstrap-realization-launcher.js` (added during this investigation) |
+| `HEADERTRACE` | model cube header: `nPixels, nChannels, Start(0:2), RefVal(0:2), ChannelSize` — fires once, gated on `TRACE_OVERRIDE_IDUM` | `src/TiltedRingToDataCube/FillDataCubeByTiltedRing.f`, `js/src/TiltedRingToDataCube/FillDataCubeByTiltedRing.js` |
+| `RINGTRACE` / `RINGTRACE2` | ring 0's full field set (`Rmid, Rwidth, Inclination, PositionAngle, VSys, VRot, VRad, VDisp, Vvert, dvdz, SigUse, z0, zGradiantStart, CentPos`) right after param-vector deserialization — gated on `TRACE_OVERRIDE_IDUM`, fires every evaluation (grab the **last** occurrence for the override-resynthesis call) | `src/Outputs/FitOutput.f` (`MaybeTraceRingFields`), `js/src/CompareCubes/FullModelComparison.js` |
+| `PARTTRACE` | per-particle `Rmid, i, idum, Pos(0:2), ProjectedPos(0:1), ProjectedVel(2)` for the first 5 particles of **every ring** | `src/TiltedRingModelGeneration/SingleRingGeneration.f`, `js/src/TiltedRingModelGeneration/SingleRingGeneration.js` (pre-existing, gated on `WRKP_TRACE_DEBUG=1`/`TRACE_DEBUG=1`, not `TRACE_OVERRIDE_IDUM`) — this is what actually caught the gasdev-cache bug |
 
 **To retarget the hardcoded pixel/index values above to a different cell**,
 just edit the literal `if` conditions at each trace site — they're
@@ -202,21 +274,38 @@ thousands of particles) rather than parameterized via env var. If you need
 a different pixel, grep for `PXTRACE`/`CORNERTRACE`/`SRCTRACE` and change
 the hardcoded indices, matching a divergent cell from a fresh pixel diff.
 
-## Fixes kept from this investigation (real, worth keeping, not the root cause of the above)
+## Fixes kept from this investigation
+
+Three protective fixes that turned out not to explain this specific
+divergence, but are real, legitimate improvements worth keeping regardless
+(same class of bug as the particle-count fix from earlier this session):
 
 1. **`RoundForInterpStability`/`roundForInterpStability`** — protects
    `GetFluxAtPoint`'s corner-selection truncation against the general class
-   of float32-boundary-flip bug (even though it wasn't the cause here, the
-   underlying risk it protects against is real, same as the particle-count
-   fix from earlier in this session).
+   of float32-boundary-flip bug.
 2. **`PhysCoordTransform` fdlibm fix** — closes a real gap in the
    project's fdlibm-forcing coverage; `BootstrapSampler/` was simply missed
    by the earlier sweep.
 3. **`RoundForBinStability`/`roundForBinStability`** — same protective
    technique applied to per-particle nearest-pixel binning.
 
-All three are committed as legitimate improvements independent of whether
-they explain this specific divergence.
+One fix that **is** confirmed to matter, with a measured, reproducible
+effect on the actual divergence (see hypothesis 5 above):
+
+4. **`gasdev` cache-reset fix** — moved `iset`/`gset` from function-local
+   `SAVE` variables to module-level (`src/StandardMath/random.f`), added
+   `ResetGasdevCache()`, wired into `MaybeOverrideIdum`
+   (`src/Outputs/FitOutput.f`). This specifically fixes the diagnostic
+   override mechanism (`TRACE_OVERRIDE_IDUM`) to do a *true* full RNG
+   reset — it does not change behavior for any normal (non-diagnostic) run,
+   since `iset`/`gset` are still functionally the same persistent state,
+   just reachable from outside `gasdev` now. **Whether an analogous
+   mismatch (not from this specific override mechanism, but from the real
+   bootstrap pipeline's own gasdev-call-count history) explains any part of
+   the original real-dispatch divergence is still an open question** — this
+   fix only touches the diagnostic path; the real bootstrap resampling
+   flow was never confirmed to have a matching cache-desync issue,
+   only proven capable of one in a controlled, artificial test.
 
 ## How to reproduce / continue this investigation
 
