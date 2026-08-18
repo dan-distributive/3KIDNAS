@@ -164,6 +164,13 @@ function ring_ParticleGeneration(r, rng) {
   const rmax = f32(f32(r.rmid) + f32(f32(r.rwidth) / f32(2.0)));
   const area = f32(Pi * f32(f32(rmax * rmax) - f32(rmin * rmin)));
 
+  // One-off diagnostic ("bisection paradox" investigation, Dan 2026-08-18):
+  // see SingleRingGeneration.f's matching RINGGEOMTRACE comment for why.
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_OVERRIDE_IDUM) {
+    console.error('RINGGEOMTRACE', r.rmid.toExponential(17), r.rwidth.toExponential(17),
+      r.sigma.toExponential(17), r.nParticles, area.toExponential(17));
+  }
+
   // inclination/positionAngle are the same for every particle in this ring
   // -- fdCos/fdSin are pure, deterministic functions of these, so computing
   // them once here and passing the results into particlePosProject/

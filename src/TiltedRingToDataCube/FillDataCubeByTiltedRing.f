@@ -30,6 +30,8 @@ ccccc
       logical, save :: HeaderTraced = .false.
       character(64) EnvVal
       integer EnvLen
+      character(64) BinEnvVal
+      integer BinEnvLen
 
 c       One-off diagnostic (Fortran-vs-JS model-cube divergence
 c           investigation, Dan 2026-08-17): dump the model cube's header
@@ -59,6 +61,22 @@ c      print*, "Filling DataCube"
 c           Make sure the initial cube is empty
 c      print*, "Cube center", DC%DH%Start(0:2)
       DC%Flux=0.
+c           One-off diagnostic (Fortran-vs-JS "bisection paradox"
+c               investigation, Dan 2026-08-18): particle generation is now
+c               proven bit-exact end to end (BISECTTRACE), yet the
+c               pre-convolution cube still diverges (PRECONVTRACE). That
+c               narrows the residual to this binning step -- either the
+c               per-particle Flux value (never directly compared before
+c               now) or the RoundForBinStability-protected cell-index
+c               decision. BINTRACE prints every particle that lands in one
+c               of the already-tracked pixels (x in {14,15}, y in
+c               {23,24}, ch in {89,90}), with its flux and the running
+c               cell total after the add, so the two platforms' logs can
+c               be diffed particle-by-particle. Gated on
+c               TRACE_OVERRIDE_IDUM; fires every evaluation like
+c               RINGTRACE/PRECONVTRACE -- grab the last block.
+      call get_environment_variable("TRACE_OVERRIDE_IDUM",BinEnvVal,
+     &          BinEnvLen)
 c           Loop through all particles
       do i=0,TR%nRings-1
 c        print*, "Filling data cube with ring", i
@@ -73,6 +91,16 @@ c                   If it is in the cube, add the flux to the proper cell
                 DC%Flux(CellIndex(0),CellIndex(1),CellIndex(2))=
      &                  DC%Flux(CellIndex(0),CellIndex(1),CellIndex(2))+
      &                  TR%R(i)%P(j)%Flux
+                if (BinEnvLen .gt. 0) then
+                  if ((CellIndex(0).eq.14 .or. CellIndex(0).eq.15) .and.
+     &                (CellIndex(1).eq.23 .or. CellIndex(1).eq.24) .and.
+     &                (CellIndex(2).eq.89 .or. CellIndex(2).eq.90)) then
+                    print '(A,1X,I2,1X,I6,1X,3I5,1X,F14.8,1X,F14.8)',
+     &                  'BINTRACE', i, j, CellIndex(0), CellIndex(1),
+     &                  CellIndex(2), TR%R(i)%P(j)%Flux,
+     &                  DC%Flux(CellIndex(0),CellIndex(1),CellIndex(2))
+                  endif
+                endif
             endif
         enddo
       enddo

@@ -139,6 +139,19 @@ c           To randomly sample the ring area we need Rmin and Rmax
       Rmax=R%Rmid+R%Rwidth/2.
       Area=Pi*(Rmax**2.-Rmin**2)
 c      print*, "Single Ring Area Check", Area,Rmin,Rmax
+c           One-off diagnostic ("bisection paradox" investigation, Dan
+c               2026-08-18): BINTRACE showed every particle landing in the
+c               same cell on both platforms but with a different constant
+c               Flux value for ring 3 -- since Flux=Sigma*Area/nParticles
+c               and RINGTRACE only ever dumps ring 0's fields, this prints
+c               every ring's own Rmid/Rwidth/Sigma/nParticles/Area so the
+c               actual numeric input responsible can be identified
+c               directly, gated on TRACE_OVERRIDE_IDUM like the others.
+      if (BisectEnvLen .gt. 0) then
+        print '(A,ES25.17,1X,ES25.17,1X,ES25.17,1X,I12,1X,ES25.17)',
+     &      'RINGGEOMTRACE', R%Rmid, R%Rwidth, R%Sigma,
+     &      R%nParticles, Area
+      endif
 
 
 c      print*, "Ring Params", R%CentPos,R%Inclination, R%PositionAngle

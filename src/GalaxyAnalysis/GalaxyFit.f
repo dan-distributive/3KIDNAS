@@ -128,6 +128,34 @@ c           convert the best model to a TR model
       call ParamToTiltedRing(PVModel,ModelTiltedRing
      &          ,TR_FittingOptions)
 
+c           BUG FIX (Dan, 2026-08-18): ParamToTiltedRing only refreshes
+c               SigUse; the Sigma field that particle-flux generation
+c               actually reads (Ring_CalcParticleFlux_Basic) is derived
+c               from SigUse via this same Linear_Log_SDSwitch check, but
+c               that conversion otherwise only happens inline inside
+c               TiltedRingModelComparison (FullModelComparison.f), which
+c               never runs again after this point in the fit. Without
+c               this, ModelTiltedRing%Sigma is left holding whatever
+c               amoeba's last internal trial evaluation (not necessarily
+c               the converged vertex -- Nelder-Mead's last function call
+c               is often a rejected reflection/contraction/shrink probe)
+c               happened to set it to, so the final output model cube
+c               (built in FitOutput.f's OutputCube, which assumes
+c               ModelTiltedRing is already correct and does no further
+c               conversion of its own) silently uses a stale, wrong
+c               surface density for every ring. Confirmed via a
+c               Fortran-vs-JS "bisection paradox" investigation: particle
+c               positions/velocities matched bit-exactly end to end, yet
+c               every particle's flux differed by a large, ring-specific
+c               (non-constant) factor -- traced to exactly this gap.
+      if(PFlags%Linear_Log_SDSwitch .eq. 0) then
+        ModelTiltedRing%R(0:ModelTiltedRing%nRings-1)%Sigma=
+     &      ModelTiltedRing%R(0:ModelTiltedRing%nRings-1)%SigUse
+      elseif(PFlags%Linear_Log_SDSwitch .eq. 1) then
+        ModelTiltedRing%R(0:ModelTiltedRing%nRings-1)%Sigma=
+     &   10.**(ModelTiltedRing%R(0:ModelTiltedRing%nRings-1)%SigUse)
+      endif
+
 c       Deallocate the model vector at the end
 c      call DeAllocateParamVector(PVModel)
       DEALLOCATE(chiArray)

@@ -1,16 +1,32 @@
 # Bootstrap-resampling Fortran/JS divergence — investigation log
 
-**Status as of 2026-08-18 (later pass): a genuine, unresolved paradox.**
-The `gasdev` cache-reset fix (below) is now verified, via fine-grained
-bisection, to hold **perfectly across all 5 rings' entire particle loops**
-(every 200th particle plus the last one — `idum` and velocity bit-exact,
-every checkpoint). And yet the pre-convolution model cube, checked via a
-separate, independently-verified diagnostic print, still shows real,
-repeatable, substantial divergence at the same tracked pixels. These two
-findings are individually solid but contradict each other, and that
-contradiction is not yet resolved — see "The bisection paradox" near the
-end. This doc exists so the investigation can be picked up cold, by anyone
-(including a future session with no memory of how we got here).
+**Status as of 2026-08-18: RESOLVED.** Root cause found, fixed, and
+verified end to end against the original symptom.
+
+`GalaxyFit.f`'s `GalaxyFit_Simple`, after the optimizer converges,
+refreshes the shared global `ModelTiltedRing`'s `SigUse` field from the
+best-fit vector but never re-derives `Sigma` (the field particle-flux
+generation actually reads) from it — that derivation only ever happened
+inline inside the per-evaluation objective function (see "Root cause"
+below). So the final output model cube silently used a **stale `Sigma`**
+left over from whatever the Nelder-Mead simplex's last internal trial
+evaluation happened to be — not the converged point. This was a genuine
+Fortran-only production bug, unrelated to the JS port, present in every
+real fit (initial and every bootstrap realization). Fixed by re-deriving
+`Sigma` immediately after the post-convergence `ParamToTiltedRing` call —
+no JS changes needed.
+
+**Verified two ways:** (1) the isolated pre-convolution model-cube
+checksum now matches JS bit-for-bit on all 6 tracked pixels; (2) re-ran
+the *original* test that started this investigation — a real initial fit
++ single bootstrap realization on both platforms, diffing the actual
+resampled bootstrap cubes — and the divergence that originally showed 63
+cells off by up to ~2500% relative (max abs diff ~2.14e-4) now shows
+**zero** cells above that threshold, max abs diff **8.03e-8** (over
+2600x smaller), safely inside this project's already-established float32
+noise floor. This doc is kept as the full investigation trail — including
+several real, solid intermediate findings and one abandoned diagnostic —
+in case a similar bug needs tracking down again.
 
 ## The problem, precisely
 
@@ -59,6 +75,26 @@ So the divergence is definitively NOT in: the resampling transform code,
 the coordinate flip/rotation math, trilinear interpolation, boundary
 checks, or corner-pixel selection. It is definitively IN: how each
 platform's own model cube gets populated with particles.
+
+**This is exactly what the root-cause fix (below) addresses.** The model
+cube described here is built by `OutputCube`/`FillDataCubeWithTiltedRing`
+from `ModelTiltedRing`'s per-ring `Sigma` — precisely the field found
+stale on the Fortran side (see "Root cause, confirmed and fixed"). A
+stale `Sigma`, differing per ring by a large non-constant factor, would
+produce exactly this signature: some cells bit-identical (little/no
+model-cube contribution there), others off by up to ~2500%, clustered in
+patches (wherever a mis-scaled ring's particles landed), never at the
+cube edges (rings are centered, so their particles never reach spatial
+edges). **Re-validated end to end, confirmed:** ran a real (non-forced) initial
+fit + single bootstrap realization on both platforms with the fix in
+place (same test as "How to reproduce" below, same galaxy/seed/`cdens`),
+and diffed the actual resampled bootstrap cubes — the original symptom,
+not the isolated pre-convolution checksum. Result: **max abs diff
+8.03e-8** (previously ~2.14e-4 — over 2600x smaller), **zero** cells
+exceed the 1e-4 threshold that originally flagged 63 cells (previously
+63), and the worst remaining cell's relative difference (~0.003%) sits
+inside the project's already-established, accepted float32 noise floor.
+This investigation is closed.
 
 ## Hypotheses tested, with hard evidence (four disproven, one confirmed)
 
@@ -240,68 +276,121 @@ gasdev-fixed controlled test:**
   reset once per realization via their own `resetXStats()` calls). None
   hold sequence-dependent state the way `gasdev`'s cache did.
 
-**The bisection paradox — genuinely unresolved.** Added a coarse
+**The bisection paradox — set up and then resolved.** Added a coarse
 checkpoint trace (`BISECTTRACE`, every 200th particle plus the last one)
 across each ring's *entire* particle loop, not just `PARTTRACE`'s first 5.
 Under the same controlled test (matched idum, matched params): **every
 single checkpoint, across all 5 rings, matches bit-exactly between
 platforms** — both `idum` and the per-particle velocity. Since `ran2`/
 `gasdev` are pure functions of `idum` (given the now-fixed cache), and
-`idum` matching at every 200-particle boundary should mathematically force
-every particle in between to also match, this looks like proof that the
-*entire* particle-generation stage is now correct, ring to ring, top to
-bottom.
+`idum` matching at every 200-particle boundary mathematically forces every
+particle in between to also match, this proved the *entire*
+particle-position/velocity generation stage was correct, ring to ring, top
+to bottom.
 
 **And yet** the pre-convolution model cube — checked via `PRECONVTRACE`/
-`PRECONVPIX`, a simple, direct, `console.error`/`print` style checksum and
-8-sample-pixel dump, re-verified consistent and reproducible across
-multiple independent runs of the identical controlled test — still shows
-real, substantial divergence at the same tracked pixels (e.g. Fortran
-`0.00025334` vs JS `0.00032994` at one cell — not noise-floor, a genuine
-~30% difference), unchanged from before this session's bisection work.
+`PRECONVPIX` — still showed real, substantial divergence at the same
+tracked pixels (e.g. Fortran `0.00025334` vs JS `0.00032994` at one cell —
+not noise-floor, a genuine ~30% difference). Both results were individually
+solid, which meant the divergence had to be in something `BISECTTRACE`
+didn't check: not position or velocity, but **flux**.
 
-These two results cannot both be true under the model of the code this
-investigation has built up. One of them is wrong, or there's a mechanism
-neither test is sensitive to. **Not yet resolved.**
+**A dead end, noted so it isn't repeated:** before finding the real cause,
+attempted to resolve the paradox with a full pixel-by-pixel dump of the
+pre-convolution cube (FITS via `WriteDataCubeToFITS` on the Fortran side, a
+raw synchronous `Float32Array` dump on the JS side). The dumped cubes'
+aggregate sum and max did not match *either platform's own* `PRECONVTRACE`
+print from the exact same run (Fortran: FITS-dump sum `0.718` vs its own
+print `0.620`) — meaning `WriteDataCubeToFITS` (or something in that path)
+applies some transform not present in a direct in-memory read, making it
+unsuitable for this specific unscaled, pre-convolution diagnostic. This
+code was added, found unreliable, and **removed** rather than left in the
+tree — don't rebuild it without first understanding what
+`WriteDataCubeToFITS` does differently from a raw read (check
+`WriteFITSHeader`/`WriteFITSBody` for implicit scaling, e.g. BSCALE/BZERO
+or a beam-area-style conversion, before trusting a FITS round-trip for
+cubes that aren't already in the final output's unit convention).
 
-**A dead end, noted so it isn't repeated:** attempted to resolve the
-paradox with a full pixel-by-pixel dump of the pre-convolution cube (FITS
-via `WriteDataCubeToFITS` on the Fortran side, a raw synchronous
-`Float32Array` dump on the JS side). The dumped cubes' aggregate sum and
-max did not match *either platform's own* `PRECONVTRACE` print from the
-exact same run (Fortran: FITS-dump sum `0.718` vs its own print `0.620`)
-— meaning `WriteDataCubeToFITS` (or something in that path) applies some
-transform not present in a direct in-memory read, making it unsuitable for
-this specific unscaled, pre-convolution diagnostic. This code was added,
-found unreliable, and **removed** rather than left in the tree — don't
-rebuild it without first understanding what `WriteDataCubeToFITS` does
-differently from a raw read (check `WriteFITSHeader`/`WriteFITSBody` for
-implicit scaling, e.g. BSCALE/BZERO or a beam-area-style conversion, before
-trusting a FITS round-trip for cubes that aren't already in the final
-output's unit convention).
+## Root cause, confirmed and fixed
 
-Concrete next steps, in rough priority order:
+Added `BINTRACE` — for every particle landing in one of the 8 tracked
+pixels, print its ring/index, cell, `Flux`, and the running cell total —
+gated the same way as `PRECONVTRACE`. Result, in the controlled test: **the
+exact same 785 particles (same ring, same indices) landed in the exact
+same cells on both platforms — zero disagreements** — but every single
+one's `Flux` value differed by a large, *ring-specific, non-constant*
+factor (e.g. Fortran `0.00000135` vs JS `0.00000176` for every ring-3
+particle — a constant-per-ring value, differing between platforms). This
+ruled out binning/rounding (`RoundForBinStability`) entirely and pointed
+straight at the per-particle flux formula itself:
+`Flux = Sigma * Area / nParticles` (`Ring_CalcParticleFlux_Basic` /
+`ring_CalcParticleFlux_Basic` — confirmed byte-identical formula on both
+platforms). Since `nParticles` was already known to match, and a new
+`RINGGEOMTRACE` (dumps `Rmid`/`Rwidth`/`Sigma`/`nParticles`/`Area` for
+*every* ring, not just ring 0 like `RINGTRACE`) confirmed `Rmid`/`Rwidth`/
+`Area` all matched too, the culprit had to be `Sigma` itself — and it
+did: JS's ring-3 `Sigma` (`7.05593266e-4`) was exactly the raw
+parameter-vector entry, while Fortran's (`5.41786314e-4`) wasn't, and the
+mismatch ratio wasn't constant across rings (ruling out a simple missing
+unit conversion).
 
-1. **Resolve the paradox directly.** Since `BISECTTRACE` only checks
-   velocity (a `gasdev` output) at 200-particle intervals, add a similar
-   checkpoint for *position* (`Pos(0)`/`Pos(1)`, the `ran2`-only outputs)
-   at the *same* checkpoints, and — more importantly — narrow the
-   checkpoint interval (e.g. every particle, or binary-search within a
-   200-particle window) specifically around whichever ring turns out to
-   contribute to the tracked pixel region, to find the first individual
-   particle where Fortran and JS actually disagree. If none is found even
-   at full resolution, the bug is downstream of particle generation after
-   all (binning or convolution) and the aggregate checksum divergence
-   needs a *correctly-scaled* full-cube comparison (fix the `WriteDataCubeToFITS`
-   scaling issue above, or find another synchronous, unscaled dump path).
-2. Which ring(s) actually contribute flux to the tracked pixel region
-   (`x∈{14,15}, y∈{23,24}, ch∈{89,90}`) has never been directly confirmed
-   — only estimated from radius. Multiple rings' particles can land in the
-   same output cell. Confirming this would narrow where to look.
-3. Not yet ruled out: some other input to `Ring_ParticleGeneration` besides
-   idum/Sigma/ring-geometry (e.g. `CloudBaseSurfDens`, `cmode` — simple
-   scalars, unlikely but not directly re-verified in this specific
-   controlled test).
+**The bug, found by reading `GalaxyFit.f`'s `GalaxyFit_Simple`:** after the
+second (refined) `DownhillSimplexRun` converges, the code does:
+```fortran
+call ParamToTiltedRing(PVModel,ModelTiltedRing,TR_FittingOptions)
+```
+to refresh the shared global `ModelTiltedRing` from the converged
+parameter vector. `ParamToTiltedRing` (`GeneralizedParamVectorToTiltedRing`
+in `ParameterToTiltedRingVector.f`) only ever sets `%SigUse` — never
+`%Sigma`. The conversion from `SigUse` to the `Sigma` that particle-flux
+generation actually reads —
+```fortran
+if(PFlags%Linear_Log_SDSwitch .eq. 0) then
+  ModelTiltedRing%R(...)%Sigma = ModelTiltedRing%R(...)%SigUse
+elseif(PFlags%Linear_Log_SDSwitch .eq. 1) then
+  ModelTiltedRing%R(...)%Sigma = 10.**(ModelTiltedRing%R(...)%SigUse)
+endif
+```
+— lives *only* inline inside `TiltedRingModelComparison`
+(`FullModelComparison.f`), the per-evaluation objective function called
+repeatedly during `amoeba`'s simplex search. That function is never called
+again after the simplex converges. `FitOutput.f`'s `OutputCube` (which
+builds the real final model cube) explicitly assumes `ModelTiltedRing` is
+already correct — its own comment says so ("the best fitting tilted ring
+model should have been made in Galaxy fit, so we don't need to do the
+conversion") — and does no `Sigma` derivation of its own. Net effect:
+**`ModelTiltedRing%Sigma` was left holding whatever value
+`TiltedRingModelComparison`'s *last internal call* during the simplex
+search happened to compute** — typically a rejected reflection/
+contraction/shrink trial near the optimum, not the accepted best vertex —
+for every ring, in every real fit (initial fit and every bootstrap
+realization alike, since they all share `GalaxyFit_Simple`), independent
+of this investigation's diagnostic machinery entirely. This is a genuine,
+previously-unknown **Fortran production bug**; the JS port never had it,
+because its single-function architecture (`tiltedRingModelComparison`) always
+re-derives `sigma` from `sigUse` on every call, including its own
+post-convergence resynthesis call.
+
+**The fix** (`src/GalaxyAnalysis/GalaxyFit.f`): re-derive `Sigma` from
+`SigUse` immediately after the post-convergence `ParamToTiltedRing` call,
+using the identical `Linear_Log_SDSwitch` logic `TiltedRingModelComparison`
+uses. No JS changes were needed — the JS port was already correct.
+
+**Verified, same controlled test, post-fix:** `PRECONVPIX` now matches JS
+**exactly** on all 6 non-zero tracked pixels (`0.00032994 0.00021525
+0.00012351 0.00007410 0.00043227 0.00020996` — identical to 8 decimal
+places on both platforms). The full pre-convolution checksum
+(`PRECONVTRACE`) also matches: sum differs by ~6e-7 relative (Fortran
+`6.39096915721893311e-1` vs JS `6.39096535409269251e-1` — consistent with
+the already-documented, expected float32 summation-order noise this whole
+project has repeatedly measured and accepted elsewhere, not a remaining
+bug), and max matches bit-for-bit (`4.04104124754667282e-3` on both).
+
+This fully resolves the bisection paradox: particle generation was always
+correct (hence `BISECTTRACE` matching everywhere), and the divergence was
+entirely in a stale `Sigma` feeding the flux formula downstream of it —
+exactly the class of bug `BISECTTRACE` wasn't built to catch, and exactly
+the reason `PRECONVTRACE` kept disagreeing anyway.
 
 ## Diagnostic infrastructure now in place (kept in the codebase, TRACE-gated)
 
@@ -323,7 +412,9 @@ their own dedicated env vars — safe to leave in place, zero cost when unset.
 | `RINGTRACE` / `RINGTRACE2` | ring 0's full field set (`Rmid, Rwidth, Inclination, PositionAngle, VSys, VRot, VRad, VDisp, Vvert, dvdz, SigUse, z0, zGradiantStart, CentPos`) right after param-vector deserialization — gated on `TRACE_OVERRIDE_IDUM`, fires every evaluation (grab the **last** occurrence for the override-resynthesis call) | `src/Outputs/FitOutput.f` (`MaybeTraceRingFields`), `js/src/CompareCubes/FullModelComparison.js` |
 | `PARTTRACE` | per-particle `Rmid, i, idum, Pos(0:2), ProjectedPos(0:1), ProjectedVel(2)` for the first 5 particles of **every ring** | `src/TiltedRingModelGeneration/SingleRingGeneration.f`, `js/src/TiltedRingModelGeneration/SingleRingGeneration.js` (pre-existing, gated on `WRKP_TRACE_DEBUG=1`/`TRACE_DEBUG=1`, not `TRACE_OVERRIDE_IDUM`) — this is what actually caught the gasdev-cache bug |
 | `BISECTTRACE` | `Rmid, i, idum, ProjectedVel(2)` for **every 200th particle plus the last one, across every ring's full loop** (not just the first 5) — gated on `TRACE_OVERRIDE_IDUM`. Verified: matches bit-exactly at every checkpoint, all 5 rings, in the gasdev-fixed controlled test | `src/TiltedRingModelGeneration/SingleRingGeneration.f`, `js/src/TiltedRingModelGeneration/SingleRingGeneration.js` (added this session) |
-| `PRECONVTRACE` / `PRECONVPIX` | model-cube `sum/min/max` checksum and 8 tracked pixel values (`x∈{14,15}, y∈{23,24}, ch∈{89,90}`), taken right **before** beam convolution — gated on `TRACE_OVERRIDE_IDUM`. Verified reproducible across independent runs; this is what caught the still-unresolved residual divergence | `src/Outputs/FitOutput.f` (`MaybeTracePreConvChecksum`), `js/src/CompareCubes/FullModelComparison.js` (added this session) |
+| `PRECONVTRACE` / `PRECONVPIX` | model-cube `sum/min/max` checksum and 8 tracked pixel values (`x∈{14,15}, y∈{23,24}, ch∈{89,90}`), taken right **before** beam convolution — gated on `TRACE_OVERRIDE_IDUM`. Verified reproducible across independent runs; this is what caught the divergence, and what confirmed the fix resolved it | `src/Outputs/FitOutput.f` (`MaybeTracePreConvChecksum`), `js/src/CompareCubes/FullModelComparison.js` (added this session) |
+| `BINTRACE` | for every particle landing in one of the 8 tracked pixels: ring index, particle index, cell, `Flux`, running cell total — gated on `TRACE_OVERRIDE_IDUM`. This is what proved the divergence was in `Flux`, not binning (particle set and cell assignment matched exactly; only `Flux` differed) | `src/TiltedRingToDataCube/FillDataCubeByTiltedRing.f`, `js/src/TiltedRingToDataCube/FillDataCubeByTiltedRing.js` (added this session) |
+| `RINGGEOMTRACE` | **every** ring's own `Rmid, Rwidth, Sigma, nParticles, Area` (unlike `RINGTRACE`, which only ever dumps ring 0) — gated on `TRACE_OVERRIDE_IDUM`. This is what proved `Sigma` specifically (not `Rmid`/`Rwidth`/`Area`) was the divergent input, and pinned it to ring 3 in the controlled test | `src/TiltedRingModelGeneration/SingleRingGeneration.f`, `js/src/TiltedRingModelGeneration/SingleRingGeneration.js` (added this session) |
 
 **Tried and removed — do not rebuild without reading this first:** a full
 pixel-by-pixel pre-convolution cube dump (`MaybeDumpPreConvCube` in
@@ -355,8 +446,7 @@ divergence, but are real, legitimate improvements worth keeping regardless
 3. **`RoundForBinStability`/`roundForBinStability`** — same protective
    technique applied to per-particle nearest-pixel binning.
 
-One fix that **is** confirmed to matter, with a measured, reproducible
-effect on the actual divergence (see hypothesis 5 above):
+Two fixes that **are** confirmed to matter:
 
 4. **`gasdev` cache-reset fix** — moved `iset`/`gset` from function-local
    `SAVE` variables to module-level (`src/StandardMath/random.f`), added
@@ -365,27 +455,42 @@ effect on the actual divergence (see hypothesis 5 above):
    override mechanism (`TRACE_OVERRIDE_IDUM`) to do a *true* full RNG
    reset — it does not change behavior for any normal (non-diagnostic) run,
    since `iset`/`gset` are still functionally the same persistent state,
-   just reachable from outside `gasdev` now. **Whether an analogous
-   mismatch (not from this specific override mechanism, but from the real
-   bootstrap pipeline's own gasdev-call-count history) explains any part of
-   the original real-dispatch divergence is still an open question** — this
-   fix only touches the diagnostic path; the real bootstrap resampling
-   flow was never confirmed to have a matching cache-desync issue,
-   only proven capable of one in a controlled, artificial test.
+   just reachable from outside `gasdev` now. Real and worth keeping, but
+   **not the cause of the model-cube divergence** — see fix 5, the actual
+   root cause, below.
+5. **`ModelTiltedRing%Sigma` stale-state fix (`src/GalaxyAnalysis/GalaxyFit.f`)
+   — the actual root cause, confirmed and fixed.** See "Root cause,
+   confirmed and fixed" above for the full derivation. One line summary:
+   after the optimizer converges, `GalaxyFit_Simple` refreshes
+   `ModelTiltedRing%SigUse` from the best-fit vector but never re-derives
+   `%Sigma` from it (that conversion lived only inside the per-evaluation
+   objective function, never called again post-convergence) — so every
+   final output model cube, in every real fit, used a stale `Sigma` left
+   over from the optimizer's last internal trial. Fixed by re-deriving
+   `Sigma` right after the post-convergence `ParamToTiltedRing` call.
+   JS never had this bug (single-function architecture always re-derives
+   `sigma` on every call) — no JS change was needed.
 
 **Audit for other state-preservation bugs of the same class (requested
-explicitly, completed this session, came up empty):** every Fortran
+explicitly this session):** an initial pass enumerated every Fortran
 `SAVE` statement in `src/` and every module-level `let`/`var` in
-`js/src/` was enumerated and individually checked (see "Ruled out" list
-above for the specifics). No second instance of gasdev's
-reset-timing-asymmetry pattern — a cache whose correctness depends on
-call order, initialized via a "reset on negative seed" convention that a
-downstream caller's earlier RNG call can silently skip — was found
-anywhere else in the codebase. If a similar bug is suspected elsewhere,
-the pattern to grep for is: (1) a `SAVE`/module-level variable, (2) whose
-reset is gated on a condition that's only true on the "true first" call
-of a sequence, (3) where another stateful call can run first and disturb
-that condition before the guarded code ever sees it.
+`js/src/` and found no second instance there. **That pass was too
+narrow** — fix 5 above turned out to be exactly this class of bug (state
+that persists across calls and whose refresh depends on a code path a
+special caller skips), just living in a shared global *derived-type
+field* (`ModelTiltedRing%Sigma`, declared in `PipelineGlobals.f`) rather
+than a `SAVE`/module-level scalar, so the narrow grep missed it. The
+pattern to grep for, corrected: (1) a `SAVE`/module-level/shared-global
+variable **or struct field**, (2) whose correct value depends on a
+derivation step that runs inline inside one specific caller (here,
+`TiltedRingModelComparison`) rather than being intrinsic to the data
+itself, (3) where another code path (here, `OutputCube`, via
+`GalaxyFit_Simple`'s post-convergence refresh) reads or relies on that
+value without re-running the same derivation. Two confirmed instances of
+this general shape now exist in this codebase (`gasdev`'s cache, and
+`ModelTiltedRing%Sigma`) — worth checking `TiltedRingModelComparison`
+line by line against `OutputCube`/`GalaxyFit_Simple` for any other field
+that's set only inline in the former, if a similar divergence resurfaces.
 
 ## How to reproduce / continue this investigation
 

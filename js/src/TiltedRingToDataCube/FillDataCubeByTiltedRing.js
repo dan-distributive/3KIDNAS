@@ -147,6 +147,15 @@ function fillDataCubeWithTiltedRing(dc, tr) {
   // header for why this matters (was a real, measured ~19.6x-vs-Fortran hot spot).
   const cell = [0, 0, 0];
 
+  // One-off diagnostic ("bisection paradox" investigation, Dan 2026-08-18):
+  // see FillDataCubeByTiltedRing.f's matching BINTRACE comment for why --
+  // particle generation is proven bit-exact (BISECTTRACE) yet the
+  // pre-convolution cube still diverges (PRECONVTRACE), narrowing the
+  // residual to this binning step. Prints every particle landing in one of
+  // the already-tracked pixels, with its flux and running cell total.
+  const binTrace = typeof process !== 'undefined' && process.env
+    && process.env.TRACE_OVERRIDE_IDUM;
+
   for (let i = 0; i < tr.nRings; i++) {
     const ring = tr.r[i];
     for (let j = 0; j < ring.nParticles; j++) {
@@ -154,6 +163,13 @@ function fillDataCubeWithTiltedRing(dc, tr) {
       if (checkIfInCube(cell, dc)) {
         const idx      = flatIndxCalc(cell[0], cell[1], cell[2], dc.dh);
         dc.flux[idx]   = f32(dc.flux[idx] + f32(ring.p[j].flux));
+        if (binTrace &&
+            (cell[0] === 14 || cell[0] === 15) &&
+            (cell[1] === 23 || cell[1] === 24) &&
+            (cell[2] === 89 || cell[2] === 90)) {
+          console.error('BINTRACE', i, j, cell[0], cell[1], cell[2],
+            ring.p[j].flux.toFixed(8), dc.flux[idx].toFixed(8));
+        }
       }
     }
   }
