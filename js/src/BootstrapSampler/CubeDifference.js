@@ -84,6 +84,10 @@ function constructDiffCube(cube1, cube2, diffCube) {
       for (let k = 0; k < nch; k++) {
         const idx = flatIndxCalc(i, j, k, dh1);
         diffCube.flux[idx] = f32(cube1.flux[idx] - cube2.flux[idx]);
+        if ((i === 14 || i === 15) && (j === 23 || j === 24) && (k === 89 || k === 90)) {
+          console.error('SRCTRACE', i, j, k,
+            cube1.flux[idx].toFixed(6), cube2.flux[idx].toFixed(6), diffCube.flux[idx].toFixed(6));
+        }
       }
     }
   }

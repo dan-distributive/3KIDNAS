@@ -34,6 +34,13 @@ c       Finally get the difference between the cubes
         do j=0,Cube1%DH%nPixels(1)-1
             do k=0, Cube1%DH%nChannels-1
                 DiffCube%Flux(i,j,k)=Cube1%Flux(i,j,k)-Cube2%Flux(i,j,k)
+                if ((i.eq.14 .or. i.eq.15) .and.
+     &              (j.eq.23 .or. j.eq.24) .and.
+     &              (k.eq.89 .or. k.eq.90)) then
+                  print '(A,I3,I3,I3,1X,3F12.6)', 'SRCTRACE',i,j,k,
+     &              Cube1%Flux(i,j,k),Cube2%Flux(i,j,k),
+     &              DiffCube%Flux(i,j,k)
+                endif
             enddo
         enddo
       enddo

@@ -166,6 +166,14 @@ c      BeamArea=ObservedBeam%BeamMajorAxis*ObservedBeam%BeamMinorAxis
 
       SpecNoise=ObservedDC%DH%Uncertainty
      &             *abs(ObservedDC%DH%ChannelSize)
+c           One-off diagnostic (Fortran-vs-JS idum-divergence proof, Dan
+c               2026-08-17): if set, forces idum to a fixed, externally
+c               supplied value right before this final resynthesis call,
+c               so the SAME idum can be injected on both platforms and the
+c               resulting model cubes compared with every other variable
+c               (parameters, idum) controlled for. No effect unless
+c               TRACE_OVERRIDE_IDUM is set.
+      call MaybeOverrideIdum(idum)
       call BuildTiltedRingModel(ModelTiltedRing,idum,SpecNoise
      &          ,ObservedDC,ObservedBeam)
 c       Create the point-source data cube
@@ -803,6 +811,33 @@ c      write(10,*) PFlags%LikelihoodSwitch
       write(10,*) GalaxyDict%Flags%CenterFlag
 
       close(10)
+
+      return
+      end subroutine
+ccccccc
+
+ccccccc
+c       MaybeOverrideIdum: one-off diagnostic (Fortran-vs-JS idum-
+c           divergence proof, Dan 2026-08-17) -- reads TRACE_OVERRIDE_IDUM
+c           from the environment and, if set to a valid integer,
+c           overwrites idum with it. No effect otherwise (leaves idum
+c           untouched, including on a blank/unset/unparseable value).
+      subroutine MaybeOverrideIdum(idum)
+      implicit none
+      integer, INTENT(INOUT) :: idum
+      character(64) EnvVal
+      integer EnvLen, IOStat, NewIdum
+
+      call get_environment_variable("TRACE_OVERRIDE_IDUM",EnvVal,
+     &          EnvLen)
+      if (EnvLen .gt. 0) then
+        read(EnvVal(1:EnvLen),*,IOSTAT=IOStat) NewIdum
+        if (IOStat .eq. 0) then
+          print*, "TRACE using overridden idum for resynthesis:",
+     &          NewIdum
+          idum=NewIdum
+        endif
+      endif
 
       return
       end subroutine

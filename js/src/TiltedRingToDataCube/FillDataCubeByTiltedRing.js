@@ -22,6 +22,43 @@
 const f32 = Math.fround;
 const { flatIndxCalc } = require('../ObjectDefinitions/DataCube.js');
 
+// ---------------------------------------------------------------------------
+// roundForBinStability
+// Same technique as SingleRingGeneration.js's roundForParticleStability /
+// GenerateBootstrap.js's roundForInterpStability (masks off the low 12 bits
+// of x's float32 mantissa, keeping the top 11 of 23 bits -- ~0.05% relative
+// precision), applied here to a per-particle nearest-pixel rounding
+// decision instead. Matches Fortran's RoundForBinStability
+// (FillDataCubeByTiltedRing.f) bit-for-bit.
+//
+// Root cause: p.projectedPos/p.projectedVel (the product of a chain of
+// float32 trig/rotation arithmetic during particle generation) can differ
+// from Fortran by a handful of float32 ULPs -- the same already-known,
+// unavoidable cross-platform difference documented at
+// roundForParticleStability. Normally harmless, but
+// findParticleCellLocation's int(pos+0.5) is a hard round-to-nearest-pixel
+// decision, applied independently to EVERY particle (tens of thousands per
+// ring): whenever one particle's position sits within that noise-distance
+// of a half-integer boundary, Fortran and this port round it into
+// different, adjacent cells. Since each particle's full flux is added (not
+// interpolated) to whichever single cell it lands in, one straddling
+// particle yanks a chunk of flux out of one cell and into its neighbor on
+// only one platform -- confirmed directly (2026-08-17): with particle
+// COUNTS already verified identical per ring between two independent
+// Fortran/JS initial fits, and the model cube isolated as the only
+// diverging input (observed cube confirmed bit-identical) to a downstream
+// bootstrap-resampling pixel diff, this per-particle binning round is the
+// remaining discrete decision capable of producing that divergence at this
+// scale.
+// ---------------------------------------------------------------------------
+const _binF32buf = new Float32Array(1);
+const _binU32buf = new Uint32Array(_binF32buf.buffer);
+function roundForBinStability(x) {
+  _binF32buf[0] = x;
+  _binU32buf[0] = _binU32buf[0] & 0xFFFFF000;
+  return _binF32buf[0];
+}
+
 
 // ---------------------------------------------------------------------------
 // findParticleCellLocation
@@ -53,12 +90,12 @@ function findParticleCellLocation(p, dc, out = [0, 0, 0]) {
   // the addition in JS's native double precision before Math.trunc() skips
   // that rounding step, which can flip the truncated result for values
   // landing within ~1 float32 ULP of an integer/half-integer boundary.
-  out[0] = Math.trunc(f32(f32(p.projectedPos[0]) + f32(0.5)));
-  out[1] = Math.trunc(f32(f32(p.projectedPos[1]) + f32(0.5)));
-  out[2] = Math.trunc(
+  out[0] = Math.trunc(roundForBinStability(f32(f32(p.projectedPos[0]) + f32(0.5))));
+  out[1] = Math.trunc(roundForBinStability(f32(f32(p.projectedPos[1]) + f32(0.5))));
+  out[2] = Math.trunc(roundForBinStability(
     f32(f32(f32(f32(p.projectedVel[2]) - f32(dh.start[2]))
     / f32(dh.channelSize)) + f32(0.5))
-  );
+  ));
   return out;
 }
 

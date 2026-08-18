@@ -61,3 +61,12 @@ js/DCPjobData/*.json
 3KIDNASTests/SingleGalaxyTest/run_both_fortran_local_config_fitting_options.txt
 3KIDNASTests/SingleGalaxyTest/run_both_js_dcp_config.py
 3KIDNASTests/SingleGalaxyTest/run_both_js_dcp_config_fitting_options.txt
+
+# run_both.js's own result output -- the default report filename and any
+# custom name passed via --json (arbitrary per invocation, e.g.
+# 20_bootstraps.json) -- regenerated every run, not reference data. Key
+# findings from these get written up in BOOTSTRAP_RESAMPLE_DIVERGENCE.md
+# instead of committing the raw dumps.
+js/tools/run_both_report.json
+js/tools/run_both_report.html
+js/tools/*_bootstraps.json

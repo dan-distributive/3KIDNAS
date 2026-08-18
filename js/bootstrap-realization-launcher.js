@@ -196,6 +196,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
       ({ galaxyFit_Simple } = entry.GalaxyFit);
       ({ resetEvalStats, getEvalStats } = entry.FullModelComparison);
       ({ JyAS_To_MsolPC } = entry.BasicConstants);
+      if (isTraceDebug()) console.error('MODSRC published-package (entry.*)');
     } catch (publishedPackageError) {
       // See runInitialFit's identical catch block for why both errors get
       // surfaced on a double failure instead of just the fallback's own.
@@ -217,6 +218,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
         ({ galaxyFit_Simple } = require('./src/GalaxyAnalysis/GalaxyFit'));
         ({ resetEvalStats, getEvalStats } = require('./src/CompareCubes/FullModelComparison'));
         ({ JyAS_To_MsolPC } = require('./src/StandardMath/BasicConstants'));
+        if (isTraceDebug()) console.error('MODSRC local fallback (./src/*)', publishedPackageError.message);
       } catch (localFallbackError) {
         throw new Error(`Could not load pipeline modules via the published package OR the local fallback. `
           + `Published-package error: ${publishedPackageError.message}. `
@@ -1312,6 +1314,18 @@ async function runInitialFit(realizationIndex, payload) {
     if (typeof process !== 'undefined' && process.env && process.env.TRACE_OVERRIDE_PARAMS) {
       synthParams = Float64Array.from(JSON.parse(process.env.TRACE_OVERRIDE_PARAMS));
       console.error('TRACE using overridden params for resynthesis:', Array.from(synthParams));
+    }
+    // One-off diagnostic (Fortran-vs-JS idum-divergence proof, Dan
+    // 2026-08-17): replaces state.rng with a fresh RNG at a fixed,
+    // externally supplied idum right before this resynthesis call, so the
+    // SAME idum can be injected on both platforms (see FitOutput.f's
+    // matching MaybeOverrideIdum) and the resulting model cubes compared
+    // with every other variable (parameters, idum) controlled for. No
+    // effect unless TRACE_OVERRIDE_IDUM is set.
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_OVERRIDE_IDUM) {
+      const overrideIdum = parseInt(process.env.TRACE_OVERRIDE_IDUM, 10);
+      console.error('TRACE using overridden idum for resynthesis:', overrideIdum);
+      state.rng = makeRng(overrideIdum);
     }
     tiltedRingModelComparison(synthParams, state);
     // BUG FIX (2026, flagged by Dan): tiltedRingModelComparison leaves

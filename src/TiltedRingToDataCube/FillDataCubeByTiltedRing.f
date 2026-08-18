@@ -77,6 +77,48 @@ c     &          ,PTest%ProjectedPos(1)/3600., DC%DH%Start(1)/3600.
 cccccc
 
 cccccc
+c       RoundForBinStability: same technique as SingleRingGeneration.f's
+c           RoundForParticleStability / GenerateBootstrap.f's
+c           RoundForInterpStability (masks off the low 12 bits of x's
+c           float32 mantissa, keeping the top 11 of 23 bits -- ~0.05%
+c           relative precision), applied here to a per-particle
+c           nearest-pixel rounding decision instead.
+c
+c           Root cause: P%ProjectedPos/P%ProjectedVel (the product of a
+c           chain of float32 trig/rotation arithmetic during particle
+c           generation) can differ from the JS port by a handful of
+c           float32 ULPs -- the same already-known, unavoidable
+c           cross-platform difference documented at
+c           RoundForParticleStability. Normally harmless, but
+c           CellIndex=int(Pos+0.5) is a hard round-to-nearest-pixel
+c           decision, applied independently to EVERY particle (tens of
+c           thousands per ring): whenever one particle's position sits
+c           within that noise-distance of a half-integer boundary,
+c           Fortran and the JS port round it into different, adjacent
+c           cells. Since each particle's full flux is added (not
+c           interpolated) to whichever single cell it lands in, one
+c           straddling particle yanks a chunk of flux out of one cell and
+c           into its neighbor on only one platform -- confirmed directly
+c           (2026-08-17): with particle COUNTS already verified identical
+c           per ring between two independent Fortran/JS initial fits, and
+c           the model cube isolated as the only diverging input (observed
+c           cube confirmed bit-identical) to a downstream bootstrap-
+c           resampling pixel diff, this per-particle binning round is the
+c           remaining discrete decision capable of producing that
+c           divergence at this scale.
+      real function RoundForBinStability(x)
+      implicit none
+      real, INTENT(IN) :: x
+      integer(4) ix
+      integer(4), parameter :: MASK = int(z'FFFFF000',4)
+      ix = transfer(x, 0)
+      ix = iand(ix, MASK)
+      RoundForBinStability = transfer(ix, 0.0)
+      return
+      end function
+cccccccc
+
+cccccc
       subroutine FindParticleCellLocation(P,DC,CellIndex)
       implicit none
       Type(Particle), INTENT(IN) :: P
@@ -87,10 +129,12 @@ cccccc
       do i=0,1
 c        CellIndex(i)=int((P%ProjectedPos(i)-DC%DH%Start(i))
 c     &                  /(DC%DH%PixelSize(i)) )
-        CellIndex(i)=int((P%ProjectedPos(i))+0.5)
+        CellIndex(i)=int(RoundForBinStability(
+     &                  (P%ProjectedPos(i))+0.5))
       enddo
-      CellIndex(2)=int((P%ProjectedVel(2)-DC%DH%Start(2))
-     &                  /(DC%DH%ChannelSize) +0.5)
+      CellIndex(2)=int(RoundForBinStability(
+     &                  (P%ProjectedVel(2)-DC%DH%Start(2))
+     &                  /(DC%DH%ChannelSize) +0.5))
 
       i=2
 c      if(CellIndex(i) .eq. 100) then

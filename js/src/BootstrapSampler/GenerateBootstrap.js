@@ -100,6 +100,44 @@ function simpleBoundCheckReal(dc, i, j, k) {
 
 
 // ---------------------------------------------------------------------------
+// roundForInterpStability
+// Same technique as SingleRingGeneration.js's roundForParticleStability
+// (masks off the low 12 bits of x's float32 mantissa, keeping the top 11 of
+// 23 bits -- ~0.05% relative precision), applied here to getFluxAtPoint's
+// truncation instead of a particle count. Matches Fortran's
+// RoundForInterpStability (GenerateBootstrap.f) bit-for-bit.
+//
+// Root cause: pt[i] below (a physical/cube coordinate, itself the product
+// of a chain of float32 trig/rotation arithmetic) can differ from Fortran
+// by a handful of float32 ULPs -- the same already-known, unavoidable
+// cross-platform difference documented at roundForParticleStability.
+// Normally harmless, but currIndx[i]=Math.trunc(pt[i]) is a hard truncation
+// that picks which 8 corner pixels get trilinear-interpolated below --
+// when pt[i] sits within that noise-distance of a pixel boundary, Fortran
+// and this port select a different corner set and produce a measurably
+// different flux value at that one cell.
+//
+// Unlike roundForParticleStability's failure mode, this doesn't desync
+// idum (no RNG draw involved) -- confirmed directly (2026-08-17): diffing
+// a full matched-seed resampled bootstrap cube pixel-by-pixel found
+// 63/179520 cells with >1e-4 absolute flux disagreement, clustered in
+// small (~3-5 pixel) patches within individual channels, never at the
+// cube's spatial edges -- exactly the pattern expected from a per-channel
+// coordinate landing near a boundary, not a wholesale algorithmic
+// mismatch. Those localized-but-real flux differences feed directly into
+// every bootstrap realization's resampled dataset, so even without
+// desyncing idum they still perturb the fit's starting data enough for
+// Nelder-Mead to converge to a different answer.
+// ---------------------------------------------------------------------------
+const _interpF32buf = new Float32Array(1);
+const _interpU32buf = new Uint32Array(_interpF32buf.buffer);
+function roundForInterpStability(x) {
+  _interpF32buf[0] = x;
+  _interpU32buf[0] = _interpU32buf[0] & 0xFFFFF000;
+  return _interpF32buf[0];
+}
+
+// ---------------------------------------------------------------------------
 // getFluxAtPoint
 // Fortran: GetFluxAtPoint(Cube, Pt, Flux)
 //
@@ -114,9 +152,9 @@ function simpleBoundCheckReal(dc, i, j, k) {
 // ---------------------------------------------------------------------------
 function getFluxAtPoint(cube, pt) {
   const currIndx = [
-    Math.trunc(pt[0]),  // x
-    Math.trunc(pt[1]),  // y
-    Math.trunc(pt[2]),  // channel
+    Math.trunc(roundForInterpStability(pt[0])),  // x
+    Math.trunc(roundForInterpStability(pt[1])),  // y
+    Math.trunc(roundForInterpStability(pt[2])),  // channel
   ];
 
   // corners: array of 8 entries, each [x, y, ch, val]
@@ -142,9 +180,19 @@ function getFluxAtPoint(cube, pt) {
     }
   }
 
+  if (currIndx[0] === 14 && currIndx[1] === 23 && currIndx[2] === 89) {
+    console.error('CORNERTRACE', pt[0].toFixed(6), pt[1].toFixed(6), pt[2].toFixed(6),
+      corners.map((c) => c[3].toFixed(6)).join(' '));
+  }
+
   // pTarg = [x, y, channel, 0] — triLinearInterpolation fills index 3
   const pTarg = [f32(pt[0]), f32(pt[1]), f32(pt[2]), f32(0.0)];
   triLinearInterpolation(pTarg, corners);
+
+  if (currIndx[0] === 14 && currIndx[1] === 23 && currIndx[2] === 89) {
+    console.error('CORNERTRACE_OUT', pTarg[3].toFixed(8));
+  }
+
   return pTarg[3];
 }
 

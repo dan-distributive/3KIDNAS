@@ -135,6 +135,12 @@ function flipChannelSpatial(cube, tempCube, coordArr, chanID, xc, yc, vSys, pa, 
 
       const cubeCoordFlip = getCubeCoords(xc, yc, vSys, pa, inc, physCoordFlip);
 
+      if (chanID === 14 && j === 15 && i === 29) {
+        const bc = simpleBoundCheckReal(cube, cubeCoordFlip[0], cubeCoordFlip[1], cubeCoordFlip[2]);
+        console.error('PXTRACE', flipType, chanID, j, i,
+          cubeCoordFlip[0].toFixed(8), cubeCoordFlip[1].toFixed(8), cubeCoordFlip[2].toFixed(8), bc);
+      }
+
       let flux;
       if (simpleBoundCheckReal(cube, cubeCoordFlip[0], cubeCoordFlip[1], cubeCoordFlip[2])) {
         flux = getFluxAtPoint(cube, cubeCoordFlip);

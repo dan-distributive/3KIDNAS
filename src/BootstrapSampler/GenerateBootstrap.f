@@ -708,6 +708,48 @@ ccccc
 
 
 ccccc
+c       RoundForInterpStability: same technique as SingleRingGeneration.f's
+c           RoundForParticleStability (masks off the low 12 bits of x's
+c           float32 mantissa, keeping the top 11 of 23 bits -- ~0.05%
+c           relative precision), applied here to GetFluxAtPoint's
+c           truncation instead of a particle count.
+c
+c           Root cause: Pt(i) below (a physical/cube coordinate, itself the
+c           product of a chain of float32 trig/rotation arithmetic) can
+c           differ between Fortran and the JS port by a handful of float32
+c           ULPs -- the same already-known, unavoidable cross-platform
+c           difference documented at RoundForParticleStability. Normally
+c           harmless, but CurrIndx(i)=int(Pt(i)) is a hard truncation that
+c           picks which 8 corner pixels get trilinear-interpolated below --
+c           when Pt(i) sits within that noise-distance of a pixel boundary,
+c           Fortran and the JS port select a different corner set and
+c           produce a measurably different flux value at that one cell.
+c
+c           Unlike RoundForParticleStability's failure mode, this doesn't
+c           desync idum (no RNG draw involved) -- confirmed directly
+c           (2026-08-17): diffing a full matched-seed resampled bootstrap
+c           cube pixel-by-pixel found 63/179520 cells with >1e-4 absolute
+c           flux disagreement, clustered in small (~3-5 pixel) patches
+c           within individual channels, never at the cube's spatial edges
+c           -- exactly the pattern expected from a per-channel coordinate
+c           landing near a boundary, not a wholesale algorithmic mismatch.
+c           Those localized-but-real flux differences feed directly into
+c           every bootstrap realization's resampled dataset, so even
+c           without desyncing idum they still perturb the fit's starting
+c           data enough for Nelder-Mead to converge to a different answer.
+      real function RoundForInterpStability(x)
+      implicit none
+      real, INTENT(IN) :: x
+      integer(4) ix
+      integer(4), parameter :: MASK = int(z'FFFFF000',4)
+      ix = transfer(x, 0)
+      ix = iand(ix, MASK)
+      RoundForInterpStability = transfer(ix, 0.0)
+      return
+      end function
+cccccccc
+
+ccccc
 c           This routine gets the flux at a specific point via interpolation
       subroutine GetFluxAtPoint(Cube,Pt,Flux)
       use InterpolateMod
@@ -723,7 +765,7 @@ c           This routine gets the flux at a specific point via interpolation
 
 
       do i=1,3
-        CurrIndx(i)=int(Pt(i))
+        CurrIndx(i)=int(RoundForInterpStability(Pt(i)))
       enddo
 
 c       Set the interpolated point position
@@ -755,9 +797,20 @@ c                print*, "Corner Pts", ll,CornerPts(ll,1:4)
             enddo
         enddo
       enddo
+      if (CurrIndx(1).eq.14 .and. CurrIndx(2).eq.23
+     &        .and. CurrIndx(3).eq.89) then
+        print '(A,3F12.6,1X,8F12.6)', 'CORNERTRACE',Pt(1),Pt(2),Pt(3),
+     &      CornerPts(1,4),CornerPts(2,4),CornerPts(3,4),
+     &      CornerPts(4,4),CornerPts(5,4),CornerPts(6,4),
+     &      CornerPts(7,4),CornerPts(8,4)
+      endif
 c           Use trilinear interpolation to get the flux at the specified point
       call TriLinearInterpolation(InterpolatePt,CornerPts) !/src/StandardMath/Interpolation.f
 c      print*, "Interpolated flux", InterpolatePt
+      if (CurrIndx(1).eq.14 .and. CurrIndx(2).eq.23
+     &        .and. CurrIndx(3).eq.89) then
+        print '(A,F14.8)', 'CORNERTRACE_OUT',InterpolatePt(4)
+      endif
       Flux=InterpolatePt(4)
 
       return

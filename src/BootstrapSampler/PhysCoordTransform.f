@@ -8,6 +8,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccc
       module PhysCoordMod
       use DataCubeMod
       use BeamMod
+      use FullCircTrig
 
 
       implicit none
@@ -67,7 +68,10 @@ c           angles, and channels for a pt index about some given center and geom
       real X,Y,XRot, YRot
 
       real Theta, R, REllip, YEllip, Ellip
-      
+
+      real fd_sin, fd_cos
+      external fd_sin, fd_cos
+
 c      print*, "Get physical coords for each cell"
 
       X=real(PtIndx(1))-XC
@@ -75,21 +79,36 @@ c      print*, "Get physical coords for each cell"
 
 c      print*, "X,Y from Cent", X,Y
 
-      XRot=X*cos(-PA)-Y*sin(-PA)
-      YRot=X*sin(-PA)+Y*cos(-PA)
+c           BUG FIX (2026, flagged by Dan): this whole file was missed by
+c               the fdlibm-forcing sweep applied everywhere else in the
+c               pipeline (SingleRingGeneration.f, EstimateShape.f,
+c               EstimateRadialProfiles.f, CalculateBeamKernel.f) to close a
+c               confirmed nonzero per-call divergence between gfortran's
+c               native cos/sin/atan2 and the JS port's trig -- native
+c               cos/sin/atan2 here reintroduced exactly that class of
+c               cross-platform difference into every bootstrap
+c               realization's resampling step. Traced directly (2026-08-17):
+c               diffing a full matched-seed resampled bootstrap cube found
+c               63/179520 cells with real (non-noise) flux disagreement,
+c               clustered in small per-channel patches -- masking the
+c               GetFluxAtPoint truncation boundary (RoundForInterpStability)
+c               did NOT change a single one of those cells, ruling out a
+c               discrete corner-selection flip and pointing at a continuous
+c               upstream coordinate difference instead. This is that
+c               upstream difference.
+      XRot=X*fd_cos(-PA)-Y*fd_sin(-PA)
+      YRot=X*fd_sin(-PA)+Y*fd_cos(-PA)
 
 c      print*, "Rotated points", XRot,YRot
 
-      Ellip=cos(Inc)
+      Ellip=fd_cos(Inc)
 c      print*, "Ellipticity", Ellip
       YEllip=YRot!/Ellip
 
       REllip=sqrt(XRot**2. + YEllip**2.)
 c      print*, "Radius", sqrt(X**2.+Y**2.), REllip
 
-      Theta=atan2(YRot,XRot)
-      if(Theta .lt. 0.) Theta=Theta+2.*Pi
-      if(Theta .gt. 2.*Pi) Theta=Theta-2.*Pi
+      call FullCircATan(XRot,YRot,Theta)
 c      print*, "Angle", Theta, Theta*180./3.14
 
       PhysCoords(1)=REllip
@@ -121,6 +140,9 @@ c           angles, and channels for a pt index about some given center and geom
       real X,Y,XRot, YRot
       real Theta, R, REllip, YEllip, Ellip
 
+      real fd_sin, fd_cos
+      external fd_sin, fd_cos
+
 
       REllip=PhysCoords(1)
       Theta=PhysCoords(2)
@@ -128,16 +150,18 @@ c           angles, and channels for a pt index about some given center and geom
 c      CubePt(3)=PhysCoords(3)*cos(Theta)+VSys
       CubePt(3)=PhysCoords(3)+VSys
 
+c           BUG FIX (2026, flagged by Dan): see GetPhysCoords's identical
+c               note above -- this file was missed by the fdlibm-forcing
+c               sweep applied everywhere else in the pipeline.
+      XRot=REllip*fd_cos(Theta)
+      YEllip=REllip*fd_sin(Theta)
 
-      XRot=REllip*cos(Theta)
-      YEllip=REllip*sin(Theta)
-
-      Ellip=cos(Inc)
+      Ellip=fd_cos(Inc)
 
       YRot=YEllip!*Ellip
 
-      X=XRot*cos(PA)-YRot*sin(PA)
-      Y=XRot*sin(PA)+YRot*cos(PA)
+      X=XRot*fd_cos(PA)-YRot*fd_sin(PA)
+      Y=XRot*fd_sin(PA)+YRot*fd_cos(PA)
 
       CubePt(1)=X+XC
       CubePt(2)=Y+YC

@@ -1,4 +1,4 @@
-module.declare([], function (require, exports, module) {
+module.declare(["./fdlibm.js","./FullCircTrig.js"], function (require, exports, module) {
 'use strict';
 
 // =============================================================================
@@ -49,6 +49,23 @@ module.declare([], function (require, exports, module) {
 const f32 = Math.fround;
 const Pi  = f32(Math.PI);
 
+// BUG FIX (2026, flagged by Dan): this whole file was missed by the
+// fdlibm-forcing sweep applied everywhere else in the pipeline
+// (SingleRingGeneration.js, EstimateShape.js, EstimateRadialProfiles.js,
+// CalculateBeamKernel.js) to close a confirmed nonzero per-call divergence
+// between Fortran's native cos/sin/atan2 and this port's Math.cos/Math.sin/
+// Math.atan2 -- plain Math.cos/Math.sin/Math.atan2 here reintroduced
+// exactly that class of cross-platform difference into every bootstrap
+// realization's resampling step. Traced directly (2026-08-17): diffing a
+// full matched-seed resampled bootstrap cube found 63/179520 cells with
+// real (non-noise) flux disagreement, clustered in small per-channel
+// patches -- masking getFluxAtPoint's truncation boundary
+// (roundForInterpStability) did NOT change a single one of those cells,
+// ruling out a discrete corner-selection flip and pointing at a continuous
+// upstream coordinate difference instead. This is that upstream difference.
+const { fdSin, fdCos } = require('./fdlibm.js');
+const { fullCircATan } = require('./FullCircTrig.js');
+
 
 // ---------------------------------------------------------------------------
 // coordGet / coordSet
@@ -79,8 +96,8 @@ function getPhysCoords(xc, yc, vSys, pa, inc, ptIndx) {
   const X = f32(f32(ptIndx[0]) - f32(xc));
   const Y = f32(f32(ptIndx[1]) - f32(yc));
 
-  const cosNegPA = f32(Math.cos(f32(-pa)));
-  const sinNegPA = f32(Math.sin(f32(-pa)));
+  const cosNegPA = f32(fdCos(f32(-pa)));
+  const sinNegPA = f32(fdSin(f32(-pa)));
 
   const XRot = f32(f32(X * cosNegPA) - f32(Y * sinNegPA));
   const YRot = f32(f32(X * sinNegPA) + f32(Y * cosNegPA));
@@ -90,9 +107,7 @@ function getPhysCoords(xc, yc, vSys, pa, inc, ptIndx) {
 
   const REllip = f32(Math.sqrt(f32(f32(XRot * XRot) + f32(YEllip * YEllip))));
 
-  let Theta = f32(Math.atan2(YRot, XRot));
-  if (Theta < f32(0.0)) Theta = f32(Theta + f32(2.0) * Pi);
-  if (Theta > f32(2.0) * Pi) Theta = f32(Theta - f32(2.0) * Pi);
+  const Theta = f32(fullCircATan(XRot, YRot));
 
   // dV = k - vSys  (cos(Theta) division commented out in Fortran)
   const dV = f32(f32(ptIndx[2]) - f32(vSys));
@@ -124,14 +139,14 @@ function getCubeCoords(xc, yc, vSys, pa, inc, physCoords) {
   // Velocity: CubePt(3) = dV + vSys  (cos(Theta) multiply commented out)
   cubePt[2] = f32(f32(physCoords[2]) + f32(vSys));
 
-  const XRot   = f32(REllip * f32(Math.cos(Theta)));
-  const YEllip = f32(REllip * f32(Math.sin(Theta)));
+  const XRot   = f32(REllip * f32(fdCos(Theta)));
+  const YEllip = f32(REllip * f32(fdSin(Theta)));
 
   // Fortran: YRot = YEllip  (the *Ellip multiply is commented out)
   const YRot = YEllip;
 
-  const cosPA = f32(Math.cos(f32(pa)));
-  const sinPA = f32(Math.sin(f32(pa)));
+  const cosPA = f32(fdCos(f32(pa)));
+  const sinPA = f32(fdSin(f32(pa)));
 
   const X = f32(f32(XRot * cosPA) - f32(YRot * sinPA));
   const Y = f32(f32(XRot * sinPA) + f32(YRot * cosPA));

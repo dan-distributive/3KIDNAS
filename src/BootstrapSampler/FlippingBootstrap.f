@@ -202,6 +202,12 @@ c
             call SimpleBoundCheck_Real(Cube
      &                  ,CubeCoordFlip(1),CubeCoordFlip(2)
      &                  ,CubeCoordFlip(3),BoundCheck)
+            if (ChanID.eq.14 .and. j.eq.15 .and. i.eq.29) then
+              print '(A,I3,I3,I3,I3,1X,3F14.8,1X,L1)',
+     &          'PXTRACE',FlipType,ChanID,j,i,
+     &          CubeCoordFlip(1),CubeCoordFlip(2),CubeCoordFlip(3),
+     &          BoundCheck
+            endif
             if(BoundCheck) then
                 call GetFluxAtPoint(Cube,CubeCoordFlip,Flux)
                 FlippedMap(i,j)=Flux
