@@ -83,8 +83,8 @@ emcc -O2 cfitsio-driver.c "$LIBCFITSIOA" \
   -sUSE_ZLIB=1 -D__arm__ \
   -I"$CFITSIO_SRC" \
   -s MODULARIZE=1 -s EXPORT_NAME=CfitsioModule \
-  -s EXPORTED_FUNCTIONS='["_cfits_read_image_info_wasm","_cfits_read_image_double_wasm","_cfits_write_image_double_wasm","_cfits_read_key_str_wasm","_cfits_read_key_dbl_wasm","_cfits_status_message_wasm","_cfits_create_image_wasm","_cfits_write_key_dbl_wasm","_cfits_write_key_str_wasm","_cfits_write_image_data_wasm","_cfits_close_image_wasm","_malloc","_free"]' \
-  -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","FS","HEAPF64","HEAP32","UTF8ToString","stringToUTF8"]' \
+  -s EXPORTED_FUNCTIONS='["_cfits_read_image_info_wasm","_cfits_read_image_double_wasm","_cfits_write_image_double_wasm","_cfits_read_key_str_wasm","_cfits_read_key_dbl_wasm","_cfits_status_message_wasm","_cfits_create_image_wasm","_cfits_create_image_float_wasm","_cfits_write_key_dbl_wasm","_cfits_write_key_str_wasm","_cfits_write_image_data_wasm","_cfits_write_image_data_float_wasm","_cfits_close_image_wasm","_malloc","_free"]' \
+  -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","FS","HEAPF64","HEAPF32","HEAP32","UTF8ToString","stringToUTF8"]' \
   -s FORCE_FILESYSTEM=1 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s SINGLE_FILE=1 \

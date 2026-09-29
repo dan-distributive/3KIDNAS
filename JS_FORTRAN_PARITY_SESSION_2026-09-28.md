@@ -604,3 +604,74 @@ trace.js` (loads a saved `realization_payload.json` and calls
 launcher.js` (mask nonzero count, resampleBeam.beamPositionAngle) --
 these made this whole investigation tractable and should make the next
 session's BITPIX lead much faster to check.
+
+## CHASED 2026-09-29 (same day): BITPIX lead ruled out too -- root cause still open
+
+Added a genuine float32 (BITPIX=-32) write path to the cfitsio wasm build,
+to directly test the BITPIX=-32-vs-64 hypothesis above rather than leave it
+as a guess:
+
+- `third_party/cfitsio-4.6.3/wasm/cfitsio-driver.c`: added
+  `cfits_create_image_float_wasm` (`FLOAT_IMG` instead of `DOUBLE_IMG`) and
+  `cfits_write_image_data_float_wasm` (`TFLOAT` instead of `TDOUBLE`),
+  mirroring the existing double-precision pair exactly. Header keywords
+  still go through the same `TDOUBLE`/`TSTRING` write-key calls either way.
+- `build.sh`: exported the two new driver functions, added `HEAPF32` to
+  `EXPORTED_RUNTIME_METHODS`.
+- Rebuilt via `emcc` (emsdk already installed at `~/DCP/Emscripten/emsdk`;
+  `source emsdk_env.sh` first) -- built cleanly.
+- `cfitsio-wasm.js`: added `writeImageFloatWithHeader`, mirroring
+  `writeImageDoubleWithHeader` exactly (`HEAPF32.set` instead of
+  `HEAPF64.set`, 4 bytes/element instead of 8).
+- `DataCubeFits.js`'s `dataCubeToFitsBytes`: switched from
+  `writeImageDoubleWithHeader` to `writeImageFloatWithHeader` -- confirmed
+  via a fresh header read that the resulting FITS file now genuinely
+  reports `BITPIX=-32`, matching Fortran.
+- Also rebuilt `third_party/cfitsio-4.6.3/wasm/package/cfitsio-wasm.js`
+  (the published-package bravojs bundle) via its own `build-bravojs-
+  bundle.js`, so the real DCP-dispatch path picks this up too, not just
+  `--local`.
+
+**Result: no change.** The mask is still 1041 pixels (Fortran's SoFiA:
+1038) on the exact same cube. Re-diffed the full FITS header against
+Fortran's own output afterward: BPA/CTYPE3/CUNIT3/BITPIX now all match
+exactly; the only remaining differences (BMAJ, BMIN, CDELT1/2, CRVAL1/2/3)
+are sub-ULP text-formatting artifacts of the two FITS writers' own ASCII
+keyword serialization (e.g. `CRVAL3 889520.562` vs `889520.568847656` --
+the same float32 value, written with different numbers of decimal digits),
+not real value differences. Confirmed the two catalogs' detected source
+shares the EXACT SAME bounding box (`x_min..x_max, y_min..y_max,
+z_min..z_max` = `16-30, 19-28, 10-31` in both) and the same f_min/f_max --
+only n_pix (1038 vs 1041) and the resulting weighted centroid/ellipse
+differ, meaning a handful of specific pixels right at the segmentation
+threshold, inside an otherwise-identical detection, flip status between
+Fortran's native SoFiA and the wasm build.
+
+Also ruled out wasm-module state leakage as a red herring: ran the wasm
+SoFiA module twice in a row, in the same process, against the same file --
+identical n_pix both times, so it's not run-to-run nondeterminism.
+
+**Where this leaves it**: with the FITS file now essentially byte-
+equivalent to Fortran's own (same pixel values, same precision, same
+header semantics), the remaining difference has to be inside SoFiA-2's
+own C algorithm itself -- its internal noise estimation / smoothing /
+thresholding arithmetic behaving differently when compiled to wasm
+(Emscripten's musl libm) vs native (macOS's system libm), for pixels right
+at a threshold boundary. That's a fundamentally different, much deeper
+kind of investigation than anything else in this whole session: debugging
+SoFiA-2's own upstream algorithm/build, not this project's JS-port-vs-
+Fortran code. Not pursued further this session -- would need instrumenting
+SoFiA-2's own source (a third-party dependency, not this project's code)
+to find the exact internal computation responsible, most likely one of its
+noise/RMS estimation or Gaussian-smoothing-kernel routines disagreeing at
+the ULP level between musl and native libm for specific input values.
+
+**Kept from this round**: the float32 write path itself
+(`writeImageFloatWithHeader`) is a real, independent correctness fix
+regardless of whether it solved this specific divergence -- every FITS
+file this pipeline had ever handed to SoFiA was needlessly double-
+precision where Fortran's real output is single-precision. Regression-
+tested against the previously-fully-bit-exact `cloudDensity=20` case
+(still 0.000000 max diff on every geometry field) and re-confirmed the
+`cloudDensity=100` case is unchanged (still isolated to realization 10,
+same magnitude) -- no regressions introduced.

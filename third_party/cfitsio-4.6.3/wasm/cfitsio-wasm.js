@@ -246,9 +246,58 @@ async function writeImageDoubleWithHeader(naxes, data, headerEntries = {}) {
   });
 }
 
+/**
+ * Single-precision (BITPIX=-32) counterpart of writeImageDoubleWithHeader,
+ * added 2026-09-29 (Dan) -- every FITS file this module had ever written
+ * was double-precision, unlike Fortran's own real4/single-precision output
+ * for the identical data. Added while investigating whether that
+ * precision difference (not the pixel VALUES, which already matched) could
+ * change SoFiA's own noise/threshold statistics enough to segment a
+ * different source mask -- see JS_FORTRAN_PARITY_SESSION_2026-09-28.md's
+ * BITPIX section. Header keywords still go through the same TDOUBLE/
+ * TSTRING write-key calls regardless of image BITPIX -- only image
+ * creation (FLOAT_IMG vs DOUBLE_IMG) and the data write (TFLOAT vs
+ * TDOUBLE) differ.
+ * @param {number[]} naxes - axis lengths, FITS order (naxes[0] is the fastest-varying axis)
+ * @param {number[]|Float32Array} data - row-major pixel data, product-of-naxes elements
+ * @param {Object<string, number|string>} headerEntries - keyword -> value;
+ *   type (TDOUBLE vs TSTRING) is inferred from typeof value.
+ * @returns {Promise<Uint8Array>} the resulting FITS file's bytes
+ */
+async function writeImageFloatWithHeader(naxes, data, headerEntries = {}) {
+  return withModule((Module) => {
+    Module.FS.mkdir('/work');
+
+    const createImage = Module.cwrap('cfits_create_image_float_wasm', 'number', ['string', 'number', 'number']);
+    const writeKeyDbl = Module.cwrap('cfits_write_key_dbl_wasm', 'number', ['string', 'number', 'string']);
+    const writeKeyStr = Module.cwrap('cfits_write_key_str_wasm', 'number', ['string', 'string', 'string']);
+    const writeImageData = Module.cwrap('cfits_write_image_data_float_wasm', 'number', ['number', 'number']);
+    const closeImage = Module.cwrap('cfits_close_image_wasm', 'number', []);
+
+    const naxesP = Module._malloc(naxes.length * 4);
+    Module.HEAP32.set(naxes, naxesP / 4);
+    const dataP = Module._malloc(data.length * 4);
+    Module.HEAPF32.set(data, dataP / 4);
+    try {
+      checkStatus(Module, createImage(OUT_PATH, naxes.length, naxesP), 'writeImageFloatWithHeader (create)');
+      for (const [key, value] of Object.entries(headerEntries)) {
+        const rc = typeof value === 'string'
+          ? writeKeyStr(key, value, '')
+          : writeKeyDbl(key, value, '');
+        checkStatus(Module, rc, `writeImageFloatWithHeader (key ${key})`);
+      }
+      checkStatus(Module, writeImageData(dataP, data.length), 'writeImageFloatWithHeader (data)');
+      checkStatus(Module, closeImage(), 'writeImageFloatWithHeader (close)');
+      return Module.FS.readFile(OUT_PATH);
+    } finally {
+      [naxesP, dataP].forEach((p) => Module._free(p));
+    }
+  });
+}
+
 const cfitsioWasmApi = {
   readImageInfo, readImageDouble, readKeyDouble, readKeyString,
-  writeImageDouble, writeImageDoubleWithHeader,
+  writeImageDouble, writeImageDoubleWithHeader, writeImageFloatWithHeader,
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = cfitsioWasmApi;

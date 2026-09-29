@@ -176,6 +176,45 @@ int cfits_write_image_data_wasm(double *data, long nelements) {
   return status;
 }
 
+/* Single-precision (BITPIX=-32) counterparts of cfits_create_image_wasm/
+ * cfits_write_image_data_wasm above, added 2026-09-29 (Dan) -- every FITS
+ * file this driver had ever written was double-precision (BITPIX=-64),
+ * while every Fortran-produced FITS file in this pipeline is real4/
+ * single-precision (BITPIX=-32). Investigated as a candidate explanation
+ * for a SoFiA source-finding divergence between a JS-written cube and
+ * Fortran's own output of the identical underlying flux values (see
+ * JS_FORTRAN_PARITY_SESSION_2026-09-28.md's BITPIX section) -- if SoFiA's
+ * own noise/threshold statistics read pixel data at a different declared
+ * precision, that alone could shift which pixels get segmented into its
+ * mask, independent of the values themselves. header keywords are written
+ * via the existing cfits_write_key_dbl_wasm/cfits_write_key_str_wasm
+ * (unaffected by image BITPIX) exactly as before -- only image creation
+ * and the data write differ. */
+EMSCRIPTEN_KEEPALIVE
+int cfits_create_image_float_wasm(const char *path, int naxis, long *naxes) {
+  int status = 0;
+  if (g_wfptr) { fits_close_file(g_wfptr, &status); g_wfptr = NULL; }
+
+  char clobberPath[1024];
+  snprintf(clobberPath, sizeof(clobberPath), "!%s", path);
+
+  if (fits_create_file(&g_wfptr, clobberPath, &status)) return status;
+  if (fits_create_img(g_wfptr, FLOAT_IMG, naxis, naxes, &status)) {
+    fits_close_file(g_wfptr, &status);
+    g_wfptr = NULL;
+    return status;
+  }
+  return status;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int cfits_write_image_data_float_wasm(float *data, long nelements) {
+  if (!g_wfptr) return -1;
+  int status = 0;
+  fits_write_img(g_wfptr, TFLOAT, 1, nelements, data, &status);
+  return status;
+}
+
 /* Closes the file opened by cfits_create_image_wasm and returns its
  * bytes have already been written to path by cfitsio itself (readable
  * afterward via Module.FS.readFile(path), same as every other output

@@ -103,7 +103,17 @@ async function dataCubeToFitsBytes(cfitsio, dataCube, beam) {
 
   const data = flattenToFitsOrder(dataCube.flux, dh.nPixels[0], dh.nPixels[1], dh.nChannels);
 
-  return cfitsio.writeImageDoubleWithHeader(naxes, data, header);
+  // BUG FIX (2026-09-29, Dan): wrote BITPIX=-64 (double precision) for
+  // every FITS file this pipeline ever handed to SoFiA, while Fortran's
+  // own resampled-cube output is BITPIX=-32 (real4/single precision) --
+  // confirmed via a direct header diff. dataCube.flux is already a
+  // Float32Array (every value already float32-rounded), so this was pure
+  // precision INFLATION on the way out, not real extra precision -- but
+  // SoFiA's own noise/threshold statistics could still read differently
+  // off a file declaring double- vs single-precision pixels. Switched to
+  // writeImageFloatWithHeader (BITPIX=-32) to match Fortran's real output
+  // exactly.
+  return cfitsio.writeImageFloatWithHeader(naxes, data, header);
 }
 
 // FITS storage order varies axis[0] (NAXIS1=x) fastest: m = i + j*nPixX +
