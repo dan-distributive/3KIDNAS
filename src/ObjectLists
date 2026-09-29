@@ -12,7 +12,7 @@ AllProgs= BootStrapSampler SingleGalaxyFitter
 StandardMathObj=BasicConstants.o random.o FullCircTrig.o Interpolation.o SortArray.o \
     fdlibm_sin.o fdlibm_cos.o fdlibm_k_sin.o fdlibm_k_cos.o fdlibm_rem_pio2_stub.o \
     fdlibm_log.o fdlibm_log1p.o fdlibm_atanh.o fdlibm_exp.o fdlibm_atan.o \
-    fdlibm_fortran_wrappers.o
+    fdlibm_fortran_wrappers.o fftw_wisdom_helper.o
 
 #	First the files for the various object definitions and structures
 ObjectDefObj=Particle.o TiltedRing.o DataCube.o Beam.o ParameterVector.o SoFiACatalogue.o ObjDict.o

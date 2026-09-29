@@ -457,7 +457,23 @@ c     for PA/Inc. Widened the buffer accordingly (list-directed real4
 c     output needs more than 16 characters for some values/signs).
       character(30) ValStr,ErrStr
       character(18) PreambleStr
-      character(20) RadialProfStr(6)
+c     BUG FIX (2026-09-29, Dan): same class of bug as the geometry fields
+c     above (F16.6 -> list-directed) but for the radial-profile table --
+c     Rad/VRot were F8.2 (2 decimal places) and SD_kin was G9.2 (TWO
+c     SIGNIFICANT FIGURES, e.g. "2.9" for a true value of 2.9300459...).
+c     ExtractScalingParams.py's RHI extraction interpolates against this
+c     exact SD_model/Rad profile (read back via ReadWRKPFit.ProfileLineAssign,
+c     shared code path for both the Fortran-local and JS-local legs), so
+c     quantizing the profile to ~2 significant digits before RHI's
+c     threshold-crossing interpolation was amplifying into RHI_AS diffs of
+c     up to 4.45% between the two legs -- confirmed directly: Fortran's own
+c     BootstrapFits.csv showed "SD_model" values like "2.9, 2.0, 0.31, 1.2"
+c     while JS's own (never quantized) profile showed "2.9300459036646607,
+c     2.0146256636770046, 0.31207922029800184, 1.1935189127727546" for the
+c     SAME realization. Widened to character(30) (list-directed real4
+c     output needs more than 20 characters for some values/signs, same
+c     reasoning as ValStr/ErrStr above).
+      character(30) RadialProfStr(6)
 
       character(8) date
       character(10) time
@@ -665,13 +681,13 @@ c       Get the Surface density in units of M_sol/pc^2
 
         print*, "Rmid",ModelTiltedRing%R(i)%Rmid
      &                  ,abs(ObservedDC%DH%PixelSize(0))
-        write(RadialProfStr(1), '(F8.2)')ModelTiltedRing%R(i)%Rmid
-     &                  *abs(ObservedDC%DH%PixelSize(0))
-        write(RadialProfStr(2), '(F8.2)')ModelTiltedRing%R(i)%VRot
-        write(RadialProfStr(3), '(F5.2)')0.
-        write(RadialProfStr(4), '(F5.2)')0.
-        write(RadialProfStr(5), '(G9.2)')SDTemp
-        write(RadialProfStr(6), '(F5.2)')0.
+        write(RadialProfStr(1),*)DBLE(ModelTiltedRing%R(i)%Rmid
+     &                  *abs(ObservedDC%DH%PixelSize(0)))
+        write(RadialProfStr(2),*)DBLE(ModelTiltedRing%R(i)%VRot)
+        write(RadialProfStr(3),*)0.0D0
+        write(RadialProfStr(4),*)0.0D0
+        write(RadialProfStr(5),*)DBLE(SDTemp)
+        write(RadialProfStr(6),*)0.0D0
        OutStr=RadialProfStr(1)//RadialProfStr(2)//RadialProfStr(3)
      &          //RadialProfStr(4)//RadialProfStr(5)//RadialProfStr(6)
         write(10,'(a)') trim(OutStr)

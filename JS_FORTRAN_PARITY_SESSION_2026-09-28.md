@@ -183,6 +183,84 @@ now proven bit-exact between Fortran and JS at `cloudDensity=20`,
 (6 in the earlier list + this one), all independently verified by direct
 before/after comparison, not just code review.
 
+## FOUND + FIXED 2026-09-29: bugs #8 and #9 (harder test case: WALLABY_J100336-262923)
+
+Discovered while re-running the exact reproducible test case from
+`HANDOFF_JS_FORTRAN_NOISE_FLOOR_2026-09-16.md` (`WALLABY_J100336-262923`,
+`pa≈81.271`, `inc≈31.49`, `cloudDensity=20`, `nBootstraps=10`) -- a harder
+case than the `WALLABY_J103538-484832` anchor test bug #7 was proven
+against. `run_both.js --local` showed `Inc_model` off by up to ~4e-6
+absolute and `RHI_AS` off by up to **4.45%** despite `X_model`/`PA_model`/
+`Vsys_model` often matching exactly, and despite everything checked (binary
+build timestamps, `--local`'s direct `./src/*` requires, output-file
+timestamps) confirming nothing was stale.
+
+**Bug #8 -- `RAD2DEG` double-precision ratio collapses Fortran's two
+sequential float32 roundings into one.**
+`js/bootstrap-realization-launcher.js` (both `runBootstrapRealization` and
+`runInitialFit` copies) computed degrees-from-radians via a precomputed
+`const RAD2DEG = 180.0 / Math.PI` (native double `Math.PI`, not the
+already-fixed float32 `Pi` from `BasicConstants.js`), then did
+`f32(rad * RAD2DEG)` -- ONE double-precision multiply against a precise
+ratio, rounded to float32 once at the end. Fortran's actual formula
+(`FitOutput.f`, `Inc_kin`/`PA_kin`): `Inclination*180./Pi` -- `*` and `/`
+are equal precedence, left-to-right, so this is
+`(Inclination*180.)/Pi` -- TWO SEPARATE float32 roundings (multiply, round;
+divide, round), using the float32 `Pi` constant, not one double-rounded
+constant multiply. Same class of bug as #7 (mismatched rounding sequence
+for a mathematically-equivalent formula). Explains why PA happened to
+match exactly for some realizations (double-rounding doesn't always cross
+a boundary) while Inc, for this specific test case, did.
+**Fixed**: imported `Pi` from `BasicConstants` into both blocks, replaced
+`RAD2DEG`-based conversion with a `radToKinDeg(rad)` helper doing
+`f32(f32(rad * f32(180.0)) / Pi)`, matching Fortran's exact two-step
+sequence. Used by both `INCLINATION`'s conversion and `toKinematicPA`'s
+first step.
+**Verified**: `Inc_model`/`PA_model` now show **0.000000 max diff** across
+all 10 realizations (were up to ~4e-6 before).
+
+**Bug #9 -- radial-profile text output (`Rad`/`VRot_model`/`SD_model`) was
+lossy, amplified into a 4.45% `RHI_AS` error.**
+`FitOutput.f`'s `StandardModelOutput` wrote the per-ring radial profile
+table with fixed, narrow formats: `Rad`/`VRot_kin` as `F8.2` (2 decimal
+places) and `SD_kin` as `G9.2` (**TWO SIGNIFICANT FIGURES** -- e.g. "2.9"
+for a true value of 2.9300459...). `ExtractScalingParams.py`'s RHI
+extraction (shared Python code, used identically for both the
+Fortran-local and JS-local legs) interpolates the model's surface-density
+profile against a threshold to find the HI radius -- feeding it a
+2-significant-figure-quantized `SD_model` (Fortran side) against a full
+double-precision one (JS side, never quantized) was enough to shift the
+interpolated radius by up to 4.45%. Confirmed directly: Fortran's own
+`BootstrapFits.csv` showed `SD_model` values like `"2.9, 2.0, 0.31, 1.2"`
+for the exact same realization JS reported
+`"2.9300459036646607, 2.0146256636770046, 0.31207922029800184,
+1.1935189127727546"`.
+**Fixed**: same pattern as bug #5 -- widened `RadialProfStr` from
+`character(20)` to `character(30)` and switched all six per-ring writes to
+list-directed (`write(...,*)DBLE(...)`) instead of `F8.2`/`F5.2`/`G9.2`.
+**Verified**: `RHI_AS` max diff dropped from **1.18 absolute / 4.45%** to
+**0.000001 absolute / 0.00%** -- essentially bit-exact.
+
+**Build-system fixes needed to compile/link bug #9's fix (see "Gotchas" below
+for full detail):** `fftw_wisdom_helper.o` was permanently added to
+`src/ObjectLists`' `StandardMathObj` (closes a long-standing Makefile gap),
+and `FitOutput.o` had to be recompiled by hand before relinking, since this
+Makefile has no per-file dependency tracking (`make` alone silently
+relinks with a stale `.o` after a source edit).
+
+**Remaining residual (not yet chased further)**: `X_model`/`Y_model` still
+show a tiny ~1.5e-5/2.9e-5 absolute (0.00% relative) diff on this harder
+test case -- far smaller than anything above, likely genuine amoeba-
+trajectory-level noise specific to `cloudDensity=20`'s Monte Carlo cloud
+placement, not yet bisected. `RA_model`/`DEC_model` diffs (~1e-6) are NOT a
+bug: traced to two independently-correct astrometry paths (Fortran's
+`ArcSecToDegrees` gets overwritten by `GeometryFix.py`'s own
+`astropy.wcs.pixel_to_world` + explicit `round(...,7)`; JS's goes through a
+separate `RunBootstrapsDCP.py` `all_pix2world` call) -- different formulas
+by design, not a parity defect.
+
+**Bug count for this session: 9 real, confirmed bugs found and fixed.**
+
 ## Historical section below, left as originally written (context for how
    bug #7 was found -- steps 1-6 above supersede the "in progress" framing)
 
@@ -282,12 +360,23 @@ TRACE_DUMP_PRECONV=1 node js/tools/run_both.js --local --skip-fortran --seed 42 
   took effect in test runs. `js/bootstrap-realization-launcher.js` itself
   is NOT part of this bundle (top-level orchestrator file, edits apply
   immediately, no rebuild needed).
-- **`fftw_wisdom_helper.o` isn't wired into the Fortran Makefile** -- `make
-  all` fails the final link every time with an undefined-symbol error;
-  manually relink both `BootStrapSampler` and `SingleGalaxyFitter` with it
-  added to the object list (copy the exact failed link line from `make`'s
-  own output, add `fftw_wisdom_helper.o`, then `mv` both binaries to
-  `Programs/`).
+- **`fftw_wisdom_helper.o` wasn't wired into the Fortran Makefile** --
+  `make all` failed the final link every time with an undefined-symbol
+  error. FIXED PERMANENTLY (2026-09-29): added `fftw_wisdom_helper.o` to
+  `StandardMathObj` in `src/ObjectLists`, so it's now part of `$(AllObj)`
+  for every target. No more manual relinking needed.
+- **This Makefile has NO per-file dependency tracking** -- `BootStrapSampler`/
+  `SingleGalaxyFitter`'s targets only depend on their own main-program `.o`
+  (`BootStrapGenerator.o`/`SingleGalaxyFitTests.o`), not on `$(AllObj)`, so
+  editing e.g. `FitOutput.f` and running `make` does NOT recompile
+  `FitOutput.o` -- it silently relinks with the STALE `.o`. Confirmed this
+  bit a real fix (2026-09-29's radial-profile precision fix, below): `make`
+  reported "Nothing to be done" and produced binaries with the pre-fix
+  `FitOutput.o` still baked in. Workaround: manually recompile the specific
+  changed `.f` file's `.o` (same flags as `makeflags`' `FLAGS`, with
+  `-I../mods -I../../third_party/fftw-3.3.8/api`), THEN `rm` the target
+  binaries before `make` (since existing binaries also short-circuit the
+  link step) so it's forced to relink with the fresh object.
 - **`WALLABY_J100336-262923` lacks a correctly-named mask file** (only has
   `SoFiA_J100336-262923_mask.fits`, not `WALLABY_J100336-262923_mask.fits`)
   -- using `--objName` to switch to it causes an early, confusing "No best

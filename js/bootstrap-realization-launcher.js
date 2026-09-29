@@ -200,7 +200,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
         initialAnalysis, TiltedRingModel, tiltRing_Allocate, ParameterVector, allocateParamVector,
         calculate2DBeamKernel, resetConvolveStats, getConvolveStats, warmUp,
         generalizedParamVectorToTiltedRing, warmUpWasmTrig, galaxyFit_Simple, resetEvalStats,
-        getEvalStats, JyAS_To_MsolPC;
+        getEvalStats, JyAS_To_MsolPC, Pi;
     try {
       const entry = require('initialFitEntry.js');
       ({ DataCube, allocateDataCube } = entry.DataCube);
@@ -219,7 +219,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
       ({ warmUpWasmTrig } = entry.TiltedRingModelGeneration);
       ({ galaxyFit_Simple } = entry.GalaxyFit);
       ({ resetEvalStats, getEvalStats } = entry.FullModelComparison);
-      ({ JyAS_To_MsolPC } = entry.BasicConstants);
+      ({ JyAS_To_MsolPC, Pi } = entry.BasicConstants);
       if (isTraceDebug()) console.error('MODSRC published-package (entry.*)');
     } catch (publishedPackageError) {
       // See runInitialFit's identical catch block for why both errors get
@@ -241,7 +241,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
         ({ warmUpWasmTrig } = require('./src/TiltedRingModelGeneration/TiltedRingModelGeneration'));
         ({ galaxyFit_Simple } = require('./src/GalaxyAnalysis/GalaxyFit'));
         ({ resetEvalStats, getEvalStats } = require('./src/CompareCubes/FullModelComparison'));
-        ({ JyAS_To_MsolPC } = require('./src/StandardMath/BasicConstants'));
+        ({ JyAS_To_MsolPC, Pi } = require('./src/StandardMath/BasicConstants'));
         if (isTraceDebug()) console.error('MODSRC local fallback (./src/*)', publishedPackageError.message);
       } catch (localFallbackError) {
         throw new Error(`Could not load pipeline modules via the published package OR the local fallback. `
@@ -644,7 +644,20 @@ async function runBootstrapRealization(realizationIndex, payload) {
     timings.evalCount = evalCount;
 
 
-    const RAD2DEG = 180.0 / Math.PI;
+    // Fortran (FitOutput.f:576-577,586-587) does this degrees conversion as
+    // TWO separate real4 (float32) operations -- `X*180./Pi` is
+    // `(X*180.)/Pi` left-to-right, each op rounding to float32 -- not one
+    // double-precision multiply by a precomputed ratio rounded once at the
+    // end. A precomputed `180.0/Math.PI` constant (using native double
+    // Math.PI, not the already-fixed float32 Pi) collapses those two
+    // roundings into one and silently disagrees with Fortran by ~1 ULP for
+    // some inputs (confirmed: WALLABY_J100336-262923 BS_0, Inc_model
+    // differed 48.048126220703125 vs 48.04813003540039 -- PA happened not
+    // to cross a rounding boundary for that same realization, which is why
+    // this went unnoticed until a harder test case exposed it).
+    function radToKinDeg(rad) {
+      return f32(f32(rad * f32(180.0)) / Pi);
+    }
 
     const outTR = new TiltedRingModel();
     outTR.nRings = trfo.nRings;
@@ -656,7 +669,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
 
     // Fortran (FitOutput.f:469-479, WRKP's "PA_kin" writer):
     function toKinematicPA(positionAngleRad) {
-      let paOut = f32(f32(positionAngleRad * RAD2DEG) - f32(90.0));
+      let paOut = f32(radToKinDeg(positionAngleRad) - f32(90.0));
       while (paOut < 0) paOut = f32(paOut + f32(360.0));
       while (paOut > 360) paOut = f32(paOut - f32(360.0));
       return paOut;
@@ -683,7 +696,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
     report.chi2 = pvBest.bestLike;
     report.XCENTER       = col((r) => r.centPos[0]);
     report.YCENTER       = col((r) => r.centPos[1]);
-    report.INCLINATION   = col((r) => f32(r.inclination * RAD2DEG));
+    report.INCLINATION   = col((r) => radToKinDeg(r.inclination));
     report.POSITIONANGLE = col((r) => toKinematicPA(r.positionAngle));
     // Raw (pre-"kinematic PA" convention) angles in radians, straight off
     // the converged model -- see FitOutput.f's matching companion-file
@@ -972,7 +985,7 @@ async function runInitialFit(realizationIndex, payload) {
         tiltRing_Allocate, ParameterVector, allocateParamVector, calculate2DBeamKernel,
         resetConvolveStats, getConvolveStats, warmUp, generalizedParamVectorToTiltedRing,
         warmUpWasmTrig, galaxyFit_Simple, resetEvalStats, getEvalStats,
-        tiltedRingModelComparison, JyAS_To_MsolPC, constructMomentMaps, flatIndxCalc;
+        tiltedRingModelComparison, JyAS_To_MsolPC, constructMomentMaps, flatIndxCalc, Pi;
     try {
       const entry = require('initialFitEntry.js');
       ({ DataCube, allocateDataCube, flatIndxCalc } = entry.DataCube);
@@ -988,7 +1001,7 @@ async function runInitialFit(realizationIndex, payload) {
       ({ warmUpWasmTrig } = entry.TiltedRingModelGeneration);
       ({ galaxyFit_Simple } = entry.GalaxyFit);
       ({ resetEvalStats, getEvalStats, tiltedRingModelComparison } = entry.FullModelComparison);
-      ({ JyAS_To_MsolPC } = entry.BasicConstants);
+      ({ JyAS_To_MsolPC, Pi } = entry.BasicConstants);
       ({ constructMomentMaps } = entry.GetMomentMaps);
     } catch (publishedPackageError) {
       // If the LOCAL fallback also fails (expected/normal in a real DCP
@@ -1013,7 +1026,7 @@ async function runInitialFit(realizationIndex, payload) {
         ({ warmUpWasmTrig } = require('./src/TiltedRingModelGeneration/TiltedRingModelGeneration'));
         ({ galaxyFit_Simple } = require('./src/GalaxyAnalysis/GalaxyFit'));
         ({ resetEvalStats, getEvalStats, tiltedRingModelComparison } = require('./src/CompareCubes/FullModelComparison'));
-        ({ JyAS_To_MsolPC } = require('./src/StandardMath/BasicConstants'));
+        ({ JyAS_To_MsolPC, Pi } = require('./src/StandardMath/BasicConstants'));
         ({ constructMomentMaps } = require('./src/PreAnalysis/GetMomentMaps'));
       } catch (localFallbackError) {
         throw new Error(`Could not load pipeline modules via the published package OR the local fallback. `
@@ -1326,7 +1339,13 @@ async function runInitialFit(realizationIndex, payload) {
     const { evalCount } = getEvalStats();
     timings.evalCount = evalCount;
 
-    const RAD2DEG = 180.0 / Math.PI;
+    // See runBootstrapRealization's identical comment above (radToKinDeg) --
+    // Fortran does this degrees conversion as TWO separate real4 roundings
+    // (`X*180./Pi`, left-to-right), not one double-precision multiply by a
+    // precomputed `180.0/Math.PI` ratio rounded once at the end.
+    function radToKinDeg(rad) {
+      return f32(f32(rad * f32(180.0)) / Pi);
+    }
 
     const outTR = new TiltedRingModel();
     outTR.nRings = trfo.nRings;
@@ -1337,7 +1356,7 @@ async function runInitialFit(realizationIndex, payload) {
     const col = (fn) => R.map(fn);
 
     function toKinematicPA(positionAngleRad) {
-      let paOut = f32(f32(positionAngleRad * RAD2DEG) - f32(90.0));
+      let paOut = f32(radToKinDeg(positionAngleRad) - f32(90.0));
       while (paOut < 0) paOut = f32(paOut + f32(360.0));
       while (paOut > 360) paOut = f32(paOut - f32(360.0));
       return paOut;
@@ -1376,7 +1395,7 @@ async function runInitialFit(realizationIndex, payload) {
     report.chi2 = pvBest.bestLike;
     report.XCENTER       = col((r) => r.centPos[0]);
     report.YCENTER       = col((r) => r.centPos[1]);
-    report.INCLINATION   = col((r) => f32(r.inclination * RAD2DEG));
+    report.INCLINATION   = col((r) => radToKinDeg(r.inclination));
     report.POSITIONANGLE = col((r) => toKinematicPA(r.positionAngle));
     // Raw (pre-"kinematic PA" convention) angles in radians, straight off
     // the converged model -- see FitOutput.f's matching companion-file
