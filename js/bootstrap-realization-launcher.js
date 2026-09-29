@@ -1181,7 +1181,19 @@ async function runInitialFit(realizationIndex, payload) {
     fitBeam.pixelSize[1] = pixelSize1;
     fitBeam.beamMajorAxis = f32(beamMajorAxisAS / Math.abs(pixelSize0));
     fitBeam.beamMinorAxis = f32(beamMinorAxisAS / Math.abs(pixelSize0));
-    fitBeam.beamPositionAngle = f32(f32(bpaDeg * Math.PI) / f32(180.0));
+    // BUG FIX (2026-09-29, Dan): matches UnitConversions.f's DegreesToRadians
+    // (`L_Rad=L_Deg*Pi/180.`) exactly -- must multiply by the module's own
+    // real4-rounded `Pi` constant, not native double `Math.PI`. Same class
+    // of bug as radToKinDeg above: `bpaDeg * Math.PI` (full double-precision
+    // Pi) rounded to float32 once is not guaranteed to equal
+    // `bpaDeg(f32) * Pi(f32)` (Fortran's actual real4*real4 multiply using
+    // the ALREADY-rounded-to-float32 Pi) -- multiplying by a more precise
+    // constant than Fortran used can land on the other side of a rounding
+    // boundary. This feeds the beam kernel used by every fit (initial +
+    // every bootstrap realization reuses this same Beam2D), so a bias here
+    // is constant but only visibly flips an optimizer decision for
+    // whichever specific realizations happen to be near a tie.
+    fitBeam.beamPositionAngle = f32(f32(bpaDeg * Pi) / f32(180.0));
     fitBeam.sigmaLengths = f32(sigmaLengths);
     allocate_Beam2D(fitBeam, [observedDC.dh.nPixels[0], observedDC.dh.nPixels[1]]);
     calculate2DBeamKernel(fitBeam, fitBeam.pixelSize);

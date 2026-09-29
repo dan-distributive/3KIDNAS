@@ -248,18 +248,70 @@ and `FitOutput.o` had to be recompiled by hand before relinking, since this
 Makefile has no per-file dependency tracking (`make` alone silently
 relinks with a stale `.o` after a source edit).
 
-**Remaining residual (not yet chased further)**: `X_model`/`Y_model` still
-show a tiny ~1.5e-5/2.9e-5 absolute (0.00% relative) diff on this harder
-test case -- far smaller than anything above, likely genuine amoeba-
-trajectory-level noise specific to `cloudDensity=20`'s Monte Carlo cloud
-placement, not yet bisected. `RA_model`/`DEC_model` diffs (~1e-6) are NOT a
-bug: traced to two independently-correct astrometry paths (Fortran's
-`ArcSecToDegrees` gets overwritten by `GeometryFix.py`'s own
-`astropy.wcs.pixel_to_world` + explicit `round(...,7)`; JS's goes through a
-separate `RunBootstrapsDCP.py` `all_pix2world` call) -- different formulas
-by design, not a parity defect.
+**`RA_model`/`DEC_model` diffs (~1e-6) are NOT a bug**: traced to two
+independently-correct astrometry paths (Fortran's `ArcSecToDegrees` gets
+overwritten by `GeometryFix.py`'s own `astropy.wcs.pixel_to_world` +
+explicit `round(...,7)`; JS's goes through a separate `RunBootstrapsDCP.py`
+`all_pix2world` call) -- different formulas by design, not a parity defect.
 
-**Bug count for this session: 9 real, confirmed bugs found and fixed.**
+## FOUND + FIXED 2026-09-29: bug #10 (X_model/Y_model, isolated to ONE realization)
+
+After bugs #8/#9, one last residual: `X_model`/`Y_model` differed by
+~1.5e-5/2.9e-5 absolute (0.00% relative -- easy to dismiss as noise) on the
+same `WALLABY_J100336-262923` 10-bootstrap run. Bisected by checking every
+realization individually: **9 of 10 were already exactly 0.0000000** --
+only realization index 8 (`BS_8`) differed at all. A uniform "just noise"
+explanation doesn't fit a signature that's exactly zero on 9/10 draws and
+nonzero on one -- that's the same boundary-crossing signature bugs #7/#8
+had (a constant, systematic bias that only flips a near-tied decision for
+specific inputs), so kept looking rather than writing it off.
+
+**Root cause**: `runInitialFit`'s beam construction --
+`fitBeam.beamPositionAngle = f32(f32(bpaDeg * Math.PI) / f32(180.0))` --
+used native double `Math.PI` instead of the module's own float32 `Pi`
+constant (`BasicConstants.js`, `f32(4.0*Math.atan(1.0))`). Fortran's
+matching routine (`UnitConversions.f`'s `DegreesToRadians`:
+`L_Rad=L_Deg*Pi/180.`) multiplies by its OWN real4-rounded `Pi`, not a more
+precise value -- `bpaDeg(f32) * Pi(f32)` (Fortran's real4*real4 multiply,
+using an already-quantized constant) is not guaranteed to round to the
+same float32 result as `bpaDeg * Math.PI` (JS's double-precision multiply
+by a much more precise constant, rounded to float32 only once at the end).
+This `fitBeam` (and its `beamPositionAngle`) is built ONCE in
+`runInitialFit` and reused for every bootstrap realization's convolution
+kernel (per that function's own comment) -- so the bias is constant across
+all 10 realizations, but only realization 8's optimizer landscape happened
+to have a decision sitting close enough to a tie for that bias to flip it.
+**Fixed**: `f32(f32(bpaDeg * Pi) / f32(180.0))`, using the already-fixed
+`Pi` import (already in scope from bug #8's fix, same function).
+
+**Verified**: re-ran the exact 10-bootstrap repro -- `X_model`/`Y_model`
+now **0.000000 max diff across all 10 realizations** (were 1.5e-5/2.9e-5 on
+realization 8 alone). Every field this run is now 0.00% except
+`RA_model`/`DEC_model`, which are a known, by-design non-bug (above).
+
+**Bug count for this session: 10 real, confirmed bugs found and fixed.**
+
+## Also fixed 2026-09-29: run_both_report.html corner-plot NaN handling
+
+Separate from the numerical parity bugs above -- a display bug in
+`js/tools/run_both_report.html`'s corner plot, noticed on a VHI panel
+where extraction had failed for every bootstrap realization in the batch
+(a real, legitimate data gap, not a bug: faint/noisy source, not enough
+S/N to reach the extrapolation region). Two issues in the same file:
+
+- `gbpDrawScatter` never filtered non-finite points before drawing (unlike
+  `gbpDrawHist`, which already did). `gbpScaleFor` degrades a field with
+  zero finite values to a placeholder `[0,1]` range, but the actual `(NaN,
+  NaN)` points still got passed to SVG's `cx`/`cy`; browsers silently
+  coerce an invalid numeric SVG attribute to `0`, which rendered as a
+  dead-straight line of dots pinned to the top of every panel in that
+  row/column -- looking exactly like real, tightly-clustered data instead
+  of "no data at all". Fixed: skip drawing (mirrors `gbpDrawHist`'s
+  existing `isFinite` guard).
+- Added an explicit "no data" label (both `gbpDrawScatter` and
+  `gbpDrawHist`) when a field has zero finite values across every row, so
+  an empty panel reads as "nothing to plot" rather than looking like a
+  rendering bug.
 
 ## Historical section below, left as originally written (context for how
    bug #7 was found -- steps 1-6 above supersede the "in progress" framing)

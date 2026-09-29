@@ -89,8 +89,14 @@ js/DCPjobData/
 # findings from these get written up in BOOTSTRAP_RESAMPLE_DIVERGENCE.md
 # instead of committing the raw dumps.
 js/tools/run_both_report.json
-js/tools/run_both_report.html
 js/tools/*_bootstraps.json
+# NOTE (2026-09-29, Dan): run_both_report.HTML was wrongly caught by this
+# same block -- unlike the .json report above, run_both.js never writes any
+# .html at all (confirmed: no fs.writeFileSync(...html...) anywhere in it).
+# This file is hand-authored source (a self-contained corner-plot/profile-
+# panel viewer, ~1364 lines) that a person opens directly and drops a
+# run_both_report.json into client-side -- it had NEVER been committed
+# before this fix, despite substantial real work living only in it.
 
 # Ad-hoc comparison-run scratch accumulated under this one test-source dir
 # (CompareSeeded_fork/CompareSeeded_upstream/KIDNAS_CatTrial/
