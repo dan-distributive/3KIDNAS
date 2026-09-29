@@ -508,3 +508,99 @@ EXACT verified starting guess into both a standalone `SingleGalaxyFitter`
 run and a JS single-realization run) -- not yet done; this is a
 substantially larger undertaking than anything fixed so far this session
 and was not completed.
+
+## FOUND + FIXED 2026-09-29 (continued): 3 real bugs in the pre-analysis stage, root cause still not fully closed
+
+Picked the trace back up by loading the REAL payload the actual `--local`
+run built (`js/DCPjobData/realization_payload.json`, copied out before
+cleanup) and calling `runBootstrapRealization(10, payload)` directly in the
+main thread (no worker pool) with `TRACE_DEBUG=1` -- a clean, non-
+interleaved trace using the exact real inputs, no hand-transcription risk.
+`js/tools/repro_realization10_trace.js` is this repro, kept for reuse.
+
+**The trace immediately found the real divergence point, much earlier than
+expected**: `FULLVECPARAM` call 1 (the FIRST simplex vertex, before ANY
+amoeba iteration) already differs between platforms -- X=22.1069355
+(Fortran) vs X=22.10097885 (JS), despite `idum` matching exactly at that
+same call. So the divergence isn't in the fit's search trajectory at all --
+it's in the STARTING GUESS itself, specifically the flux-weighted centre
+estimate (`Iter_EstimateCenter`/`EstimateCenter`, `EstimateShape.f`) that
+feeds it.
+
+Traced one level deeper (added a temporary `TRACE_DEBUG`-gated print in
+`EstimateShape.js`'s `estimateCenter`, and used the pre-existing
+`PARITY_DEBUG` hooks already in `InitialAnalysis.js`): the flux-weighted
+sum going into that centroid calc already differs -- JS's masked pre-
+analysis cube sums to 0.8225861794126104, Fortran's to 0.208438516 (**NOT**
+just a rounding difference: JS's own mask has **1041** nonzero pixels where
+Fortran's SoFiA gives **1038**, on cubes and beams already independently
+proven bit-identical). This is despite:
+- The raw resampled cube itself matching exactly (still 14.072564761127083,
+  same as `repro_resample.js`'s earlier proof).
+- Native SoFiA and wasm SoFiA producing **pixel-for-pixel identical masks**
+  when run on the SAME externally-written FITS file (`ReproBS10.fits`,
+  Fortran's own resample output) -- confirmed by a direct numpy diff, zero
+  differing pixels.
+
+So wasm-vs-native SoFiA itself is NOT the problem (re-confirming the
+earlier finding) -- the problem is specifically in the FITS file
+`bootstrap-realization-launcher.js` itself hands to SoFiA. Diffed that
+file's header against Fortran's own resampled-cube FITS output
+(`ReproBS10.fits`) directly and found three real, confirmed bugs, all in
+`js/src/BootstrapSampler/DataCubeFits.js`'s `dataCubeToFitsBytes` (which
+builds every FITS file this pipeline hands to SoFiA) and its one caller in
+`runBootstrapRealization`:
+
+1. **`resampleBeam.beamPositionAngle` was never set** (`bootstrap-
+   realization-launcher.js`, `runBootstrapRealization`'s own beam
+   construction) -- stayed at `Beam2D`'s default of `0`, so every
+   bootstrap realization's SoFiA call ran against a cube whose BPA FITS
+   keyword claimed 0 deg instead of this galaxy's real ~12.3 deg. Fixed by
+   reusing `observedBeam.beamSigma2` (already carries this value in
+   radians, per `Beam.js`'s `beamSigmaVector[2]=beamPositionAngle`
+   convention, and already serialized into the payload from the initial
+   fit's own correctly-computed beam).
+2. **`dataCubeToFitsBytes` wrote `beamPositionAngle` straight into the FITS
+   `BPA` keyword without converting radians to degrees** -- a real,
+   independent bug, MASKED for a long time by bug #1 above (0 rad
+   coincidentally equals 0 deg, so this only became visible once bug #1
+   started passing a real nonzero value through). Fixed:
+   `BPA: (beam.beamPositionAngle || 0) * 180 / Math.PI`.
+3. **`dataCubeToFitsBytes` hardcoded `CTYPE3: 'VELO-LSR', CUNIT3: 'km/s'`**
+   regardless of the real cube's own convention -- confirmed directly
+   against `WALLABY_J100336-262923_VelCube.fits`'s actual header:
+   `CTYPE3=VOPT, CUNIT3=m/s`. Every FITS file this pipeline has EVER handed
+   to SoFiA carried the wrong spectral-axis type/unit. Fixed by writing
+   `CRVAL3`/`CDELT3` scaled to m/s (`dh`'s internal working unit is km/s)
+   with `CTYPE3: 'VOPT', CUNIT3: 'm/s'`, matching Fortran's real output.
+
+**Honest result**: all three are real, confirmed, independently-verified
+bugs (each checked directly against Fortran's actual FITS header, not
+guessed) -- but fixing them did **not** change the mask pixel count (still
+1041, not 1038) or the final fit outcome for realization 10 (chi2, X/Y/Inc
+all identical to before the fixes). So they were real correctness bugs
+worth fixing regardless (every SoFiA call in this entire pipeline was
+running against cubes with wrong beam angle AND wrong spectral-axis
+convention), but they are NOT (by themselves) the explanation for this
+specific mask-count divergence.
+
+**Next lead, not yet chased**: a header diff also showed **`BITPIX -32`
+(Fortran, real4) vs `BITPIX -64`** (JS, `cfitsio.writeImageDoubleWithHeader`
+always writes double-precision) -- every FITS file this pipeline hands to
+SoFiA is double-precision where Fortran's own output is single-precision.
+If SoFiA's own noise/threshold statistics behave even slightly differently
+reading float64 vs float32 pixel data, that could explain a genuinely
+different segmentation despite identical underlying values. Checked
+`cfitsio-wasm.js`'s exposed API: only `writeImageDouble`/
+`writeImageDoubleWithHeader` exist, no float32 write path -- adding one
+means touching the C driver source and rebuilding the wasm module, a
+meaningfully bigger job than anything else fixed this session, and was
+not attempted.
+
+**Kept as reusable diagnostic tooling**: `js/tools/repro_realization10_
+trace.js` (loads a saved `realization_payload.json` and calls
+`runBootstrapRealization` directly, no worker pool, clean trace) and the
+`PARITY_DEBUG`-gated trace prints added to `bootstrap-realization-
+launcher.js` (mask nonzero count, resampleBeam.beamPositionAngle) --
+these made this whole investigation tractable and should make the next
+session's BITPIX lead much faster to check.

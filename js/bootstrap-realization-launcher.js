@@ -332,6 +332,24 @@ async function runBootstrapRealization(realizationIndex, payload) {
     const resampleBeam = new Beam2D();
     resampleBeam.beamMajorAxis = beamMajorAxis;
     resampleBeam.beamMinorAxis = beamMinorAxis;
+    // BUG FIX (2026-09-29, Dan): beamPositionAngle was never set here, so it
+    // stayed at Beam2D's default of 0 -- and dataCubeToFitsBytes writes
+    // `beam.beamPositionAngle || 0` straight into the resampled cube's BPA
+    // FITS keyword, which SoFiA reads for its own source-finding. Every
+    // bootstrap realization's SoFiA call therefore ran against a cube
+    // claiming BPA=0 instead of the true ~12.3 deg (this galaxy's real
+    // beam angle), silently giving SoFiA the wrong beam orientation for its
+    // segmentation. Found by bisecting a cloudDensity=100 divergence all
+    // the way down to realization 10's own pre-analysis mask having 1041
+    // pixels via the real pipeline vs 1038 via a standalone repro that
+    // (correctly) reused the real beam angle -- same cube, same SoFiA
+    // template, different mask, isolated to this one missing field.
+    // `observedBeam.beamSigma2` already carries this value in radians
+    // (Beam.js's own beamSigmaVector[2]=beamPositionAngle convention,
+    // serialized into the payload at this file's own report-building code)
+    // -- reuse it instead of recomputing from a bpaDeg this function was
+    // never given.
+    resampleBeam.beamPositionAngle = f32(observedBeam.beamSigma2);
     allocate_Beam2D(resampleBeam, [d.nPixelsX, d.nPixelsY]);
 
     // ---- Resample (replaces the native BootStrapSampler binary) ----
@@ -399,6 +417,9 @@ async function runBootstrapRealization(realizationIndex, payload) {
     }
 
     // ---- Write the bootstrap cube as real FITS bytes (feeds SoFiA) ----
+    if (process.env.PARITY_DEBUG === '1') {
+      console.error('PARITYDBG resampleBeam.beamPositionAngle', resampleBeam.beamPositionAngle, 'observedBeam.beamSigma2', observedBeam.beamSigma2);
+    }
     const cubeFitsBytes = await dataCubeToFitsBytes(cfitsio, bootstrapCube, resampleBeam);
 
     // One-off diagnostic dump (Fortran-vs-JS resampled-cube divergence
@@ -489,8 +510,18 @@ async function runBootstrapRealization(realizationIndex, payload) {
     //      selected source ID (Fortran/SoFiA_Driver.py's AdjustMaskFile:
     //      MDataNew = (MData == TargVal).astype(int)) ----
     const maskDC = await fitsBytesToDataCube(cfitsio, files.get('result_mask.fits'), bootstrapCube);
+    if (process.env.PARITY_DEBUG === '1') {
+      const rawVals = new Set();
+      for (let i = 0; i < maskDC.flux.length; i++) rawVals.add(maskDC.flux[i]);
+      console.error('PARITYDBG rawMaskVals', [...rawVals], 'maskVal', parsed.maskVal);
+    }
     for (let i = 0; i < maskDC.flux.length; i++) {
       maskDC.flux[i] = (maskDC.flux[i] === parsed.maskVal) ? f32(1.0) : f32(0.0);
+    }
+    if (process.env.PARITY_DEBUG === '1') {
+      let nz = 0;
+      for (let i = 0; i < maskDC.flux.length; i++) if (maskDC.flux[i] !== 0) nz++;
+      console.error('PARITYDBG maskDC nonzero', nz);
     }
 
     // ---- Brightness conversion to Jy/pixel, now that SoFiA has already

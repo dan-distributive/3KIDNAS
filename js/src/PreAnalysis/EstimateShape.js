@@ -70,6 +70,9 @@ function estimateCenter(maps) {
       fSum = f32(fSum + flux0);
     }
   }
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DEBUG === '1') {
+    console.error('TRACE estimateCenter', f32(cx / fSum), f32(cy / fSum), fSum);
+  }
   return new Float32Array([f32(cx / fSum), f32(cy / fSum)]);
 }
 

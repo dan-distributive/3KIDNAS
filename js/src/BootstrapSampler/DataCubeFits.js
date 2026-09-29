@@ -69,12 +69,35 @@ async function dataCubeToFitsBytes(cfitsio, dataCube, beam) {
     CRPIX2: dh.refLocation[1] + 1, CRVAL2: dh.refVal[1] / ARCSEC_PER_DEG,
     CDELT2: dh.pixelSize[1] / ARCSEC_PER_DEG, CTYPE2: 'DEC--SIN', CUNIT2: 'deg',
 
-    CRPIX3: dh.refLocation[2] + 1, CRVAL3: dh.refVal[2],
-    CDELT3: dh.channelSize, CTYPE3: 'VELO-LSR', CUNIT3: 'km/s',
+    // BUG FIX (2026-09-29, Dan): hardcoded CTYPE3='VELO-LSR'/CUNIT3='km/s'
+    // regardless of what the real cube actually uses -- every WALLABY test
+    // cube in this pipeline is actually CTYPE3='VOPT'/CUNIT3='m/s' (confirmed
+    // directly against WALLABY_J100336-262923_VelCube.fits's real header).
+    // dh.refVal[2]/dh.channelSize are this DataCube's own internal km/s
+    // working units, so converting to m/s here (*1000) reproduces the same
+    // physical values Fortran's own resampled-cube FITS output has. Found
+    // via a header diff between this function's own output and Fortran's
+    // real BootStrapSampler output for the same resample -- SoFiA reads
+    // this file for its own source-finding, and a wrong spectral axis
+    // convention can change which pixels it segments into the mask.
+    CRPIX3: dh.refLocation[2] + 1, CRVAL3: dh.refVal[2] * 1000,
+    CDELT3: dh.channelSize * 1000, CTYPE3: 'VOPT', CUNIT3: 'm/s',
 
     BMAJ: (beam.beamMajorAxis * Math.abs(dh.pixelSize[0])) / ARCSEC_PER_DEG,
     BMIN: (beam.beamMinorAxis * Math.abs(dh.pixelSize[1])) / ARCSEC_PER_DEG,
-    BPA: beam.beamPositionAngle || 0,
+    // BUG FIX (2026-09-29, Dan): beam.beamPositionAngle is stored in RADIANS
+    // (Beam.js's own convention -- fitBeam.beamPositionAngle is built as
+    // bpaDeg*Pi/180 everywhere it's constructed), but the FITS BPA keyword
+    // is degrees. Writing the raw radian value straight through was silently
+    // wrong by a factor of ~180/pi -- masked for a long time because
+    // runBootstrapRealization's resampleBeam never set beamPositionAngle at
+    // all (stayed at Beam2D's default 0, and 0 rad happens to equal 0 deg),
+    // so this only became visible once that separate missing-field bug
+    // (same file, runBootstrapRealization) was fixed and started passing a
+    // real nonzero radian value through. SoFiA reads this BPA to orient its
+    // own segmentation, so a wrong value here gives a genuinely different
+    // (not just ULP-off) source mask.
+    BPA: (beam.beamPositionAngle || 0) * 180 / Math.PI,
     BUNIT: 'Jy/beam',
   };
 
