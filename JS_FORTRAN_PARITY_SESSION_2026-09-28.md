@@ -772,36 +772,64 @@ bug #7 earlier this session:
    confirming the divergence enters exactly here, between kernel
    construction and the convolved output.
 
-**The function**: `rdft2R2cSync` in `js/src/ConvolveCube/
-FFTW3WasmRank2.js`. Its own header comment (written by a PRIOR session,
-already fully diagnosing this) explains why: it composes the 2D FFT from
-SEPARATE row-wise-then-column-wise 1D calls into the real compiled FFTW3
-wasm library, because `fftw-wasm.js` only exposes 1D primitives, not a
-native 2D entry point. Fortran's `dfftw_plan_dft_r2c_2d` instead lets
-FFTW's own planner choose its internal strategy -- for this exact 64x64
-transform size, the wisdom dump (captured directly, `WISDOMSTART`/
-`WISDOMEND` in the trace) shows it picks a FUSED `rdft2-rank>=2` direct
-codelet (`rdft2-r2hc-direct-64-x64`), not a row-then-column decomposition.
-Both are mathematically valid, IEEE-754-legal ways to compute the same 2D
-transform, but they accumulate in a different order -- non-associative
-floating-point addition, so genuinely different (not wrong) intermediate
-rounding.
+**The function**: `rdft2R2cSync` as imported into `js/src/ConvolveCube/
+CubeKernelConvolution.js` -- which, per that file's own import line
+(`const { rdft2R2cSyncNative: rdft2R2cSync, ... } = require('./
+FFTW3WasmRank2.js')`), is the ALREADY-NATIVE `rdft2R2cSyncNative`, not the
+older row-then-column-composed function of the same base name that
+`FFTW3WasmRank2.js` also exports. **CORRECTED 2026-09-29** (same day,
+after checking the feasibility of adding a native 2D entry point, per
+Dan's follow-up question): a native 2D entry point already exists --
+`fftw_r2c_2d_wasm`/`fftw_c2r_2d_wasm` in the C driver, calling
+`fftw_plan_dft_r2c_2d`/`fftw_plan_dft_c2r_2d` directly (ONE `fftw_execute`
+per transform, matching Fortran's own `FFTW_PRESERVE_INPUT` flag) -- built
+by an EARLIER session, and it is what the live pipeline has been calling
+the whole time. The "composes from separate row-then-column 1D calls"
+framing originally written here was a real misreading (the SAME function
+name is reused for two different implementations in this codebase,
+disambiguated only by which one gets imported), not what's actually
+running.
 
-That prior session already quantified this precisely (see the file's own
-comment, verified against a real compiled ground-truth harness): "~50% of
-values differ, but only by 1-96 ULP in DOUBLE PRECISION (~1e-16 to
-~2e-14 relative)" -- about 1000-100000x smaller than a single float32 ULP,
-and every real consumer rounds to float32 immediately after. This is
-exactly consistent with everything found today: the post-conv model's
-noise-floor ringing (max 2.3e-8, vs real signal at 0.0127), which SoFiA's
-own MAD statistic (already proven, via the native-vs-wasm 2x2 matrix, to
-be the actual amplifier) is sensitive enough to shift its threshold by a
-hair for this one marginal source.
+Verified directly, empirically: the wasm build's FFTW planner chooses the
+IDENTICAL codelet plan as Fortran's native build for this 64x64
+transform -- dumped both plan strings (`fftw.planStringSync(64,64)` on
+the JS side; Fortran's own `dfftw_print_plan`, captured earlier via the
+`PLANPRINT`/`WISDOMSTART` trace) and they are byte-for-byte identical:
+`rdft2-rank>=2/1 (rdft2-r2hc-direct-64-x64 "r2cf_64") (dft-direct-64-x33
+"n1_64")`. Build flags are also already matched on both sides:
+`-ffp-contract=off` is patched into every FFTW subdirectory's own
+Makefile (confirmed via `build.sh`'s own detailed comment on why this
+needs sed-patching per-subdirectory rather than a CFLAGS env var), `-O3`
+is preserved from native's own `./configure` auto-detection, and neither
+build enables SIMD.
 
-**Full causal chain, now fully traced function-by-function**:
-`rdft2R2cSync`'s row-then-column FFT decomposition (vs Fortran's native
-fused 2D codelet) → double-precision-ULP-scale differences in the
-convolved model cube's near-zero noise floor (not the real signal) →
+**So the real remaining cause, with algorithm/codelets/flags all already
+matched**: Emscripten's clang (wasm32 target) and Apple's clang (arm64
+native target) generate non-identical machine code for the IDENTICAL
+FFTW codelet C source under matched `-O3`/`-ffp-contract=off` flags. This
+is genuinely a compiler-backend code-generation difference between two
+different LLVM-based toolchains, not a configuration or architecture gap
+this project can close by adding anything -- there is no "missing piece"
+left to build here. An earlier attempt at exactly this fix (giving
+fftw-wasm.js a native 2D entry point) already happened, already shipped,
+and already wasn't sufficient by itself.
+
+That earlier session already quantified the resulting difference
+precisely (see `FFTW3WasmRank2.js`'s own header comment, verified against
+a real compiled ground-truth harness): "~50% of values differ, but only
+by 1-96 ULP in DOUBLE PRECISION (~1e-16 to ~2e-14 relative)" -- about
+1000-100000x smaller than a single float32 ULP, and every real consumer
+rounds to float32 immediately after. This is exactly consistent with
+everything found today: the post-conv model's noise-floor ringing (max
+2.3e-8, vs real signal at 0.0127), which SoFiA's own MAD statistic
+(already proven, via the native-vs-wasm 2x2 matrix, to be the actual
+amplifier) is sensitive enough to shift its threshold by a hair for this
+one marginal source.
+
+**Full causal chain, now fully traced function-by-function**: wasm32 vs
+native-arm64 compiler code generation for FFTW's own (already-matched,
+already-native-2D) codelets → double-precision-ULP-scale differences in
+the convolved model cube's near-zero noise floor (not the real signal) →
 SoFiA-2's MAD-based noise/threshold statistic (sampling the whole cube,
 including noise-floor voxels) computes a very slightly different RMS →
 a handful of pixels right at the segmentation boundary flip inclusion →
@@ -809,65 +837,14 @@ a measurably different starting guess for the optimizer → (only visible
 at `cloudDensity=100`'s harder landscape) a different converged fit for
 one specific realization.
 
-**Not fixable without a real architectural change**: closing this gap
-would mean either giving `fftw-wasm.js` a genuine native 2D transform
-entry point (nontrivial C/wasm work, previously ruled out as impractical
-per this same file's own comment), or making SoFiA-2's own noise statistic
-insensitive to sub-float32-ULP input noise (a third-party dependency).
-Both are out of scope for this session. This is the complete, honest,
-function-level answer to where the bits change -- not just "somewhere in
-SoFiA" but the exact FFT decomposition strategy that's the root numerical
-cause, several layers upstream.
-
-## CORRECTION 2026-09-29 (same day): the native 2D entry point already exists and is already live -- checked feasibility, found it insufficient
-
-Dan asked about the feasibility of giving `fftw-wasm.js` a genuine native
-2D entry point (the "not fixable without real architectural change" item
-above). Investigating that surfaced a real mistake in the writeup above:
-**a native 2D entry point already exists and is already the live
-production path** -- built by an even earlier session, not something
-this session needed to add.
-
-`third_party/fftw-3.3.8/wasm/fftw-driver.c` already has
-`fftw_r2c_2d_wasm`/`fftw_c2r_2d_wasm` (calling `fftw_plan_dft_r2c_2d`/
-`fftw_plan_dft_c2r_2d` directly, ONE `fftw_execute` per transform, matching
-Fortran's own flags including `FFTW_PRESERVE_INPUT`), wrapped in
-`fftw-wasm.js` as `r2c2dSync`/`c2r2dSync`, and used in
-`FFTW3WasmRank2.js` as `rdft2R2cSyncNative`/`rdft2C2rSyncNative`.
-`CubeKernelConvolution.js` imports THOSE native functions but aliases them
-locally to `rdft2R2cSync`/`rdft2C2rSync` -- the same names the older,
-composed row-then-column functions use -- which is exactly what caused
-the misreading during today's bisection above: the trace hook was reading
-the native path's own output the whole time, not the composed path's.
-
-Verified directly, empirically, rather than re-guessing from the code:
-- **Wasm's FFTW planner picks the identical codelet plan as Fortran's
-  native build** for the 64x64 transform -- dumped both plan strings
-  (`fftw.planStringSync(64,64)` on the JS side, Fortran's own
-  `dfftw_print_plan` captured earlier) and they're byte-for-byte
-  identical: `rdft2-rank>=2/1 (rdft2-r2hc-direct-64-x64 "r2cf_64")
-  (dft-direct-64-x33 "n1_64")`.
-- **Build flags already match**: `-ffp-contract=off` is patched into
-  every FFTW subdirectory's own Makefile (not just the top-level one --
-  confirmed this project's build.sh already does this correctly, with a
-  detailed comment on exactly why naive CFLAGS-env-var patching doesn't
-  work), `-O3` is preserved from native's own `./configure` auto-detection
-  (cross-compiled via emconfigure, not overridden), no SIMD on either
-  build.
-- **The divergence in `FFTFORWARDTRACE`'s non-DC bins, found earlier
-  today, is from THIS native path** -- not the composed one. Re-confirmed
-  by reading `CubeKernelConvolution.js`'s own import line directly.
-
-**Real, corrected conclusion**: with the algorithm, codelets, and compiler
-flags all already matched, what's left is Emscripten's clang (wasm32
-target) vs Apple's clang (arm64 native target) generating non-identical
-machine code for the IDENTICAL C source under matched `-O3`/
-`-ffp-contract=off`. This is a compiler-backend code-generation
-difference, not a configuration or architecture gap in this project --
-there is no further "add the missing piece" fix available at the level
-this project operates at. Getting two different LLVM-based toolchains to
-emit bit-identical instruction sequences for the same source isn't a
-tractable engineering target here. The earlier "not fixable without a
-native 2D entry point" framing in this file was itself imprecise: it
-undersold how much prior work already went into exactly this fix, and
-overstated what was actually still missing.
+**Not fixable at this project's level**: closing this gap would mean
+getting two different LLVM-based compiler toolchains (wasm32 Emscripten
+clang vs native arm64 clang) to emit bit-identical machine code for the
+same already-matched C source -- not a realistic engineering target --
+or making SoFiA-2's own noise statistic insensitive to sub-float32-ULP
+input noise (a third-party dependency). Both are out of scope. This is
+the complete, honest, function-level answer to where the bits change --
+not just "somewhere in SoFiA," and not a fixable architectural gap in
+this project's own FFT wiring, but genuine compiler-backend divergence in
+a third-party numerical library, several layers upstream of anything
+this project's own code controls.
