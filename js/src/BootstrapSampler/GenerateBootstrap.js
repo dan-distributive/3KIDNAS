@@ -295,15 +295,30 @@ function buildDataBlock_PhysSelect(
   const halfChan  = Math.trunc(bSizeChan / 2);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    // Fortran: Delta(i) = (2*RandVal - 1) * DeltaRange(i) -- RandVal now
+    // Fortran: Delta(i) = (2.*RandVal-1) *DeltaRange(i) -- RandVal now
     // ran2(idum) on the Fortran side (see GenerateBootstrap.f's matching
     // fix), so this takes an injected rng too instead of plain Math.random()
     // (same optional-rng convention as FlipBootstrap.js's axisFlip).
+    // BUG FIX (2026-09-29, Dan): this compound expression was evaluated in
+    // plain JS double precision, missing the per-operation float32 rounding
+    // Fortran's REAL(4) arithmetic does at each step (2.*RandVal, then -1,
+    // then *DeltaRange(i) each round to float32 separately) -- same class
+    // of bug as every other "ported a compound Fortran expression into more
+    // JS statements" case flagged in this project's own historical notes.
+    // NOTE: found while investigating a cloudDensity=100 divergence, but
+    // this specific function turned out NOT to be the cause -- confirmed
+    // dead code for the actual --local pipeline (bootstrap-realization-
+    // launcher.js never calls buildDataBlock_PhysSelect; GenerateBootstrap
+    // only appears in a job.requires() dependency-manifest list, not as an
+    // actual call site). `if(AdjustedPt(1) .lt. 0.) goto 100` a few lines
+    // below is exactly the kind of retry-on-a-float-comparison structure
+    // that CAN desync ran2() consumption between platforms if this ever
+    // does become live again, so left fixed regardless.
     const delta = [
-      (2.0 * rng.ran2() - 1.0) * deltaRange[0],
-      (2.0 * rng.ran2() - 1.0) * deltaRange[1],
-      (2.0 * rng.ran2() - 1.0) * deltaRange[2],
-    ];
+      f32(f32(f32(2.0) * rng.ran2()) - f32(1.0)) * deltaRange[0],
+      f32(f32(f32(2.0) * rng.ran2()) - f32(1.0)) * deltaRange[1],
+      f32(f32(f32(2.0) * rng.ran2()) - f32(1.0)) * deltaRange[2],
+    ].map(f32);
 
     let reject = false;
     scratch.fill(0);
