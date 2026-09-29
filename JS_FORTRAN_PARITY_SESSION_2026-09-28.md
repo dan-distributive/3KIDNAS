@@ -818,3 +818,56 @@ Both are out of scope for this session. This is the complete, honest,
 function-level answer to where the bits change -- not just "somewhere in
 SoFiA" but the exact FFT decomposition strategy that's the root numerical
 cause, several layers upstream.
+
+## CORRECTION 2026-09-29 (same day): the native 2D entry point already exists and is already live -- checked feasibility, found it insufficient
+
+Dan asked about the feasibility of giving `fftw-wasm.js` a genuine native
+2D entry point (the "not fixable without real architectural change" item
+above). Investigating that surfaced a real mistake in the writeup above:
+**a native 2D entry point already exists and is already the live
+production path** -- built by an even earlier session, not something
+this session needed to add.
+
+`third_party/fftw-3.3.8/wasm/fftw-driver.c` already has
+`fftw_r2c_2d_wasm`/`fftw_c2r_2d_wasm` (calling `fftw_plan_dft_r2c_2d`/
+`fftw_plan_dft_c2r_2d` directly, ONE `fftw_execute` per transform, matching
+Fortran's own flags including `FFTW_PRESERVE_INPUT`), wrapped in
+`fftw-wasm.js` as `r2c2dSync`/`c2r2dSync`, and used in
+`FFTW3WasmRank2.js` as `rdft2R2cSyncNative`/`rdft2C2rSyncNative`.
+`CubeKernelConvolution.js` imports THOSE native functions but aliases them
+locally to `rdft2R2cSync`/`rdft2C2rSync` -- the same names the older,
+composed row-then-column functions use -- which is exactly what caused
+the misreading during today's bisection above: the trace hook was reading
+the native path's own output the whole time, not the composed path's.
+
+Verified directly, empirically, rather than re-guessing from the code:
+- **Wasm's FFTW planner picks the identical codelet plan as Fortran's
+  native build** for the 64x64 transform -- dumped both plan strings
+  (`fftw.planStringSync(64,64)` on the JS side, Fortran's own
+  `dfftw_print_plan` captured earlier) and they're byte-for-byte
+  identical: `rdft2-rank>=2/1 (rdft2-r2hc-direct-64-x64 "r2cf_64")
+  (dft-direct-64-x33 "n1_64")`.
+- **Build flags already match**: `-ffp-contract=off` is patched into
+  every FFTW subdirectory's own Makefile (not just the top-level one --
+  confirmed this project's build.sh already does this correctly, with a
+  detailed comment on exactly why naive CFLAGS-env-var patching doesn't
+  work), `-O3` is preserved from native's own `./configure` auto-detection
+  (cross-compiled via emconfigure, not overridden), no SIMD on either
+  build.
+- **The divergence in `FFTFORWARDTRACE`'s non-DC bins, found earlier
+  today, is from THIS native path** -- not the composed one. Re-confirmed
+  by reading `CubeKernelConvolution.js`'s own import line directly.
+
+**Real, corrected conclusion**: with the algorithm, codelets, and compiler
+flags all already matched, what's left is Emscripten's clang (wasm32
+target) vs Apple's clang (arm64 native target) generating non-identical
+machine code for the IDENTICAL C source under matched `-O3`/
+`-ffp-contract=off`. This is a compiler-backend code-generation
+difference, not a configuration or architecture gap in this project --
+there is no further "add the missing piece" fix available at the level
+this project operates at. Getting two different LLVM-based toolchains to
+emit bit-identical instruction sequences for the same source isn't a
+tractable engineering target here. The earlier "not fixable without a
+native 2D entry point" framing in this file was itself imprecise: it
+undersold how much prior work already went into exactly this fix, and
+overstated what was actually still missing.
