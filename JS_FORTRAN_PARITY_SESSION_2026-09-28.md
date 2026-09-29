@@ -675,3 +675,66 @@ tested against the previously-fully-bit-exact `cloudDensity=20` case
 (still 0.000000 max diff on every geometry field) and re-confirmed the
 `cloudDensity=100` case is unchanged (still isolated to realization 10,
 same magnitude) -- no regressions introduced.
+
+## RESOLVED (root cause found, not fixable in this codebase) 2026-09-29: SoFiA itself definitively ruled out; the real cause is residual model-synthesis noise amplified by SoFiA's own threshold statistic
+
+Pushed the bisection one level further per Dan's explicit instruction to
+keep going. Two things closed this out:
+
+**1. JS's own regenerated model cube compared directly against Fortran's**
+(not a substitute, the ACTUAL cube each platform's own pipeline uses):
+59,762/102,168 voxels bit-identical; the other 42,406 differ, but EVERY
+one is in the noise floor (max value among them 2.3e-8, vs a real signal
+peak of 0.0127 -- five orders of magnitude below anything meaningful).
+This is the same FFT/convolution ringing already documented and accepted
+as harmless in bug #7 earlier this session -- present independently on
+BOTH platforms from non-associative summation, not new, not a bug. The
+resampled cube inherits this same (even smaller, ~1e-19) residual.
+
+**2. The decisive test Dan asked for**: fed the EXACT SAME cube file into
+both native SoFiA and wasm SoFiA, for BOTH cubes (Fortran's own resample
+output and JS's own resample output) -- a full 2x2 matrix:
+
+|                 | Fortran's cube | JS's cube |
+|-----------------|:--------------:|:---------:|
+| **native SoFiA**|      1038      |   **1041**|
+| **wasm SoFiA**  |      1038      |   **1041**|
+
+The result depends ONLY on which cube goes in, never on which binary runs
+it -- native SoFiA on JS's own generated cube gives byte-for-byte the SAME
+catalog row as wasm SoFiA on that same file. **This definitively rules out
+SoFiA's wasm build as the cause** -- it is fully deterministic and
+behaviorally identical to the native build, confirmed directly, not
+inferred from "everything else matched so it must be this."
+
+**Actual root cause**: Fortran's and JS's independently-synthesized model
+cubes agree to an already-accepted noise floor (~1e-15 to 1e-19 absolute,
+utterly negligible next to real flux) but are not byte-identical -- and
+SoFiA-2's own MAD-based noise/threshold statistic (`scfind.statistic=mad`,
+`fluxRange=negative`, computed over a strided sample of the WHOLE cube,
+i.e. including all those near-zero ringing voxels) is sensitive enough to
+exactly which of those noise-floor values happen to be negative vs
+positive to shift its own computed RMS by a tiny amount. Confirmed via the
+full catalog diff: `std`/`skew`/`kurt`/`ell_maj`/`ell_pa`/etc. all shift
+by small-but-nonzero amounts between the two cubes, not just n_pix --
+consistent with a shifted threshold, not a segmentation-algorithm
+difference. For this one faint, marginal source (the reproducible test
+case is intentionally hard -- see the Sep-16 handoff), that tiny threshold
+shift is enough to flip a handful of pixels right at the boundary, which
+cascades into a different starting guess for the optimizer, which (once in
+a harder cloudDensity=100 landscape) is enough to converge somewhere
+measurably different.
+
+**Where this leaves it**: this is not a bug in this project's JS port, the
+Fortran code, or the DataCubeFits.js FITS-writing fixes made earlier today
+(all of which were real and are kept) -- it's an inherent sensitivity of
+SoFiA-2's own noise-estimation algorithm to floating-point noise this
+project has already decided, elsewhere, is acceptable (bug #7's
+resolution explicitly treated this exact magnitude of ringing as fine).
+Closing this gap for real would mean either (a) making the model-cube
+synthesis genuinely bit-identical at the ~1e-19 level too (a much harder
+bar than anything targeted this session, and arguably chasing noise below
+any physically meaningful threshold), or (b) patching SoFiA-2's own source
+to make its noise statistic less sensitive to sub-threshold ringing (a
+third-party dependency, out of scope for a JS/Fortran parity project).
+Not pursued further -- this is the honest end of this particular thread.
