@@ -171,6 +171,30 @@ async function runBootstrapRealization(realizationIndex, payload) {
     const likelihoodSwitch       = requirePayloadField(payload, 'likelihoodSwitch');
 
     const f32 = Math.fround;
+    // BUG FIX (2026-09-28, Dan): bsCent's fields arrive as full JS doubles
+    // (from ComputeBsCent's double-precision Python arithmetic via the JSON
+    // payload), but Fortran's BootstrapCenter type (BootstrapGlobals.f:
+    // CentX/CentY/CentV/PA/Inc) is declared `real` -- single precision.
+    // Fortran's own resample geometry is therefore ALWAYS the float32
+    // rounding of the same underlying double value (forced the moment
+    // `read(10,*) BS_Cent%CentX,...` parses the text into those real(4)
+    // fields), while JS's un-rounded double silently carried more
+    // precision than Fortran ever had. Confirmed directly: rounding JS's
+    // own centV/pa to float32 exactly reproduced Fortran's real4 values
+    // (50.531715393066406 both, 5.877301216125488 both) for a run where
+    // they'd previously differed by ~1 ULP -- this, not any text-
+    // serialization precision loss (a dead-end fix tried first), was the
+    // actual source of the ~3%-of-voxels 1-ULP bootstrap-resample
+    // discrepancy traced back through amoeba (proven exact) and the raw
+    // best-fit parameter vector (also proven exact) to this exact point.
+    const bsCentF32 = bsCent && {
+      ...bsCent,
+      centX: f32(bsCent.centX),
+      centY: f32(bsCent.centY),
+      centV: f32(bsCent.centV),
+      pa:    f32(bsCent.pa),
+      inc:   f32(bsCent.inc),
+    };
     let DataCube, allocateDataCube, Beam2D, allocate_Beam2D, genFlipBootstrapSample, makeRng,
         dataCubeToFitsBytes, fitsBytesToDataCube, parseSoFiACatalog, getGeometryEstimates,
         initialAnalysis, TiltedRingModel, tiltRing_Allocate, ParameterVector, allocateParamVector,
@@ -288,6 +312,23 @@ async function runBootstrapRealization(realizationIndex, payload) {
     observedDC.flux = rawObservedDC.flux;
     modelDC.flux    = rawModelDC.flux;
 
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+      const idxOf = (dh) => 2 + 11 * dh.nChannels + 29 * dh.nChannels * dh.nPixels[1];
+      const obs = observedDC.flux[idxOf(observedDC.dh)], mdl = modelDC.flux[idxOf(modelDC.dh)];
+      require('fs').appendFileSync('VoxelTraceJS.txt',
+        `obs_29_11_2 ${obs.toExponential(19)}\nmodel_29_11_2 ${mdl.toExponential(19)}\ndiff_29_11_2 ${(obs - mdl).toExponential(19)}\n`);
+      const mnx = modelDC.dh.nPixels[0], mny = modelDC.dh.nPixels[1], mnc = modelDC.dh.nChannels;
+      const lines = [];
+      for (let k = 0; k < mnc; k++) {
+        for (let j = 0; j < mny; j++) {
+          for (let i = 0; i < mnx; i++) {
+            lines.push(modelDC.flux[k + j * mnc + i * mnc * mny].toExponential(9));
+          }
+        }
+      }
+      require('fs').writeFileSync('ModelFullJS.txt', lines.join('\n') + '\n');
+    }
+
     const resampleBeam = new Beam2D();
     resampleBeam.beamMajorAxis = beamMajorAxis;
     resampleBeam.beamMinorAxis = beamMinorAxis;
@@ -302,12 +343,45 @@ async function runBootstrapRealization(realizationIndex, payload) {
       : -(Math.trunc(Date.now() % 2000000000) + realizationIndex + 1);
     const resampleRng = makeRng(resampleIdum);
 
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+      require('fs').appendFileSync('BsCentTraceJS.txt',
+        `CentX ${Number(bsCentF32.centX).toExponential(19)}\nCentY ${Number(bsCentF32.centY).toExponential(19)}\nCentV ${Number(bsCentF32.centV).toExponential(19)}\nPA ${Number(bsCentF32.pa).toExponential(19)}\n`);
+    }
+
     const tResampleStart = Date.now();
     const bootstrapCube = genFlipBootstrapSample(
-      observedDC, modelDC, bsCent, velBlockSize, resampleRng
+      observedDC, modelDC, bsCentF32, velBlockSize, resampleRng
     );
     timings.resampleMs = Date.now() - tResampleStart;
 
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+      // Column-major (Fortran-order) checksum -- see CalculateBeamKernel.js/
+      // InitialAnalysis.js's matching comments on why traversal order
+      // matters for a bit-exact sum() comparison against Fortran.
+      const flux = bootstrapCube.flux;
+      const bdh = bootstrapCube.dh;
+      const bnx = bdh.nPixels[0], bny = bdh.nPixels[1], bnc = bdh.nChannels;
+      let sum = 0;
+      for (let k = 0; k < bnc; k++) {
+        for (let j = 0; j < bny; j++) {
+          for (let i = 0; i < bnx; i++) {
+            const v = flux[k + j * bnc + i * bnc * bny];
+            if (v === v) sum += v;
+          }
+        }
+      }
+      require('fs').appendFileSync('ResampleTraceJS.txt',
+        `sum ${sum.toExponential(19)}\npx000 ${flux[0].toExponential(19)}\npxlast ${flux[flux.length - 1].toExponential(19)}\n`);
+      const fullLines = [];
+      for (let k = 0; k < bnc; k++) {
+        for (let j = 0; j < bny; j++) {
+          for (let i = 0; i < bnx; i++) {
+            fullLines.push(flux[k + j * bnc + i * bnc * bny].toExponential(9));
+          }
+        }
+      }
+      require('fs').writeFileSync('ResampleFullJS.txt', fullLines.join('\n') + '\n');
+    }
     if (isTraceDebug()) {
       const flux = bootstrapCube.flux;
       let sum = 0, mn = Infinity, mx = -Infinity;
@@ -544,6 +618,11 @@ async function runBootstrapRealization(realizationIndex, payload) {
       ftol:              f32(ftol),
       iniGuessWidth:     f32(1.0),
       paramToTiltedRing: generalizedParamVectorToTiltedRing,
+      // One-off diagnostic (Dan, 2026): lets FullModelComparison.js's
+      // FULLVEC dump tag its output file per-realization (worker pool
+      // parallelism otherwise interleaves multiple realizations' FULLVEC
+      // lines into one shared TRACE_DEBUG_FINALVEC_FILE, unparseable).
+      realizationIndex,
     };
 
     // ---- Run optimizer ----
@@ -554,6 +633,10 @@ async function runBootstrapRealization(realizationIndex, payload) {
     const tFitStart = Date.now();
     const { pvModel: pvBest, noConvergence } = galaxyFit_Simple(state);
     timings.fitMs = Date.now() - tFitStart;
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+      const lines = Array.from(pvBest.param).map((v, idx) => `p${idx} ${f32(v).toExponential(19)}`);
+      require('fs').appendFileSync('PvBestTraceJS.txt', lines.join('\n') + '\n---\n');
+    }
     const { convolveMs, convolveCalls } = getConvolveStats();
     timings.convolveMs = convolveMs;
     timings.convolveCalls = convolveCalls;
@@ -602,6 +685,18 @@ async function runBootstrapRealization(realizationIndex, payload) {
     report.YCENTER       = col((r) => r.centPos[1]);
     report.INCLINATION   = col((r) => f32(r.inclination * RAD2DEG));
     report.POSITIONANGLE = col((r) => toKinematicPA(r.positionAngle));
+    // Raw (pre-"kinematic PA" convention) angles in radians, straight off
+    // the converged model -- see FitOutput.f's matching companion-file
+    // comment (FitNum.eq.2-gated write). Bootstrap resampling geometry
+    // (computeBsCent in buildFitPayloads.js, ComputeBsCent in
+    // RunBootstrapsDCP.py) must use THESE, not POSITIONANGLE/INCLINATION
+    // above: those are display-only values already round-tripped through
+    // a degrees conversion (and, for PA, a -90/wrap offset), and re-
+    // deriving resampling geometry from them independently of Fortran's
+    // own (separately lossy) re-derivation is exactly what let the two
+    // sides' bootstrap resample cubes drift apart by ~1.4e-7 abs per cell.
+    report.POSITIONANGLE_RAW_RAD = col((r) => r.positionAngle);
+    report.INCLINATION_RAW_RAD   = col((r) => r.inclination);
     report.VSYS  = col((r) => r.vSys);
     report.VROT  = col((r) => r.vRot);
     report.VDISP = col((r) => r.vDisp);
@@ -1221,6 +1316,10 @@ async function runInitialFit(realizationIndex, payload) {
     const tFitStart = Date.now();
     const { pvModel: pvBest, noConvergence } = galaxyFit_Simple(state);
     timings.fitMs = Date.now() - tFitStart;
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+      const lines = Array.from(pvBest.param).map((v, idx) => `p${idx} ${f32(v).toExponential(19)}`);
+      require('fs').appendFileSync('PvBestTraceJS.txt', lines.join('\n') + '\n---\n');
+    }
     const { convolveMs, convolveCalls } = getConvolveStats();
     timings.convolveMs = convolveMs;
     timings.convolveCalls = convolveCalls;
@@ -1256,7 +1355,22 @@ async function runInitialFit(realizationIndex, payload) {
     }
 
     report.sofiaFailed = false;
-    report.FITAchieved = !noConvergence;
+    // FITAchieved: a real, confirmed behavioral mismatch (found 2026-09-28,
+    // Dan) -- this used to be `!noConvergence`, gating the WHOLE pipeline
+    // (including every downstream bootstrap realization) on whether
+    // amoeba's rtol formally satisfied ftol. Fortran has no such gate:
+    // Python's FITAchieved (ReadWRKPFit.LoadBestFitModelFile) is purely
+    // `os.path.isfile(...)` on Fortran's output file, and Fortran ALWAYS
+    // writes that file using whatever best point amoeba found -- converged
+    // or not (amoeba/DownhillSimplex.f has no special-case on
+    // NoConvergenceFlag beyond returning it as an out-param; GalaxyFit.f
+    // uses paramGuesses(1,:)/chiArray(1), the best point, regardless).
+    // Confirmed empirically: at cloudDensity=20 Fortran's own Pass 2 also
+    // hits ITMAX=5000 with NoConvergenceFlag=True on this exact run, yet
+    // Fortran proceeds and produces a usable BootstrapFits.csv row. `noConvergence`
+    // remains available below as `report.converged` for diagnostics --
+    // only the pipeline-continuation gate was wrong.
+    report.FITAchieved = true;
     report.converged = !noConvergence;
     report.CHI2 = pvBest.bestLike;
     report.chi2 = pvBest.bestLike;
@@ -1264,6 +1378,18 @@ async function runInitialFit(realizationIndex, payload) {
     report.YCENTER       = col((r) => r.centPos[1]);
     report.INCLINATION   = col((r) => f32(r.inclination * RAD2DEG));
     report.POSITIONANGLE = col((r) => toKinematicPA(r.positionAngle));
+    // Raw (pre-"kinematic PA" convention) angles in radians, straight off
+    // the converged model -- see FitOutput.f's matching companion-file
+    // comment (FitNum.eq.2-gated write). Bootstrap resampling geometry
+    // (computeBsCent in buildFitPayloads.js, ComputeBsCent in
+    // RunBootstrapsDCP.py) must use THESE, not POSITIONANGLE/INCLINATION
+    // above: those are display-only values already round-tripped through
+    // a degrees conversion (and, for PA, a -90/wrap offset), and re-
+    // deriving resampling geometry from them independently of Fortran's
+    // own (separately lossy) re-derivation is exactly what let the two
+    // sides' bootstrap resample cubes drift apart by ~1.4e-7 abs per cell.
+    report.POSITIONANGLE_RAW_RAD = col((r) => r.positionAngle);
+    report.INCLINATION_RAW_RAD   = col((r) => r.inclination);
     report.VSYS  = col((r) => r.vSys);
     report.VROT  = col((r) => r.vRot);
     report.VDISP = col((r) => r.vDisp);
@@ -1327,6 +1453,35 @@ async function runInitialFit(realizationIndex, payload) {
       console.error('TRACE using overridden idum for resynthesis:', overrideIdum);
       state.rng = makeRng(overrideIdum);
     }
+    // One-off diagnostic (Dan probe, 2026-09-27): a bare idum integer is
+    // NOT ran2's full state -- Numerical Recipes' ran2 (and this port)
+    // only re-initializes its 32-slot shuffle table (iv), idum2, and iy
+    // when idum<=0, so transplanting a POSITIVE idum alone (the override
+    // above) leaves iv/idum2/iy at fresh-construction defaults,
+    // completely disconnected from Fortran's real evolved stream at that
+    // point -- confirmed empirically to make cross-platform model-cube
+    // agreement dramatically WORSE (1 ULP -> 3e-3 abs), not better.
+    // TRACE_OVERRIDE_RAN2_STATE takes the FULL state as JSON
+    // {"idum":N,"idum2":N,"iy":N,"iv":[32 ints]} straight from Fortran's
+    // GetRan2State (see FitOutput.f's matching MaybeOverrideIdum), for a
+    // genuine apples-to-apples transplant test.
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_OVERRIDE_RAN2_STATE) {
+      const full = JSON.parse(process.env.TRACE_OVERRIDE_RAN2_STATE);
+      console.error('TRACE using overridden FULL ran2 state for resynthesis:', full);
+      state.rng = makeRng(1); // placeholder idum, immediately overwritten below
+      state.rng.state.ran2State.idum = full.idum;
+      state.rng.state.ran2State.idum2 = full.idum2;
+      state.rng.state.ran2State.iy = full.iy;
+      state.rng.state.ran2State.iv = Int32Array.from(full.iv);
+      state.rng.state.ran2State.initialized = true;
+      state.rng.state.gasdevState.iset = 0;
+      state.rng.state.gasdevState.gset = 0;
+    }
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+      const rs = state.rng.state.ran2State;
+      require('fs').appendFileSync('NaturalRan2StateJS.txt',
+        `idum ${rs.idum}\nidum2 ${rs.idum2}\niy ${rs.iy}\niv ${JSON.stringify(Array.from(rs.iv))}\n`);
+    }
     tiltedRingModelComparison(synthParams, state);
     // BUG FIX (2026, flagged by Dan): tiltedRingModelComparison leaves
     // fitModelDC.flux in Jy/pixel (the units the fit's own chi2 comparison
@@ -1344,13 +1499,78 @@ async function runInitialFit(realizationIndex, payload) {
     // cube FITS differed in both sum and max by ~28.2x, matching
     // beamAreaPixels~28.196 almost exactly), which fed a systematically
     // wrong residual into every subsequent flip-resample.
+    // BUG FIX (2026-09-28, Dan): FitOutput.f's OutputCube does NOT reuse
+    // ObservedBeam%BeamAreaPixels (the "official" field, computed once at
+    // Beam allocation via `2.*Pi/(2.355*2.355)*Major*Minor` -- Beam.f:62,
+    // matches this file's OWN `beamAreaPixels` above exactly) for this
+    // specific rescale. It computes a SEPARATE, local `BeamArea` variable
+    // inline, via a DIFFERENT (mathematically equivalent, numerically NOT
+    // identical) formula: `2.*Pi*abs(BeamSigmaVector(0)*BeamSigmaVector(1))`
+    // -- i.e. built from the ALREADY-DIVIDED sigma values (Major/2.355,
+    // Minor/2.355, each independently rounded), not a single precomputed
+    // `2*Pi/2.355^2` constant times Major*Minor. Confirmed empirically via
+    // isolation: PreConvModel.fits and PostConvPreScaleModel.fits (before
+    // this rescale) are BIT-EXACT (0/179520 and 0-meaningful/179520 diffs)
+    // between Fortran and JS, but the FINAL (post-rescale) model cube shows
+    // a uniform ~1.4e-7 relative difference on every voxel -- exactly the
+    // signature of a single scalar multiplier differing by ~1 ULP. Fixed
+    // by replicating FitOutput.f's exact local formula/operator grouping
+    // here instead of reusing the (correct-for-its-OWN-purpose, but wrong
+    // for THIS one) `beamAreaPixels` field.
+    const piF32 = f32(Math.PI); // matches CommonConsts.f's Pi (real)
+    const outputBeamArea = f32(
+      f32(f32(2.0) * piF32) * f32(Math.abs(f32(
+        f32(fitBeam.beamSigmaVector[0]) * f32(fitBeam.beamSigmaVector[1])
+      )))
+    );
     const modelFlux = fitModelDC.flux;
     for (let i = 0; i < modelFlux.length; i++) {
-      modelFlux[i] = f32(modelFlux[i] * beamAreaPixels);
+      modelFlux[i] = f32(modelFlux[i] * outputBeamArea);
+    }
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+      const mdh2 = fitModelDC.dh;
+      const idx2 = 2 + 11 * mdh2.nChannels + 29 * mdh2.nChannels * mdh2.nPixels[1];
+      require('fs').appendFileSync('AnchorModelVoxelTraceJS.txt',
+        `model_29_11_2 ${modelFlux[idx2].toExponential(19)}\n`);
     }
     const modelCubeFitsB64 = bytesToB64(
       await dataCubeToFitsBytes(cfitsio, fitModelDC, fitBeam)
     );
+
+    // One-off diagnostic (Dan probe, 2026-09-27): export the pre-
+    // convolution snapshot FullModelComparison.js stashed on `global`
+    // (TRACE_DUMP_PRECONV-gated) to its own FITS file, same writer as the
+    // real post-conv cube above, for a direct pixel diff against
+    // Fortran's matching PreConvModel.fits. No effect unless
+    // TRACE_DUMP_PRECONV is set AND the resynthesis call above actually
+    // ran with it (so the snapshot exists).
+    let preConvModelCubeFitsB64 = null;
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV
+        && global.__PRECONV_FLUX_SNAPSHOT) {
+      const preConvDC = { dh: fitModelDC.dh, flux: global.__PRECONV_FLUX_SNAPSHOT };
+      preConvModelCubeFitsB64 = bytesToB64(
+        await dataCubeToFitsBytes(cfitsio, preConvDC, fitBeam)
+      );
+      // Direct local write (Dan, 2026-09-28) -- report.preConvModelCubeFitsB64
+      // was computed but never actually written to disk by any caller;
+      // writing it here directly for a straight pixel diff against
+      // Fortran's PreConvModel.fits.
+      require('fs').writeFileSync('PreConvModelJS.fits',
+        Buffer.from(atob(preConvModelCubeFitsB64), 'binary'));
+    }
+    // Sibling dump: immediately after convolution, before the
+    // beamAreaPixels rescale below -- see matching comment at the stash
+    // site (FullModelComparison.js).
+    let postConvPreScaleModelCubeFitsB64 = null;
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV
+        && global.__POSTCONV_PRESCALE_FLUX_SNAPSHOT) {
+      const postConvPreScaleDC = { dh: fitModelDC.dh, flux: global.__POSTCONV_PRESCALE_FLUX_SNAPSHOT };
+      postConvPreScaleModelCubeFitsB64 = bytesToB64(
+        await dataCubeToFitsBytes(cfitsio, postConvPreScaleDC, fitBeam)
+      );
+      require('fs').writeFileSync('PostConvPreScaleModelJS.fits',
+        Buffer.from(atob(postConvPreScaleModelCubeFitsB64), 'binary'));
+    }
 
     // Moment maps for the browser's moment-map visualization (see
     // ~/.claude/plans/breezy-launching-nova.md, Phase 1). Observed map
@@ -1536,6 +1756,8 @@ async function runInitialFit(realizationIndex, payload) {
     report.SN_Avg = diag.snAvg;
     report.SN_Median = diag.snMedian;
     report.modelCubeFitsB64 = modelCubeFitsB64;
+    report.preConvModelCubeFitsB64 = preConvModelCubeFitsB64;
+    report.postConvPreScaleModelCubeFitsB64 = postConvPreScaleModelCubeFitsB64;
 
     // diskfit_fixture.json-equivalent -- field names match Fortran's
     // DumpFittingFixture (SingleGalaxyTests.f:174-509) exactly, since

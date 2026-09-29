@@ -10,10 +10,10 @@
 // unlike run_all_three's multi-run comparison, there's no separate
 // median/MAD summary needed on top of it) plus the initial fit's profile as
 // a thick accent-colored line, matching the reference GeoBoxPlot.png's own
-// upper-corner RC/Sigma spread panels. Styled to match cornerPlot.js (same
-// translucent-red-for-realizations / teal-for-best-fit convention) rather
-// than run_all_three's SVG styling, to stay consistent with this page's own
-// look.
+// upper-corner RC/Sigma spread panels. Styled to match cornerPlot.js: one
+// on-brand accent blue (this page's --accent token) for both, translucent
+// for the realization cloud and solid for the best-fit line, rather than
+// a second, contrasting hue for the realizations.
 // =============================================================================
 
 function niceTicks(lo, hi, targetCount) {
@@ -43,11 +43,14 @@ function drawRadialProfilePanel(ctx, x0, y0, w, h, realizations, bestFit, xKey, 
   const toPx = (x) => x0 + ((x - xMin) / (xMax - xMin || 1)) * w;
   const toPy = (y) => y0 + h - ((y - yMin) / (yMax - yMin || 1)) * h;
 
-  // Per-realization profiles -- thin translucent lines + small dots at each
-  // ring, same red used for the corner plot's own scatter points.
-  ctx.strokeStyle = colors.realization;
-  ctx.fillStyle = colors.realization;
+  // Per-realization profiles -- thin translucent lines at each ring, same
+  // accent blue as the best-fit line below (see this file's header for why
+  // one hue at two opacities, not two colors) and the corner plot's own
+  // scatter points.
+  ctx.strokeStyle = colors.best;
+  ctx.fillStyle = colors.best;
   ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.35;
   for (const r of realizations) {
     const X = r[xKey], Y = r[yKey];
     if (!X || !Y || X.length < 2) continue;
@@ -58,6 +61,7 @@ function drawRadialProfilePanel(ctx, x0, y0, w, h, realizations, bestFit, xKey, 
     }
     ctx.stroke();
   }
+  ctx.globalAlpha = 1;
 
   // Best (initial) fit -- thick accent line + dots, drawn last/on top.
   if (bestX && bestY) {
@@ -127,8 +131,7 @@ function drawRadialProfileGrid(canvas, bootstrapResults, bestFit) {
   const colors = {
     ink: s.getPropertyValue('--ink').trim() || '#000',
     border: s.getPropertyValue('--border').trim() || '#ccc',
-    best: s.getPropertyValue('--accent').trim() || '#008da9',
-    realization: 'rgba(244,67,54,0.35)',
+    best: s.getPropertyValue('--accent').trim() || '#1f6fa8',
   };
   ctx.fillStyle = s.getPropertyValue('--panel-2').trim() || '#fff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);

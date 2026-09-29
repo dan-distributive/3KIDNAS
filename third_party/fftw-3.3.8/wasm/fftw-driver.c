@@ -125,6 +125,56 @@ int fftw_r2c_2d_wasm(double *re_in, double *re_out, double *im_out, int n0, int 
   return 0;
 }
 
+/* One-off diagnostic (Dan probe, 2026-09-27): import FFTW wisdom (a
+ * serialized description of a previously-chosen plan, exported from
+ * Fortran's native build via fftw_export_wisdom_to_string) so THIS
+ * build's planner reconstructs the identical plan tree instead of
+ * re-deriving its own FFTW_ESTIMATE heuristic choice, which was proven
+ * (via fftw_r2c_2d_planstring_wasm) to differ structurally from
+ * Fortran's for the same nominal transform. Returns 1 if the wisdom
+ * string was accepted, 0 if FFTW rejected it (e.g. no matching solver
+ * available in this build). */
+EMSCRIPTEN_KEEPALIVE
+int fftw_import_wisdom_wasm(const char *wisdom_cstr) {
+  return fftw_import_wisdom_from_string(wisdom_cstr);
+}
+
+/* One-off diagnostic (Dan probe, 2026-09-27): build the SAME r2c_2d plan
+ * fftw_r2c_2d_wasm uses (identical size, identical flags) and write its
+ * fftw_sprint_plan() description into a caller-provided buffer, so it can
+ * be compared textually against Fortran's own dfftw_print_plan output
+ * for the SAME transform -- proves or disproves "does FFTW choose a
+ * different internal algorithm on wasm vs native for the identical
+ * nominal transform" directly, instead of inferring it from timing or
+ * bit-level output alone. */
+EMSCRIPTEN_KEEPALIVE
+int fftw_r2c_2d_planstring_wasm(int n0, int n1, char *out_buf, int out_buf_len) {
+  if (n0 <= 0 || n1 <= 0) return 1;
+  int nc = n1 / 2 + 1;
+
+  double *in = (double *) fftw_malloc(sizeof(double) * (size_t) n0 * n1);
+  fftw_complex *out = (fftw_complex *) fftw_malloc(sizeof(fftw_complex) * (size_t) n0 * nc);
+  if (!in || !out) { fftw_free(in); fftw_free(out); return 2; }
+
+  fftw_plan p2 = fftw_plan_dft_r2c_2d(n0, n1, in, out,
+      FFTW_ESTIMATE | FFTW_PRESERVE_INPUT);
+  if (!p2) { fftw_free(in); fftw_free(out); return 3; }
+
+  char *s = fftw_sprint_plan(p2);
+  if (s) {
+    strncpy(out_buf, s, (size_t)(out_buf_len - 1));
+    out_buf[out_buf_len - 1] = '\0';
+    free(s);
+  } else {
+    out_buf[0] = '\0';
+  }
+
+  fftw_destroy_plan(p2);
+  fftw_free(in);
+  fftw_free(out);
+  return 0;
+}
+
 /* Complex-to-real 2D DFT (inverse), FFTW's native 2D planner. UNNORMALIZED
  * (matching this project's existing convention -- forward+inverse without
  * dividing by n0*n1 recovers n0*n1 * original; CubeKernelConvolution.js's

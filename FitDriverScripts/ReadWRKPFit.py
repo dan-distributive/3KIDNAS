@@ -10,14 +10,31 @@ def ReadWRKPOutputFile(GeneralDict,GalaxyDict):
     GalaxyModel=LoadBestFitModelFile(WRKP_Results_File)
     #   Also store the model cube file name in the GalaxyModel dictionary
     GalaxyModel['ModelCube']=WRKP_CubeFile
+    #   Raw (pre-"kinematic PA" convention) PA/Inc in radians, full
+    #   list-directed precision -- see FitOutput.f's own comment where this
+    #   file gets written (FitNum.eq.2 ONLY -- do not read it if it might
+    #   be stale/absent). Bootstrap resampling geometry (MakeBootstrapSample.
+    #   WriteBootstrapFile) must use THESE, not POSITIONANGLE/INCLINATION
+    #   above, which are lossy re-derivations meant for display only.
+    if GalaxyModel.get('FITAchieved',False):
+        RawGeomFile=GetRawGeomFileName(GalaxyDict)
+        if os.path.isfile(RawGeomFile):
+            with open(RawGeomFile,"r") as f:
+                RawLines=f.readlines()
+            GalaxyModel['POSITIONANGLE_RAW_RAD']=[float(RawLines[0])]
+            GalaxyModel['INCLINATION_RAW_RAD']=[float(RawLines[1])]
     return GalaxyModel
 
 def GetOutputFileName(GalaxyDict):
     TargFolder=GalaxyDict['TargFolderU']+"/"+GalaxyDict['ObjNameU']+"/"
     FName=TargFolder+GalaxyDict['ObjNameU']+"_AvgModel_v1.txt"
     CName=TargFolder+GalaxyDict['ObjNameU']+"_AverageModel_v1.fits"
-    
+
     return FName,CName
+
+def GetRawGeomFileName(GalaxyDict):
+    TargFolder=GalaxyDict['TargFolderU']+"/"+GalaxyDict['ObjNameU']+"/"
+    return TargFolder+GalaxyDict['ObjNameU']+"_RawGeom_v1.txt"
 
 
 def LoadBestFitModelFile(FileName):

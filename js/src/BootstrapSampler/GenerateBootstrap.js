@@ -6,6 +6,16 @@
 //
 // PORTING NOTES
 // -------------
+// LIVE STATUS (Dan, 2026): none of this file's own resampling path is what
+// the real pipeline actually runs. Both native BootStrapSampler
+// (src/ProgramMains/BootStrapGenerator.f calls GenFlipBootstrapSample(),
+// NOT GenBootstrapSample() -- that call is commented out there) and the JS
+// launcher (bootstrap-realization-launcher.js calls genFlipBootstrapSample
+// from FlipBootstrap.js) use the FLIPPING-bootstrap method instead. Real,
+// tested code, kept for reference/possible future use, but dead on both
+// platforms today. getFluxAtPoint() below IS live, though -- it's imported
+// and reused by the live FlipBootstrap.js/axisFlip().
+//
 // Ports the following Fortran subroutines:
 //
 //   genBootstrapSample()          — main entry point
@@ -27,9 +37,20 @@
 //
 // RANDOMNESS
 // ----------
-// Fortran uses RANDOM_NUMBER (system RNG, not idum/ran2).
-// JS uses Math.random() — no need to match Fortran since each bootstrap
-// realization is independently random by design.
+// BUG FIX (Dan, 2026): this used to say "Fortran uses RANDOM_NUMBER, JS
+// uses Math.random() -- no need to match, each realization is
+// independently random by design." That was true of the Fortran source at
+// the time, but wrong as GENERAL guidance -- it got read (in a later
+// session) as if it described the LIVE resampling path, when actually the
+// live path (FlippingBootstrap.f/FlipBootstrap.js) already used seeded
+// ran2/rng.ran2() throughout. Both this file's own Fortran counterpart and
+// this file now use ran2(idum)/rng.ran2() too (an injected `rng` parameter,
+// defaulting to Math.random() only for truly dead/orphaned call sites that
+// don't care) -- for consistency, even though this file's own resampling
+// method is unreachable in production. Do not reintroduce Math.random()/
+// RANDOM_NUMBER anywhere in a bootstrap resampling path without a very
+// good reason: it silently breaks Fortran/JS reproducibility for anyone
+// who later wires this method back in.
 //
 // PRECISION
 // ---------
@@ -133,7 +154,13 @@ const _interpF32buf = new Float32Array(1);
 const _interpU32buf = new Uint32Array(_interpF32buf.buffer);
 function roundForInterpStability(x) {
   _interpF32buf[0] = x;
-  _interpU32buf[0] = _interpU32buf[0] & 0xFFFFF000;
+  // BUG FIX (Dan, 2026): round-to-nearest, NOT floor -- same fix as
+  // roundForParticleStability/roundForBinStability. See those for the full
+  // rationale (a plain bit-mask always truncates down, disagreeing with
+  // Fortran whenever this port's own value lands exactly on a masking-grid
+  // boundary while Fortran's tiny independent float32 noise puts it just
+  // below).
+  _interpU32buf[0] = (_interpU32buf[0] + 0x800) & 0xFFFFF000;
   return _interpF32buf[0];
 }
 
@@ -255,7 +282,7 @@ function fillInCubeByBlock(newCube, dataBlock, bSizePix, bSizeChan, blockID) {
 // ---------------------------------------------------------------------------
 function buildDataBlock_PhysSelect(
   baseCube, bSizePix, bSizeChan, ptIndx, coordArr, deltaRange,
-  xc, yc, vSys, pa, inc, maxAttempts = 1000
+  xc, yc, vSys, pa, inc, maxAttempts = 1000, rng = { ran2: Math.random }
 ) {
   const nx  = baseCube.dh.nPixels[0];
   const ny  = baseCube.dh.nPixels[1];
@@ -268,11 +295,14 @@ function buildDataBlock_PhysSelect(
   const halfChan  = Math.trunc(bSizeChan / 2);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    // Fortran: Delta(i) = (2*RandVal - 1) * DeltaRange(i)
+    // Fortran: Delta(i) = (2*RandVal - 1) * DeltaRange(i) -- RandVal now
+    // ran2(idum) on the Fortran side (see GenerateBootstrap.f's matching
+    // fix), so this takes an injected rng too instead of plain Math.random()
+    // (same optional-rng convention as FlipBootstrap.js's axisFlip).
     const delta = [
-      (2.0 * Math.random() - 1.0) * deltaRange[0],
-      (2.0 * Math.random() - 1.0) * deltaRange[1],
-      (2.0 * Math.random() - 1.0) * deltaRange[2],
+      (2.0 * rng.ran2() - 1.0) * deltaRange[0],
+      (2.0 * rng.ran2() - 1.0) * deltaRange[1],
+      (2.0 * rng.ran2() - 1.0) * deltaRange[2],
     ];
 
     let reject = false;

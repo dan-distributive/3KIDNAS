@@ -64,6 +64,20 @@ c      print*, "Starting downhill simplex",PID,y
 
       rtol=2.*abs(y(ihi)-y(ilo))/(abs(y(ihi))+abs(y(ilo))+TINY)
       print*, "Current tolerance", iter,rtol,y(ihi),y(ilo)
+      block
+        character(64) EnvVal7
+        integer EnvLen7, ITUnit
+        call get_environment_variable("TRACE_DUMP_PRECONV",EnvVal7,
+     &            EnvLen7)
+        if (EnvLen7 .gt. 0) then
+          open(newunit=ITUnit, file="AmoebaTraceF.txt",
+     &        status="unknown", position="append")
+          write(ITUnit,'(A,I0,3(A,ES27.19))') "iter=",iter,
+     &        " rtol=",DBLE(rtol)," yhi=",DBLE(y(ihi)),
+     &        " ylo=",DBLE(y(ilo))
+          close(ITUnit)
+        endif
+      end block
       if(rtol .lt. ftol) then
         swap=y(1)
         y(1)=y(ilo)

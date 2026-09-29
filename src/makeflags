@@ -58,8 +58,22 @@ include $(locObj)
 
 F77=gfortran
 CC=gcc
-FLAGS=-O0 -funroll-loops -cpp -fbounds-check -Wl,-ld_classic
-CFLAGS= -O -DRINGASCII -DASCII
+## -ffp-contract=off (Dan, 2026): same fix already applied to FFTW3's own
+## build above, extended to the fitting pipeline itself and its local C
+## files (fdlibm wrappers) -- without it, gcc/gfortran are free to fuse
+## multiply-accumulate sequences into a single hardware FMA instruction
+## (one rounding step) wherever the target supports it, instead of two
+## separately-rounded IEEE operations. JS has no FMA access at all (every
+## f32()-wrapped expression is explicitly two separate rounds), so any FMA
+## contraction here is a real, silent source of platform divergence --
+## exactly the mechanism already found and fixed for FFTW3's accumulation
+## loops (see the comment above). -O0 makes actual FMA emission unlikely
+## for the Fortran side today (GCC typically only forms FMAs at -O2+), but
+## this is compiler-version/architecture-dependent and CFLAGS' -O is NOT
+## FMA-safe by that same logic -- explicit and unconditional beats implicit
+## and "probably fine on this compiler."
+FLAGS=-O0 -funroll-loops -cpp -fbounds-check -Wl,-ld_classic -ffp-contract=off
+CFLAGS= -O -DRINGASCII -DASCII -ffp-contract=off
 
 
 

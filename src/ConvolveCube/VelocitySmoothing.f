@@ -74,9 +74,13 @@ c
       TempColumn=0.
 
       do i=-numSigmaChannels, numSigmaChannels
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
         deltaV=i*DH%ChannelSize
-        GaussFactor(i)=1./sqrt((2.*Pi*Sigma**2.))
-     &                  *exp(-(deltaV**2./(2*Sigma**2.)))
+        GaussFactor(i)=1./sqrt((2.*Pi*Sigma*Sigma))
+     &                  *exp(-(deltaV*deltaV/(2*Sigma*Sigma)))
       enddo
       GaussFactor=GaussFactor/(sum(GaussFactor))
 

@@ -1,4 +1,4 @@
-module.declare(["./fma.js"], function (require, exports, module) {
+module.declare([], function (require, exports, module) {
 'use strict';
 
 // =============================================================================
@@ -78,36 +78,27 @@ const K_S4 =  2.75573137070700676789e-06;
 const K_S5 = -2.50507602534068634195e-08;
 const K_S6 =  1.58969099521155010221e-10;
 
-// FMA NOTE: this project's actual C build (src/makeflags CFLAGS=-O, no
-// -ffp-contract=off) compiles fdlibm_k_sin.c/fdlibm_k_cos.c WITH hardware
-// FMA for these polynomial evaluations (verified via -S disassembly on the
-// real object files) -- confirmed to change results by 1 ULP for real
-// inputs (theta=0.18265073567382517084 differs between the FMA and
-// non-FMA compiled versions). Since the goal is matching THIS project's
-// actual, current Fortran build -- not a hypothetical portable one --
-// these functions replicate the exact fusion graph the compiler chose
-// (identified by reading the disassembly instruction-by-instruction),
-// using fma.js's software FMA emulation (JS has no native FMA). See
-// fma.js's header for the full rationale.
-const { fma } = require('./fma.js');
-
+// FMA NOTE (revised 2026-09-28): this project's ACTUAL, CURRENT C build
+// (src/makeflags CFLAGS='-O -DRINGASCII -DASCII -ffp-contract=off') compiles
+// fdlibm_k_sin.c/fdlibm_k_cos.c WITHOUT hardware FMA -- confirmed by
+// disassembling the real, currently-built object files (src/bin/
+// fdlibm_k_sin.o, fdlibm_k_cos.o): zero fmadd/fmsub/fnmadd/fnmsub
+// instructions. The FMA-emulation code this comment used to describe (see
+// git history / fma.js) was written against an EARLIER build that predated
+// -ffp-contract=off being added to makeflags; it went stale once that flag
+// was added and the real C build stopped using FMA, but the JS port was
+// never updated to match, leaving a genuine ~0.5% 1-ULP mismatch rate
+// against the actual C fdlibm reference (found via a 2000-sample random
+// sweep, 2026-09-28: 7/2000 sin, 12/2000 cos, 1/2000 exp diffs). These
+// functions now replicate fdlibm_k_sin.c/fdlibm_k_cos.c's plain (unfused)
+// operation order and grouping exactly, matching the current build.
 function __kernel_sin(x, y, iy) {
   const z = x * x;
   const w = z * z;
-  // r = S2+z*(S3+z*S4) + z*w*(S5+z*S6), fused as:
-  const t1 = fma(z, K_S4, K_S3);        // S3+z*S4
-  const t2 = fma(z, t1, K_S2);           // S2+z*t1
-  const t3 = fma(z, K_S6, K_S5);         // S5+z*S6
-  const zw = z * w;                      // plain multiply, not fused
-  const r = fma(zw, t3, t2);             // t2+zw*t3
+  const r = K_S2 + z * (K_S3 + z * K_S4) + z * w * (K_S5 + z * K_S6);
   const v = z * x;
-  if (iy === 0) return fma(v, fma(z, r, K_S1), x); // x+v*(S1+z*r)
-  // iy!=0: x-((z*(half*y-v*r)-y)-v*S1), fused per real -S -g disassembly as:
-  const p1 = -(v * r);                // fnmul, plain (single rounding)
-  const tb = fma(y, K_half, p1);      // fmadd: half*y + p1 == half*y-v*r
-  const tc = fma(z, tb, -y);          // fnmsub: z*tb - y
-  const td = fma(v, -K_S1, tc);       // fmadd: tc + v*(-S1) == tc-v*S1
-  return x - td;                       // fsub, plain
+  if (iy === 0) return x + v * (K_S1 + z * r);
+  return x - ((z * (K_half * y - v * r) - y) - v * K_S1);
 }
 
 const K_one =  1.00000000000000000000e+00;
@@ -121,22 +112,10 @@ const K_C6  = -1.13596475577881948265e-11;
 function __kernel_cos(x, y) {
   const z = x * x;
   const w = z * z;
-  // r = z*(C1+z*(C2+z*C3)) + w*w*(C4+z*(C5+z*C6)), fused as (see fdlibm.js's
-  // __kernel_sin comment on why -- same real, verified FMA usage):
-  const c1 = fma(z, K_C3, K_C2);         // C2+z*C3
-  const c2 = fma(z, c1, K_C1);           // C1+z*c1
-  const c3 = fma(z, K_C6, K_C5);         // C5+z*C6
-  const c4 = fma(z, c3, K_C4);           // C4+z*c3
-  const w2sq = w * w;                    // plain multiply, not fused
-  const r = fma(z, c2, w2sq * c4);       // z*c2 + w2sq*c4
+  const r = z * (K_C1 + z * (K_C2 + z * K_C3)) + w * w * (K_C4 + z * (K_C5 + z * K_C6));
   const hz = 0.5 * z;
   const w2 = K_one - hz;
-  // return w2+(((one-w2)-hz)+(z*r-x*y)), fused per real -S -g disassembly as:
-  const oneMinusW2 = K_one - w2;         // fsub, plain
-  const t = oneMinusW2 - hz;             // fsub, plain
-  const negxy = -(x * y);                // fnmul, plain (single rounding)
-  const zrMinusXy = fma(z, r, negxy);    // fmadd: z*r + negxy == z*r-x*y
-  return w2 + (t + zrMinusXy);
+  return w2 + (((K_one - w2) - hz) + (z * r - x * y));
 }
 
 // =============================================================================
@@ -350,28 +329,20 @@ function fdLog(x) {
   let i2 = hx - 0x6147a;
   const w = z * z;
   const j2 = 0x6b851 - hx;
-  // t1 = w*(Lg2+w*(Lg4+w*Lg6)), t2 = z*(Lg1+w*(Lg3+w*(Lg5+w*Lg7))): this
-  // project's actual C build (src/makeflags CFLAGS=-O, no -ffp-contract=off)
-  // compiles fdlibm_log.c's Horner-chain inner additions with hardware FMA
-  // (verified via -S disassembly and cross-checked against a debug-
-  // instrumented build's own printed t1/t2/R intermediates for representative
-  // gasdev-range inputs) -- same rationale as __kernel_sin/__kernel_cos
-  // above. The outer w*(...)/z*(...) multiplies and the final R=t2+t1 are
-  // NOT fused (confirmed: matches bit-exact as plain ops against the same
-  // debug trace).
-  const t1 = w * fma(w, fma(w, L_Lg6, L_Lg4), L_Lg2);
-  const t2 = z * fma(w, fma(w, fma(w, L_Lg7, L_Lg5), L_Lg3), L_Lg1);
+  // Plain (unfused) port of fdlibm_log.c's t1/t2/R -- see the FMA NOTE by
+  // __kernel_sin above: the real, current C build uses -ffp-contract=off,
+  // so no FMA anywhere in this file.
+  const t1 = w * (L_Lg2 + w * (L_Lg4 + w * L_Lg6));
+  const t2 = z * (L_Lg1 + w * (L_Lg3 + w * (L_Lg5 + w * L_Lg7)));
   i2 |= j2;
   const R = t2 + t1;
   if (i2 > 0) {
     const hfsq = 0.5 * f * f;
-    // hfsq-s*(hfsq+R) fuses to one fmsub (a*b-c form => fma(-s,hfsq+R,hfsq)).
-    if (k === 0) return f - fma(-s, hfsq + R, hfsq);
-    return dk * L_ln2_hi - ((hfsq - fma(s, hfsq + R, dk * L_ln2_lo)) - f);
+    if (k === 0) return f - (hfsq - s * (hfsq + R));
+    return dk * L_ln2_hi - ((hfsq - (s * (hfsq + R) + dk * L_ln2_lo)) - f);
   } else {
-    // f-s*(f-R) fuses to a single fmsub covering the WHOLE expression.
-    if (k === 0) return fma(-s, f - R, f);
-    return dk * L_ln2_hi - (fma(s, f - R, -(dk * L_ln2_lo)) - f);
+    if (k === 0) return f - s * (f - R);
+    return dk * L_ln2_hi - ((s * (f - R) - dk * L_ln2_lo) - f);
   }
 }
 
@@ -446,20 +417,12 @@ function fdLog1p(x) {
   }
   const s = f / (2.0 + f);
   const z = s * s;
-  // Same real, verified FMA usage as fdLog's t1/t2 Horner chains and final
-  // hfsq combination (this project's actual -O build fuses these) -- see
-  // fdLog's comment above for the full rationale. Outer z* multiply is
-  // plain (matches fdLog's t1/t2 pattern: inner Horner steps fuse, the
-  // final outer multiply by z does not).
-  const h1 = fma(z, P_Lp7, P_Lp6);
-  const h2 = fma(z, h1, P_Lp5);
-  const h3 = fma(z, h2, P_Lp4);
-  const h4 = fma(z, h3, P_Lp3);
-  const h5 = fma(z, h4, P_Lp2);
-  const h6 = fma(z, h5, P_Lp1);
-  const R = z * h6;
-  if (k === 0) return f - fma(-s, hfsq + R, hfsq);
-  return k * P_ln2_hi - ((hfsq - fma(s, hfsq + R, k * P_ln2_lo + c)) - f);
+  // Plain (unfused) port of fdlibm_log1p.c's R Horner chain -- see the FMA
+  // NOTE by __kernel_sin above: the real, current C build uses
+  // -ffp-contract=off, so no FMA anywhere in this file.
+  const R = z * (P_Lp1 + z * (P_Lp2 + z * (P_Lp3 + z * (P_Lp4 + z * (P_Lp5 + z * (P_Lp6 + z * P_Lp7))))));
+  if (k === 0) return f - (hfsq - s * (hfsq + R));
+  return k * P_ln2_hi - ((hfsq - (s * (hfsq + R) + (k * P_ln2_lo + c))) - f);
 }
 
 // =============================================================================
@@ -530,21 +493,17 @@ function fdExp(x) {
     if (x < E_u_threshold) return E_twom1000 * E_twom1000;
   }
 
-  // argument reduction. FMA NOTE: this project's actual C build (-O, no
-  // -ffp-contract=off) compiles fdlibm_exp.c's `invln2*x+halF[xsb]` and
-  // `x-t*ln2HI[0]` with hardware FMA (verified via -S disassembly) -- same
-  // real, verified FMA usage as __kernel_sin/__kernel_cos above. The
-  // "x-t*ln2HI[0]" case fuses as fma(t,-ln2HI[0],x) (compiler negates the
-  // constant at compile time, same trick seen in __kernel_sin's iy!=0
-  // branch), not a literal x-(t*ln2HI[0]) two-step.
+  // Plain (unfused) port of fdlibm_exp.c's argument reduction and Horner
+  // chain -- see the FMA NOTE by __kernel_sin above: the real, current C
+  // build uses -ffp-contract=off, so no FMA anywhere in this file.
   let k = 0, hi = 0, lo = 0;
   if (hx > 0x3fd62e42) {
     if (hx < 0x3FF0A2B2) {
       hi = x - E_ln2HI[xsb]; lo = E_ln2LO[xsb]; k = 1 - xsb - xsb;
     } else {
-      k = Math.trunc(fma(x, E_invln2, E_halF[xsb])) | 0;
+      k = Math.trunc(E_invln2 * x + E_halF[xsb]) | 0;
       const t = k;
-      hi = fma(t, -E_ln2HI[0], x);
+      hi = x - t * E_ln2HI[0];
       lo = t * E_ln2LO[0];
     }
     x = hi - lo;
@@ -552,16 +511,9 @@ function fdExp(x) {
     if (E_huge + x > E_one) return E_one + x;
   }
 
-  // x is now in primary range. FMA NOTE: the P1..P5 Horner chain and the
-  // final x-t*(...) combine all fuse (5 total fmadd/fmsub instructions,
-  // verified via disassembly); the k==0/k!=0 y-computation branches below
-  // do NOT fuse (division breaks the contraction opportunity there).
+  // x is now in primary range.
   const t = x * x;
-  const h1 = fma(t, E_P5, E_P4);
-  const h2 = fma(t, h1, E_P3);
-  const h3 = fma(t, h2, E_P2);
-  const h4 = fma(t, h3, E_P1);
-  const c = fma(-t, h4, x);
+  const c = x - t * (E_P1 + t * (E_P2 + t * (E_P3 + t * (E_P4 + t * E_P5))));
   let y;
   if (k === 0) return E_one - ((x * c) / (c - 2.0) - x);
   y = E_one - ((lo - (x * c) / (2.0 - c)) - hi);
@@ -583,15 +535,8 @@ function fdExp(x) {
 // ordinary inputs, e.g. atan(-0.3), atan(0.618)), and neither had ever been
 // routed through fdlibm before. Source: FreeBSD lib/msun/src/s_atan.c.
 //
-// FMA: this project's fdlibm_atan.c, compiled with the actual project
-// CFLAGS (-O, no -ffp-contract=off), gets hardware-FMA-fused for every
-// coefficient-chain multiply-add in the two Horner polynomials AND for the
-// two reduced-argument numerator/denominator terms that contain a literal
-// multiply (id==0's 2*x-1 and id==2's 1+1.5*x) -- verified via -S
-// disassembly, same methodology as __kernel_sin/__kernel_cos above. Ported
-// with fma() at each such site; id==1/id==3's reductions have no multiply
-// in their numerator/denominator and are plain ops, matching the
-// disassembly showing no fmadd/fmsub there.
+// Plain (unfused) port -- see the FMA NOTE by __kernel_sin above: the real,
+// current C build uses -ffp-contract=off, so no FMA anywhere in this file.
 // =============================================================================
 const AT_atanhi = [
   4.63647609000806093515e-01, // atan(0.5)hi
@@ -638,43 +583,31 @@ function fdAtan(x) {
     x = Math.abs(x);
     if (ix < 0x3ff30000) {                   // |x| < 1.1875
       if (ix < 0x3fe60000) {                 // 7/16 <= |x| < 11/16
-        id = 0; x = fma(x, 2.0, -1.0) / (2.0 + x);      // (2x-1)/(2+x)
+        id = 0; x = (2.0 * x - 1.0) / (2.0 + x);      // (2x-1)/(2+x)
       } else {                               // 11/16 <= |x| < 19/16
         id = 1; x = (x - 1.0) / (x + 1.0);
       }
     } else {
       if (ix < 0x40038000) {                 // |x| < 2.4375
-        id = 2; x = (x - 1.5) / fma(x, 1.5, 1.0);       // (x-1.5)/(1+1.5x)
+        id = 2; x = (x - 1.5) / (1.0 + 1.5 * x);      // (x-1.5)/(1+1.5x)
       } else {                               // 2.4375 <= |x| < 2^66
         id = 3; x = -1.0 / x;
       }
     }
   }
-  // end of argument reduction
+  // end of argument reduction. Plain (unfused) port of fdlibm_atan.c -- see
+  // the FMA NOTE by __kernel_sin above: the real, current C build uses
+  // -ffp-contract=off, so no FMA anywhere in this file.
   const z = x * x;
   const w = z * z;
-  // s1 = z*(aT0+w*(aT2+w*(aT4+w*(aT6+w*(aT8+w*aT10))))), fused per-level:
-  let t = fma(w, AT10, AT8);
-  t = fma(w, t, AT6);
-  t = fma(w, t, AT4);
-  t = fma(w, t, AT2);
-  t = fma(w, t, AT0);
-  const s1 = z * t;
-  // s2 = w*(aT1+w*(aT3+w*(aT5+w*(aT7+w*aT9)))), fused per-level:
-  let u = fma(w, AT9, AT7);
-  u = fma(w, u, AT5);
-  u = fma(w, u, AT3);
-  u = fma(w, u, AT1);
-  const s2 = w * u;
+  const s1 = z * (AT0 + w * (AT2 + w * (AT4 + w * (AT6 + w * (AT8 + w * AT10)))));
+  const s2 = w * (AT1 + w * (AT3 + w * (AT5 + w * (AT7 + w * AT9))));
 
   if (id < 0) {
-    return fma(x, -(s1 + s2), x);            // x - x*(s1+s2)
+    return x - x * (s1 + s2);
   }
-  const sum = s1 + s2;
-  const t2 = fma(x, sum, -AT_atanlo[id]);    // x*(s1+s2) - atanlo[id]
-  const t3 = t2 - x;
-  const z2 = AT_atanhi[id] - t3;
-  return hx < 0 ? -z2 : z2;
+  const z2v = AT_atanhi[id] - ((x * (s1 + s2) - AT_atanlo[id]) - x);
+  return hx < 0 ? -z2v : z2v;
 }
 
 module.exports = {

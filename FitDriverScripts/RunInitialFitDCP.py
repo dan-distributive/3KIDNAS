@@ -267,6 +267,16 @@ def AdaptInitialFitResult(result, cube_wcs, GeneralDict, GalaxyDict):
         'YCENTER': list(yc), 'YCENTER_ERR': zeros,
         'INCLINATION': np.array(result['INCLINATION'], dtype=float), 'INCLINATION_ERR': zeros,
         'POSITIONANGLE': np.array(result['POSITIONANGLE'], dtype=float), 'POSITIONANGLE_ERR': zeros,
+        # Raw (pre-"kinematic PA" convention) angles, radians, straight off
+        # the converged model -- see ComputeBsCent's matching comment in
+        # RunBootstrapsDCP.py for why resampling geometry must use these,
+        # not POSITIONANGLE/INCLINATION above. Optional key on `result`
+        # (only present from a JS worker new enough to send it) so an
+        # older worker doesn't KeyError here.
+        **({'POSITIONANGLE_RAW_RAD': np.array(result['POSITIONANGLE_RAW_RAD'], dtype=float)}
+           if 'POSITIONANGLE_RAW_RAD' in result else {}),
+        **({'INCLINATION_RAW_RAD': np.array(result['INCLINATION_RAW_RAD'], dtype=float)}
+           if 'INCLINATION_RAW_RAD' in result else {}),
         'VSYS': np.array(result['VSYS'], dtype=float), 'VSYS_ERR': zeros,
         'VROT': np.array(result['VROT'], dtype=float), 'VROT_ERR': zeros,
         'VDISP': np.array(result['VDISP'], dtype=float), 'VDISP_ERR': zeros,

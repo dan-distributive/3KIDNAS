@@ -252,6 +252,20 @@ c           Start by getting the peak and total flux
       SPeak=maxval(MaskedObservedDC%Flux)
       SInt=sum(MaskedObservedDC%Flux)
       nCells=int(sum(DataCubeMask%Flux))
+      block
+        character(64) EnvVal4
+        integer EnvLen4, STUnit
+        call get_environment_variable("TRACE_DUMP_PRECONV",EnvVal4,
+     &            EnvLen4)
+        if (EnvLen4 .gt. 0) then
+          open(newunit=STUnit, file="SIntTraceF.txt",
+     &        status="unknown", position="append")
+          write(STUnit,'(A,ES27.19)') "SInt ", DBLE(SInt)
+          write(STUnit,'(A,I0)') "nCells ", nCells
+          write(STUnit,'(A,ES27.19)') "SPeak ", DBLE(SPeak)
+          close(STUnit)
+        endif
+      end block
 c           We also want the median flux, which requires some sorting of the masked array
 
       ALLOCATE(FlatIndx(nCells))

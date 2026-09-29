@@ -1,12 +1,12 @@
 [
   {
     "realizationIndex": 0,
-    "resampleMs": 496.1049556732178,
-    "sofiaMs": 50.782203674316406,
+    "resampleMs": 289.6571159362793,
+    "sofiaMs": 46.827077865600586,
     "fixtureFitMs": null,
-    "fitMs": 41297.528982162476,
+    "fitMs": 65380.1908493042,
     "convolveMs": null,
     "convolveCalls": null,
-    "totalMs": 41891.59607887268
+    "totalMs": 65736.46688461304
   }
 ]

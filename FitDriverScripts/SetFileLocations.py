@@ -49,6 +49,15 @@ def GetFileAndFolderLocationAndNames():
     #   BootstrapSeed=<value> to override this default via OverwriteDefaults'
     #   own name-matching mechanism, same as any other GeneralDict default.
     BootstrapSeed=0
+    #   Base cloud surface density override (Ring_CalcNumParticles's
+    #   CloudSurfDens -- see SingleGalaxyTestFittingOptions_Base.txt's own
+    #   "The base cloud surface density" line, which this replaces when set).
+    #   0 means "no override, use the base options file's value as-is" --
+    #   same optional/not-in-KeyRTParamsList pattern as BootstrapSeed above:
+    #   a config only needs to set cdens=<value> to override this default via
+    #   OverwriteDefaults' own name-matching mechanism. (Dan, 2026 -- this
+    #   key previously existed in some configs but was silently unused.)
+    cdens=0
     #   Set the general file dictionary as the set of local variables thus far
     FileDict=locals()
     #   Set the list of runtime parameters that must be set in the RT Params  file

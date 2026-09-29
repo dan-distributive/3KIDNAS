@@ -105,8 +105,25 @@ c      print*, "Rotated points", XRot,YRot
 c      print*, "Ellipticity", Ellip
       YEllip=YRot!/Ellip
 
-      REllip=sqrt(XRot**2. + YEllip**2.)
-c      print*, "Radius", sqrt(X**2.+Y**2.), REllip
+c           BUG FIX (Dan, 2026): gfortran's X**2. (a REAL, not INTEGER,
+c               exponent literal) is NOT guaranteed to equal X*X bit-for-
+c               bit -- confirmed directly: for X=transfer(z'41513A33',X),
+c               X**2. gives 0x432B0014 while X*X gives 0x432B0015, a
+c               genuine 1-ULP divergence from whatever generic real**real
+c               pow() routine gfortran emits for a real-valued exponent
+c               (even a literal 2.0), not the algebraic X*X simplification
+c               an integer exponent would get. The JS port already used
+c               plain multiplication here (X*X has no real**real ambiguity
+c               to port in the first place), so this was a real, if subtle,
+c               Fortran/JS divergence -- traced via a COORDTRACE/XYTRACE
+c               hex bisection to exactly this call, the source of a
+c               ~1.6e-8 abs, cube-wide bootstrap-resample divergence that
+c               survived the earlier PA kinematic-round-trip fix. X**2. ->
+c               X*X is mathematically identical and removes gfortran's
+c               pow()-path entirely; not yet swept across the many other
+c               X**2. call sites elsewhere in this codebase (see session
+c               notes) -- this is the one confirmed to matter so far.
+      REllip=sqrt(XRot*XRot + YEllip*YEllip)
 
       call FullCircATan(XRot,YRot,Theta)
 c      print*, "Angle", Theta, Theta*180./3.14

@@ -130,7 +130,9 @@ function flipChannelSpatial(cube, tempCube, coordArr, chanID, xc, yc, vSys, pa, 
         physCoordFlip = [r, thetaNew, dv];
       } else {
         let thetaNew = f32(theta + Pi);
-        if (thetaNew > f32(2.0) * Pi) thetaNew = f32(thetaNew - f32(2.0) * Pi);
+        // BUG FIX (Dan, 2026): Fortran's ThetaNew=ThetaNew-2.*Pi is two
+        // separately-rounded steps -- see FullCircTrig.js's matching fix.
+        if (thetaNew > f32(2.0) * Pi) thetaNew = f32(thetaNew - f32(f32(2.0) * Pi));
         physCoordFlip = [r, thetaNew, f32(-dv)];
       }
 

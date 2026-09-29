@@ -72,6 +72,14 @@ def GetBootstrapModel(GeneralDict,GalaxyDict,Step):
               "px[0,0,0]", CubeData[0,0,0], "px[-1,-1,-1]", CubeData[-1,-1,-1],
               "px_mid", CubeData[CubeData.shape[0]//2,CubeData.shape[1]//2,CubeData.shape[2]//2])
         CubeHDU.close()
+        # One-off diagnostic (Dan, 2026): save a copy of this exact realization's
+        # resampled cube before it gets consumed/overwritten, so it can be
+        # numpy-diffed pixel-by-pixel against JS's own TRACE_DUMP_RESAMPLE_PATH
+        # dump for the SAME seed/realization (bootstrap-realization-launcher.js).
+        dumpPath = os.environ.get('TRACE_DUMP_RESAMPLE_PATH_FORTRAN')
+        if dumpPath:
+            import shutil
+            shutil.copyfile(GalaxyDict['CubeNameU'], dumpPath)
     #   Now that we have the bootstrap cube, run SoFiA on it
     t0=time.time()
     GalaxyDict=SD.RunSoFiA(GeneralDict,GalaxyDict)

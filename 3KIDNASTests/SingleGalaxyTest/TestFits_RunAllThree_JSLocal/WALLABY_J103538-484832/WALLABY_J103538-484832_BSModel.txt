@@ -1,0 +1,58 @@
+Object:	 WALLABY_J103538-484832
+Date: 	2026-9-28
+KINVER: 	 3KIDNASv1.1
+
+nBootstraps	1
+nBootstrap_Fits	0
+Max_NOutliers	0
+
+Cube Noise
+RMS (mJy/beam) 	1.6218152046203613
+SN_Int 	19.9569091796875
+SN_Peak 	8.132509231567383
+SN_Avg 	0.9302513599395752
+SN_Median 	0.6479472517967224
+
+Geometry Parameters
+Param Name	 Value 	 Error 
+X_model (pixels) 	22.1716		nan
+Y_model (pixels) 	19.286		nan
+RA_model (degrees) 	158.90845		nan
+DEC_model (degrees) 	-48.809391		nan
+Inc_model (degrees) 	83.1		nan
+PA_model (degrees) 	246.7		nan
+PA_model_g (degrees) 	255.6		nan
+VSys_model (km/s) 	5745.6		nan
+VDisp_model (km/s) 	10.0		nan
+
+Rotation Curve
+nR=	5
+Rad 		 VROT_model 	 e_VRot_model  
+('') 		 (km/s) 		    (km/s) 
+7.492021560668945		32.6		nan
+22.476064682006836		119.8		nan
+37.460105895996094		117.7		nan
+52.44414520263672		138.1		nan
+67.42819213867188		169.2		nan
+
+Surface Density Profile
+nR=	5
+Rad  		 SD_FO_model 	 e_SD_FO_inc_model 
+('')		 (Msol/pc^2) 	 (Msol/pc^2)  
+7.492021560668945		1.67		nan
+22.476064682006836		1.81		nan
+37.460105895996094		2.65		nan
+52.44414520263672		0.6		nan
+67.42819213867188		1.22		nan
+
+RHI Extraction Method (0==3D profile, -1==Failure) and flags (0==fine, -1==failure) 
+0		0
+RHI and limits (arcsec) 
+62.11		nan		nan
+RHI and limits (kpc) 
+24.72		nan		nan
+
+VHI Extraction flag (0==no issues, -1==failure)
+0
+VHI and error (km/s) 
+158.16		nan

@@ -121,13 +121,18 @@ function drawCornerPlot(canvas, bootstrapResults, bestFit) {
   const muted = styles.getPropertyValue('--muted').trim() || '#888';
   const panelBg = styles.getPropertyValue('--panel-2').trim() || '#fff';
   const border = styles.getPropertyValue('--border').trim() || '#ccc';
-  // On-brand palette, pulled from the page's own theme tokens (so light/
-  // dark mode both work automatically) instead of one-off hardcoded hex --
-  // accent is the page's primary color (buttons, step numbers, eyebrow
-  // text), warn is the existing secondary/amber token, reused here rather
-  // than inventing a third color just for this chart.
-  const bestColor = styles.getPropertyValue('--accent').trim() || '#008da9';  // initial fit -- star + its reference line
-  const bootColor = styles.getPropertyValue('--warn').trim() || '#f44336';    // bootstrap realizations -- dots, histogram, mean circle
+  // On-brand palette, pulled from the page's own theme token (so light/
+  // dark mode both work automatically) instead of one-off hardcoded hex.
+  // A single blue (--accent, the page's primary color -- buttons, step
+  // numbers, eyebrow text) for everything, not two contrasting hues: the
+  // star vs. circle shapes plus opacity (translucent scatter/histogram,
+  // solid star/mean-marker) carry the visual hierarchy instead, matching
+  // how tools/run_both_report.html treats one dataset's own dots and mean
+  // marker as the same color family at different opacity, not a second
+  // color.
+  const accentColor = styles.getPropertyValue('--accent').trim() || '#1f6fa8';
+  const bestColor = accentColor;  // initial fit -- star + its reference line
+  const bootColor = accentColor;  // bootstrap realizations -- dots, histogram, mean circle
   ctx.fillStyle = panelBg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 

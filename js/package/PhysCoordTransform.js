@@ -105,6 +105,15 @@ function getPhysCoords(xc, yc, vSys, pa, inc, ptIndx) {
   // Fortran: YEllip = YRot  (the /Ellip division is commented out)
   const YEllip = YRot;
 
+  // BUG FIX (Dan, 2026): matches PhysCoordTransform.f's own fix -- gfortran's
+  // X**2. (a REAL exponent literal) is NOT guaranteed to equal X*X bit-for-
+  // bit (confirmed directly: differs by 1 ULP for at least one real value
+  // encountered in production, traced via a hex bisection to this exact
+  // call). This port already used plain multiplication (no real**real
+  // ambiguity to port in the first place) -- it was Fortran's side that
+  // needed the fix, not this one, but keeping the two computations
+  // structured identically (xRot2/yEllip2 as separate named intermediates)
+  // for easy comparison against Fortran's own comment there.
   const REllip = f32(Math.sqrt(f32(f32(XRot * XRot) + f32(YEllip * YEllip))));
 
   const Theta = f32(fullCircATan(XRot, YRot));

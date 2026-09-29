@@ -158,6 +158,39 @@ async function fitsBytesToDataCube(cfitsio, fitsBytes, refDataCube) {
   dh.start[2] = refDh.start[2];
 
   dc.flux = unflattenFromFitsOrder(data, nPixX, nPixY, nChan);
+
+  // BUG FIX (Dan, 2026): FITS blank/undefined pixels round-trip through
+  // cfitsio's readImageDouble as real IEEE NaN, but this port previously
+  // left them as NaN in dc.flux -- unlike Fortran's ReadFullDataCube
+  // (DataCubeInput.f:317-382), which passes a finite nullval (-1010) to
+  // ftgpve, explicitly detects it, zeroes the pixel, and builds
+  // FlattendValidIndices/nValid to EXCLUDE those cells from every
+  // downstream sum (critically, CubeComparison.f's chi2 likelihood, which
+  // sums only over Cube1%FlattendValidIndices -- see
+  // FullModelComparison.js's own header comment, which already assumed
+  // this was "handled upstream" and was never actually done). Left
+  // unfixed, a NaN pixel poisons every sum it touches (observed directly:
+  // MaskCube's flux*=maskFlux still yields NaN*0=NaN, which propagated all
+  // the way into EstimateShape's flux-weighted center, producing NaN
+  // geometry and crashing pre-analysis entirely on a real, faint test
+  // galaxy -- WALLABY_J100336-262923 -- that happens to have blanked edge
+  // pixels; never caught before because earlier bit-exactness test
+  // galaxies apparently didn't hit this path). Fixed here, once, for every
+  // caller (both the observed cube and the mask go through this same
+  // function) rather than patching each consumer.
+  const flux = dc.flux;
+  const validIndices = new Int32Array(flux.length);
+  let nValid = 0;
+  for (let idx = 0; idx < flux.length; idx++) {
+    if (Number.isNaN(flux[idx])) {
+      flux[idx] = 0;
+    } else {
+      validIndices[nValid++] = idx;
+    }
+  }
+  dh.nValid = nValid;
+  dc.flattendValidIndices = validIndices.slice(0, nValid);
+
   return dc;
 }
 

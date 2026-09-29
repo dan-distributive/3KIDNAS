@@ -16,50 +16,6 @@ ccccccccccccccccccccccccccccccccccccccccccccccccc
       contains
 
 ccccccc
-c       RoundForParticleStability: masks off the low 12 bits of x's
-c           float32 mantissa (keeping the top 11 of 23 bits -- ~0.05%
-c           relative precision) before Ring_CalcNumParticles truncates it
-c           to an integer particle count.
-c
-c           Root cause this exists for: R%Sigma (and everything derived
-c           from it, e.g. DensMultiplications below) can differ between
-c           Fortran and the JS port by a handful of float32 ULPs (~5e-7
-c           relative) -- an already-known, unavoidable cross-platform
-c           floating-point difference (compiler codegen, not a bug --
-c           see UPSTREAM_SYNC.md) that is normally harmless everywhere
-c           else in this pipeline, since it stays a smoothly tiny
-c           difference in whatever value carries it. But
-c           Ring_CalcNumParticles's int(...)+1 is a hard truncation, and a
-c           continuous value that happens to land within noise-distance of
-c           an integer boundary truncates to *different whole integers* on
-c           the two platforms. That single-particle difference then
-c           consumes a different number of ran2()/gasdev() draws,
-c           permanently desyncing idum for the rest of the fit --
-c           confirmed directly: Fortran and the JS port ran in bit-exact
-c           lockstep (identical idum every evaluation) until this exact
-c           failure mode first triggered, then diverged permanently and
-c           the JS optimizer never recovered.
-c
-c           Masking gives ~900x safety margin over the observed ~5e-7
-c           relative noise, at the cost of ~0.05% precision on a Monte
-c           Carlo sampling-density parameter -- scientifically
-c           irrelevant, and it must be applied identically on both
-c           platforms (see hexF32/roundForParticleStability in
-c           SingleRingGeneration.js) for the masked value itself to still
-c           agree.
-      real function RoundForParticleStability(x)
-      implicit none
-      real, INTENT(IN) :: x
-      integer(4) ix
-      integer(4), parameter :: MASK = int(z'FFFFF000',4)
-      ix = transfer(x, 0)
-      ix = iand(ix, MASK)
-      RoundForParticleStability = transfer(ix, 0.0)
-      return
-      end function
-cccccccc
-
-ccccccc
       subroutine Ring_CalcNumParticles(R,cmode,CloudSurfDens,Noise
      &          ,AvgChannelsPerPix)
       use CommonConsts
@@ -79,7 +35,11 @@ c      Pixel_Ring=2.*Pi*R%Rmid*R%Rwidth /pixelarea      !Original in 3DBarolo Ga
       Rl=R%Rmid-R%Rwidth/2.
       Rh=R%Rmid+R%Rwidth/2.
 c      Pixel_Ring=Pi*(Rh**2.-Rl**2)/pixelarea
-      Pixel_Ring=Pi*(Rh**2.-Rl**2)
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+      Pixel_Ring=Pi*(Rh*Rh-Rl*Rl)
 c       Calculate a term to get the rough number of clouds per pixel area.  It is normalized by
 c           the surface density so that each particle has roughly the
 c           same amount of flux.
@@ -98,8 +58,7 @@ c           wired and confirmed bit-matching between Fortran and the JS
 c           port.
       DensMultiplications=CloudSurfDens
      &               *((R%Sigma)**real(cmode))
-      R%nParticles=int(RoundForParticleStability(DensMultiplications
-     &          *Pixel_Ring))+1
+      R%nParticles=int(DensMultiplications*Pixel_Ring)+1
       if (TraceSwitch .eq. 1) then
         print*, "NPTRACE",R%Rmid,R%Sigma,DensMultiplications,
      &          Pixel_Ring,AvgChannelsPerPix,R%nParticles
@@ -137,7 +96,11 @@ ccccccc
 c           To randomly sample the ring area we need Rmin and Rmax
       Rmin=R%Rmid-R%Rwidth/2.       !We need Rmin and Rmax for the ring first
       Rmax=R%Rmid+R%Rwidth/2.
-      Area=Pi*(Rmax**2.-Rmin**2)
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+      Area=Pi*(Rmax*Rmax-Rmin*Rmin)
 c      print*, "Single Ring Area Check", Area,Rmin,Rmax
 c           One-off diagnostic ("bisection paradox" investigation, Dan
 c               2026-08-18): BINTRACE showed every particle landing in the
@@ -211,8 +174,15 @@ ccccccc
 
 c           First get a random radius -- however this is not uniform in R.  We want
 c           equal area sampling we'll be using a sqrt distribution.
-      RR=ran2(idum)*(Rmax**2.-Rmin**2.)             !Sample a uniform squared radius in the correct range
-      RR=sqrt(RR+Rmin**2.)          !Add on the minimum radius squared and take the sqrt
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Per-particle hot path (called thousands of
+c               times per ring) -- a divergence here risks the exact same
+c               idum-desync failure mode UPDATE 8-14's masking functions
+c               were built to paper over. Verbatim upstream code --
+c               reported upstream, also fixed here.
+      RR=ran2(idum)*(Rmax*Rmax-Rmin*Rmin)          !Sample a uniform squared radius in the correct range
+      RR=sqrt(RR+Rmin*Rmin)          !Add on the minimum radius squared and take the sqrt
 c           Next get a random angle
       Theta=ran2(idum)*2.*Pi
 c           Finally get a height from a sech^2 distribution (use atanh on a random distrubtion and scale

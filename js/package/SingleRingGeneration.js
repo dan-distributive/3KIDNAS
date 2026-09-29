@@ -106,24 +106,6 @@ function hexF32(x) {
   return _u32buf[0].toString(16).toUpperCase().padStart(8, '0');
 }
 
-// Masks off the low 12 bits of x's float32 mantissa (keeping the top 11 of
-// 23 bits -- ~0.05% relative precision). Matches Fortran's
-// RoundForParticleStability (SingleRingGeneration.f) bit-for-bit -- see its
-// header comment for why this exists: R%Sigma (and everything derived from
-// it) can differ from this port's sigma by a handful of float32 ULPs, an
-// already-known unavoidable cross-platform difference that's normally
-// harmless everywhere else in this pipeline, but ring_CalcNumParticles's
-// truncation to an integer particle count turns that smooth tiny
-// difference into a whole-particle difference whenever the true value
-// lands near an integer boundary -- which then permanently desyncs
-// ran2()/gasdev()'s idum for the rest of the fit. ~900x safety margin over
-// the observed ~5e-7 relative noise.
-function roundForParticleStability(x) {
-  _f32buf[0] = x;
-  _u32buf[0] = _u32buf[0] & 0xFFFFF000;
-  return _f32buf[0];
-}
-
 function ring_CalcNumParticles(r, cmode, cloudSurfDens, noise, avgChannelsPerPix) {
   const rl          = f32(f32(r.rmid) - f32(f32(r.rwidth) / f32(2.0)));
   const rh          = f32(f32(r.rmid) + f32(f32(r.rwidth) / f32(2.0)));
@@ -139,10 +121,23 @@ function ring_CalcNumParticles(r, cmode, cloudSurfDens, noise, avgChannelsPerPix
   // TiltedRingModelGeneration.js, already wired and confirmed
   // bit-matching against Fortran.
   const densMulti   = f32(f32(cloudSurfDens) * f32(f32(r.sigma) ** cmode));
-  r.nParticles      = Math.trunc(roundForParticleStability(f32(densMulti * pixelRing))) + 1;
+  r.nParticles      = Math.trunc(f32(f32(densMulti * pixelRing))) + 1;
   if (TRACE_DEBUG) {
     console.error('NPTRACE', r.rmid, r.sigma, densMulti, pixelRing, avgChannelsPerPix, r.nParticles);
     console.error('NPHEX', hexF32(r.sigma), hexF32(noise), hexF32(densMulti), hexF32(pixelRing), hexF32(avgChannelsPerPix));
+    // TEMPORARY (Dan, 2026-09-16): file-based nParticles log for the
+    // realization under investigation (console.error races with
+    // worker.terminate() -- see FullModelComparison.js's identical
+    // comment). Direct Fortran/JS particle-count comparison to test
+    // whether a truncation-boundary difference in nParticles injects
+    // extra Monte Carlo noise into chi2 beyond ordinary float32 rounding.
+    if (process.env.JS_OVERRIDE_REALIZATION_INDEX != null
+        && global.__TRACE_REALIZATION_INDEX === parseInt(process.env.JS_OVERRIDE_REALIZATION_INDEX, 10)
+        && process.env.TRACE_DEBUG_FINALVEC_FILE) {
+      const suffix = `.r${global.__TRACE_REALIZATION_INDEX}`;
+      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE + suffix,
+        `NPTRACE call=${global.__TRACE_EVAL_COUNT} rmid=${r.rmid} sigma=${r.sigma} sigmaHex=${hexF32(r.sigma)} nParticles=${r.nParticles}\n`);
+    }
   }
 }
 

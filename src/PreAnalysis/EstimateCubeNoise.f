@@ -102,7 +102,11 @@ ccccccc
       do i=CountLims(1,1),CountLims(1,2)
         do j=CountLims(2,1),CountLims(2,2)
             do k=CountLims(3,1),CountLims(3,2)
-                sum=sum+Cube%Flux(i,j,k)**2.
+c               BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical
+c                   to X*X in gfortran -- see PhysCoordTransform.f's
+c                   matching fix/comment. Verbatim upstream code --
+c                   reported upstream, also fixed here.
+                sum=sum+Cube%Flux(i,j,k)*Cube%Flux(i,j,k)
                 count=count+1
             enddo
         enddo

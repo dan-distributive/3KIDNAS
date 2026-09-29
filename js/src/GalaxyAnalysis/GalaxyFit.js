@@ -33,6 +33,8 @@
 
 const f32 = Math.fround;
 
+const TRACE_DEBUG = typeof process !== 'undefined' && process.env && process.env.TRACE_DEBUG === '1';
+
 const { allocateDataCube }              = require('../ObjectDefinitions/DataCube.js');
 const { allocateParamVector, ParameterVector } = require('../ObjectDefinitions/ParameterVector.js');
 const { calculate2DBeamKernel }         = require('../ConvolveCube/CalculateBeamKernel.js');
@@ -64,6 +66,38 @@ function amoeba(p, y, nParams, ftol, objFn, onProgress) {
   const psum = new Float32Array(ndim);
   let iter = 0;
   let noConvergence = false;
+
+  // Stall detector (Dan, 2026-09-16; DEFAULTED OFF 2026-09-28): a practical
+  // compute-saving early exit, NOT a numerical-parity fix, and NOT present
+  // in Fortran's DownhillSimplex.f -- Fortran has no equivalent and always
+  // grinds to ITMAX=5000 regardless of stalling. Root cause of the stalls
+  // this was built to catch: Monte Carlo sampling noise in the
+  // particle-placement objective function sitting at or above ftol's
+  // threshold for some resampled datasets -- present in principle on EITHER
+  // platform (Fortran's own rtol trajectory for one such case wobbled
+  // non-monotonically in the 0.001-0.003 range before happening to dip
+  // under ftol=0.001 by chance at iter=39; it isn't immune, it's just been
+  // lucky across the runs checked so far). Confirmed 2026-09-28: at
+  // cloudDensity=20, disabling this detector and grinding to ITMAX=5000
+  // does NOT produce convergence either (rtol genuinely never dips below
+  // ftol at that noise level) -- so it was never masking a bug, but
+  // defaulting it on made JS's behavior diverge from Fortran's (JS reports
+  // noConvergence sooner than Fortran would ever report it, since Fortran
+  // has no early exit at all). Defaulted OFF so JS's amoeba matches
+  // Fortran's iteration behavior exactly; opt back in with
+  // JS_ENABLE_STALL_DETECTOR=1 if the compute savings are wanted for a
+  // production/batch context where matching Fortran's iteration count
+  // doesn't matter.
+  // STALL_WINDOW/STALL_REL_EPS chosen conservatively (window wide relative
+  // to a typical shrink-step's iter+=ndim cost; epsilon an order of
+  // magnitude tighter than ftol) so this never fires during genuine slow
+  // convergence -- only once real progress has demonstrably stopped.
+  const stallDetectorEnabled = typeof process !== 'undefined' && process.env
+    && process.env.JS_ENABLE_STALL_DETECTOR;
+  const STALL_WINDOW = Math.max(300, 20 * ndim);
+  const STALL_REL_EPS = f32(ftol) / 10;
+  let stallBestY = Infinity;
+  let stallBestIter = 0;
 
   function computePsum() {                    // Fortran label 1
     for (let j = 0; j < ndim; j++) {
@@ -119,12 +153,32 @@ function amoeba(p, y, nParams, ftol, objFn, onProgress) {
     if (typeof process !== 'undefined' && process.env && process.env.AMOEBA_DEBUG) {
       console.log('Current tolerance', iter, rtol, y[ihi], y[ilo]);
     }
+    if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+      require('fs').appendFileSync('AmoebaTraceJS.txt',
+        `iter=${iter} rtol=${rtol.toExponential(19)} yhi=${y[ihi].toExponential(19)} ylo=${y[ilo].toExponential(19)}\n`);
+    }
     if (rtol < f32(ftol)) {                   // converged: swap best into slot 0
       let s = y[0]; y[0] = y[ilo]; y[ilo] = s;
       for (let j = 0; j < ndim; j++) { const t = p[0][j]; p[0][j] = p[ilo][j]; p[ilo][j] = t; }
       break;
     }
     if (iter >= ITMAX) { noConvergence = true; break; }
+
+    // Stall detector -- see its declaration above for why this exists and
+    // why it's safe. Relative improvement measured against |stallBestY| so
+    // it scales with chi2's own magnitude, matching rtol's own normalization.
+    const relImprovement = Number.isFinite(stallBestY)
+      ? f32(f32(stallBestY - y[ilo]) / f32(Math.abs(stallBestY) + TINY))
+      : Infinity;                              // first pass: always seed
+    if (y[ilo] < stallBestY && relImprovement > STALL_REL_EPS) {
+      stallBestY = y[ilo];
+      stallBestIter = iter;
+    } else if (stallDetectorEnabled && iter - stallBestIter > STALL_WINDOW) {
+      let s = y[0]; y[0] = y[ilo]; y[ilo] = s;
+      for (let j = 0; j < ndim; j++) { const t = p[0][j]; p[0][j] = p[ilo][j]; p[ilo][j] = t; }
+      noConvergence = true;
+      break;
+    }
 
     iter += 2;
     let ytry = amotry(ihi, -1.0);
@@ -254,6 +308,11 @@ function downhillSimplexRun(paramGuesses, chiArray, state, onProgress) {
     for (let j = 0; j < n; j++) pv.param[j] = f32(paramGuesses[i][j]);
     chiArray[i] = f32(tiltedRingModelComparison(paramGuesses[i], state));
   }
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+    const lines = [];
+    for (let i = 0; i <= n; i++) lines.push(`vertex${i} ${chiArray[i].toExponential(19)}`);
+    require('fs').appendFileSync('SimplexTraceJS.txt', lines.join('\n') + '\n---\n');
+  }
   const { iter, noConvergence } = amoeba(
     paramGuesses, chiArray, n, state.ftol,
     params => f32(tiltedRingModelComparison(params, state)), onProgress);
@@ -269,7 +328,7 @@ function downhillSimplexRun(paramGuesses, chiArray, state, onProgress) {
 //
 // Two-pass Nelder-Mead optimizer:
 //   Pass 1: wide search (iniGuessWidth=1.0, ftol=0.005, strictEstimate=1)
-//   Pass 2: refined search (iniGuessWidth=0.5, ftol/5, strictEstimate=0)
+//   Pass 2: refined search (iniGuessWidth=0.25, ftol/5, strictEstimate=0)
 //
 // Returns pvModel (best-fit parameter vector after both passes).
 //
@@ -319,9 +378,60 @@ function galaxyFit_Simple(state) {
 
   const n = pvModel.nParams;
 
+  // Diagnostic (Dan probe, 2026-09-27): force pvModel.param and the RNG's
+  // idum to exact externally-supplied values before the single unperturbed
+  // chi2Ini evaluation below. Proven result (WALLABY_J100336-262923,
+  // cdens=20, seed=42, bootstrap realization 0): forcing call 1's inputs
+  // to Fortran's exact bits, then letting the rest of the fit run
+  // NATURALLY (unforced), reproduced all 127 of Fortran's evaluations
+  // bit-for-bit (all 13 params, hex-for-hex) to convergence. This confirms
+  // the per-evaluation math (particle generation, convolution, chi2,
+  // amoeba, makeParamGuessArray's perturbation) has zero remaining bugs --
+  // the ENTIRE naturally-observed divergence traces to this one upstream
+  // cause: pvIni itself differing by 1-30 ULP in 3 of 13 params, inherited
+  // from the resampled cube's already-irreducible ~1-ULP float32 noise
+  // floor (see BuildPhysCoordsArray/GetPhysCoords history). No effect
+  // unless JS_FORCE_PVINI_HEX_PATH is set. Scoped to
+  // JS_OVERRIDE_REALIZATION_INDEX (same convention as
+  // JS_SIMPLEX_OVERRIDE_PATH below) so it doesn't corrupt the anchor fit
+  // or other realizations.
+  const forceRealizationIndex = process.env.JS_OVERRIDE_REALIZATION_INDEX != null
+    ? parseInt(process.env.JS_OVERRIDE_REALIZATION_INDEX, 10) : null;
+  const forceScopeOk = forceRealizationIndex == null
+    || state.realizationIndex === forceRealizationIndex;
+  if (process.env.JS_FORCE_PVINI_HEX_PATH && forceScopeOk) {
+    const hexLines = require('fs').readFileSync(process.env.JS_FORCE_PVINI_HEX_PATH, 'utf8')
+      .trim().split('\n');
+    const fBuf = new ArrayBuffer(4);
+    const fU32 = new Uint32Array(fBuf);
+    const fF32 = new Float32Array(fBuf);
+    for (let j = 0; j < n && j < hexLines.length; j++) {
+      fU32[0] = parseInt(hexLines[j], 16);
+      pvModel.param[j] = fF32[0];
+    }
+    const fMsg = `JS_FORCE_PVINI applied: ${hexLines.length} values from ${process.env.JS_FORCE_PVINI_HEX_PATH}\n`;
+    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
+      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE + '.debug', fMsg);
+    } else {
+      console.error(fMsg.trim());
+    }
+  }
+  if (process.env.JS_FORCE_IDUM != null && forceScopeOk) {
+    state.rng.state.ran2State.idum = parseInt(process.env.JS_FORCE_IDUM, 10);
+    const iMsg = `JS_FORCE_IDUM applied: ${state.rng.state.ran2State.idum}\n`;
+    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
+      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE + '.debug', iMsg);
+    } else {
+      console.error(iMsg.trim());
+    }
+  }
+
   // Step 4: evaluate initial chi²
   const chi2Ini = f32(tiltedRingModelComparison(Array.from(pvModel.param), state));
   console.log('Initial model fit:', chi2Ini);
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+    require('fs').appendFileSync('Chi2IniTraceJS.txt', `chi2Ini ${chi2Ini.toExponential(19)}\n`);
+  }
 
   // ---- Pass 1: wide search ----
   state.ftol         = f32(0.005);
@@ -340,13 +450,102 @@ function galaxyFit_Simple(state) {
   pvFirstFit.bestLike = f32(chiArray[0]);
 
   // ---- Pass 2: refined search ----
-  state.iniGuessWidth = f32(0.5);
+  state.iniGuessWidth = f32(0.25);
   state.ftol          = f32(state.ftol / 5.0);
 
   paramGuesses = makeParamGuessArray(pvModel, state.rng, state.iniGuessWidth, 0);
   chiArray     = new Float32Array(n + 1);
 
-  const { noConvergence } = downhillSimplexRun(paramGuesses, chiArray, state, report);
+  // One-off diagnostic (Dan, 2026): force-feed Fortran's own exact pass-2
+  // starting simplex (dumped by GalaxyFit.f's matching
+  // FORTRAN_SIMPLEX_DUMP_PATH block -- one hex-encoded float32 per line,
+  // row-major over [vertex][param], (n+1)*n lines total) instead of this
+  // platform's own makeParamGuessArray() output. Controlled experiment:
+  // if amoeba then takes the SAME iteration path/count to the SAME
+  // answer Fortran got from this exact simplex, amoeba itself is fine and
+  // any real-world divergence traces to the two platforms starting from
+  // very slightly different points upstream (already-characterized ~1
+  // float32 ULP noise). If it STILL diverges given an IDENTICAL starting
+  // simplex, that's a genuine bug in amoeba or the objective function
+  // evaluation itself, not just Nelder-Mead's known sensitivity to tiny
+  // perturbations. No effect unless JS_SIMPLEX_OVERRIDE_PATH is set.
+  // Scoped to JS_OVERRIDE_REALIZATION_INDEX (Dan, 2026-09-16 fix): without
+  // this, the override applied to EVERY galaxyFit_Simple call -- the
+  // initial fit AND all 5 bootstrap realizations, not just the one being
+  // investigated -- corrupting the initial fit ("No best fit model made")
+  // and cascading into every realization derived from it.
+  const overrideRealizationIndex = process.env.JS_OVERRIDE_REALIZATION_INDEX != null
+    ? parseInt(process.env.JS_OVERRIDE_REALIZATION_INDEX, 10) : null;
+  const overrideScopeOk = overrideRealizationIndex == null
+    || state.realizationIndex === overrideRealizationIndex;
+  if (process.env.JS_SIMPLEX_OVERRIDE_PATH && overrideScopeOk) {
+    const hexLines = require('fs').readFileSync(process.env.JS_SIMPLEX_OVERRIDE_PATH, 'utf8')
+      .trim().split('\n');
+    const ovBuf = new ArrayBuffer(4);
+    const ovU32 = new Uint32Array(ovBuf);
+    const ovF32 = new Float32Array(ovBuf);
+    let hexIdx = 0;
+    for (let i = 0; i <= n; i++) {
+      for (let j = 0; j < n; j++) {
+        ovU32[0] = parseInt(hexLines[hexIdx++], 16);
+        paramGuesses[i][j] = ovF32[0];
+      }
+    }
+    // Pass-2-only gate for FullModelComparison.js's idum-sequence override
+    // (Dan, 2026-09-16 fix): realizationIndex alone isn't enough to scope
+    // that override to pass 2's vertex loop -- pass 1 shares the same
+    // realizationIndex and its own natural (unforced) evalCount range can
+    // overlap the target range, corrupting pass 1's trajectory and shifting
+    // where pass 2 actually starts. This flag makes the idum override
+    // strictly pass-2-only regardless of evalCount.
+    state._simplexOverrideActive = true;
+    const overrideMsg = `JS_SIMPLEX_OVERRIDE applied: ${hexIdx} values from ${process.env.JS_SIMPLEX_OVERRIDE_PATH}\n`;
+    // console.error from inside a worker_threads Worker races
+    // worker.terminate() -- see FINALVEC's identical comment/fix below.
+    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
+      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE, overrideMsg);
+    } else {
+      console.error(overrideMsg.trim());
+    }
+  }
+
+  const { iter: pass2Iter, noConvergence } = downhillSimplexRun(paramGuesses, chiArray, state, report);
+  if (process.env.JS_SIMPLEX_OVERRIDE_PATH || TRACE_DEBUG) {
+    const iterMsg = `PASS2_ITER ${pass2Iter} noConvergence=${noConvergence} finalChi2=${chiArray[0]}\n`;
+    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
+      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE, iterMsg);
+    } else {
+      console.error(iterMsg.trim());
+    }
+  }
+
+  // One-off diagnostic (Dan, 2026): dump the ACTUAL final returned vector
+  // (pvModel.param right after the SECOND/refined-pass
+  // downhillSimplexRun) -- not inferred from the per-evaluation TRACE/
+  // FULLVEC history, which doesn't distinguish "the vertex the simplex
+  // settled on" from "whatever the last/lowest-chi2 individual evaluation
+  // happened to probe". Mirrors GalaxyFit.f's matching FINALVEC dump.
+  if (TRACE_DEBUG) {
+    const hexBuf = new ArrayBuffer(4);
+    const hexF32v = new Float32Array(hexBuf);
+    const hexU32v = new Uint32Array(hexBuf);
+    const lines = ['FINALVEC'];
+    for (let i = 0; i < pvModel.nParams; i++) {
+      hexF32v[0] = pvModel.param[i];
+      lines.push(`FINALVECPARAM ${i + 1} ${hexU32v[0].toString(16).toUpperCase().padStart(8, '0')} ${pvModel.param[i]}`);
+    }
+    // console.error from inside a worker_threads Worker races
+    // worker.terminate() (called by the pool right after it receives this
+    // realization's result message) -- the buffered stderr pipe relay to
+    // the parent can be cut off before it flushes, silently dropping this
+    // whole block for every realization but the last one the pool ever
+    // runs. Synchronous file write sidesteps that race entirely.
+    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
+      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE, lines.join('\n') + '\n');
+    } else {
+      console.error(lines.join('\n'));
+    }
+  }
 
   // Final best-fit is in pvModel (updated by downhillSimplexRun)
   return { pvModel, noConvergence };

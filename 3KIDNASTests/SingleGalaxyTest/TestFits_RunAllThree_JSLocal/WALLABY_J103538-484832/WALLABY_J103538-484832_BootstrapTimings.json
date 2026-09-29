@@ -1,0 +1,13 @@
+[
+  {
+    "realizationIndex": 0,
+    "resampleMs": 112,
+    "sofiaMs": 98,
+    "fixtureFitMs": 11,
+    "fitMs": 231619,
+    "convolveMs": 174947,
+    "convolveCalls": 5270,
+    "evalCount": 5298,
+    "totalMs": 232168
+  }
+]

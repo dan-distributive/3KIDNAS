@@ -3,18 +3,22 @@
  * same galaxy/seed and compares numerical results + performance:
  *
  *   - fortran-local: fully-native Fortran pipeline (UseDCP=0).
- *   - js-dcp: the JS/DCP pipeline (UseDCP=1), dispatched for real over the
- *     DCP network (needs --apiKey; --computeGroups/--slicePrice optional).
- *     Costs real compute credits; wall time includes DCP scheduling
- *     overhead, not just compute.
+ *   - js-dcp: the JS/DCP pipeline (UseDCP=1), EITHER dispatched for real
+ *     over the DCP network (needs --apiKey; --computeGroups/--slicePrice
+ *     optional) OR run in-process with --local (no network, no
+ *     credentials, no compute spend -- for when DCP is down/unreachable).
+ *     Real dispatch costs real compute credits; wall time then includes
+ *     DCP scheduling overhead, not just compute.
  *
- * (This script used to also run a third "js-local" leg -- the same JS/DCP
- * pipeline executed in-process on this machine, no network, no dcp-client.
- * Removed: it was consistently ~4x slower than js-dcp on this hardware,
- * with no remaining diagnostic value once that gap was understood.
- * bootstrap-realization-launcher.js's own `--local N` mode that leg used
- * still exists and still works for other local/manual testing -- only its
- * use as a leg in this comparison harness is gone.)
+ * (This script used to also run a third "js-local" leg as an ALWAYS-ON
+ * third comparison point -- removed 2026-08 as a permanent leg (it was
+ * consistently ~4x slower than js-dcp on this hardware, with no remaining
+ * diagnostic value once that gap was understood), but --local below
+ * revives the same underlying mode as an opt-in swap-in for the js-dcp
+ * leg specifically, not a third leg -- for exactly the situation that
+ * removal didn't anticipate: DCP being unreachable at all. Both routes
+ * through the same bootstrap-realization-launcher.js `--local N` mode,
+ * via RunBootstrapsDCP.py/RunInitialFitDCP.py's DCP_FORCE_LOCAL fallback.)
  *
  * Both legs run SEQUENTIALLY off the SAME BootstrapSeed (a matched-seed
  * diff, not independent-random noise), each into its own TargFolder so
@@ -22,12 +26,17 @@
  *
  * Usage:
  *   node run_both.js --seed <idum> [--nBootstraps N]
- *     [--apiKey 0x...] [--computeGroups joinKey[,joinSecret][:joinKey[,joinSecret]...]]
+ *     [--objName NAME [--cube PATH] [--mask PATH] --pa DEG --inc DEG]
+ *     [--apiKey 0x... | --local]
+ *     [--computeGroups joinKey[,joinSecret][:joinKey[,joinSecret]...]]
  *     [--slicePrice N] [--skip-fortran] [--skip-js-dcp]
  *     [--skip-wipe] [--json PATH]
  *
- * js-dcp needs --apiKey (or DCP_API_KEY in the environment) -- without it,
- * that leg is skipped automatically, same spirit as --skip-js-dcp.
+ * js-dcp needs --apiKey (or DCP_API_KEY in the environment) -- without it
+ * AND without --local, that leg is skipped automatically, same spirit as
+ * --skip-js-dcp. --local always wins over a real dispatch when both an
+ * apiKey and --local are present (never sends DCP_API_KEY through in that
+ * case, even if set in the environment for some unrelated reason).
  *
  *
 node run_both.js \
@@ -78,6 +87,11 @@ const TEST_DIR = path.join(__dirname, '..', '..', '3KIDNASTests', 'SingleGalaxyT
 const DRIVER = path.join(__dirname, '..', '..', 'WRKP_GalaxyFitDriver.py');
 const BASE_FITTING_OPTIONS = path.join(__dirname, '..', '..', 'Inputs', 'SingleGalaxyTestFittingOptions_Base.txt');
 
+// Default test galaxy -- overridable per-invocation via --objName (+
+// --cube/--mask if the mask filename doesn't follow this galaxy's own
+// WALLABY_<objName>_mask.fits convention, e.g. WALLABY_J100336-262923's
+// mask is SoFiA_J100336-262923_mask.fits, a SoFiA-catalogue name, not a
+// WALLABY_ one) and --pa/--inc. See main()'s arg parsing below.
 const GALAXY = {
   CubeName: '../TestData/WALLABY_Test_sources/WALLABY_J103538-484832/WALLABY_J103538-484832_VelCube.fits',
   MaskName: '../TestData/WALLABY_Test_sources/WALLABY_J103538-484832/WALLABY_J103538-484832_mask.fits',
@@ -235,6 +249,13 @@ function compareBootstraps(rowsA, rowsB) {
   const fields = [];
   for (const field of SCALAR_FIELDS) {
     let maxDiff = 0, sumDiff = 0, count = 0;
+    // %diff per row: |a-b| / mean(|a|,|b|) -- symmetric, so it doesn't
+    // matter which side is "reference." Rows where both sides are ~0 (e.g.
+    // a field that's genuinely zero, like a fixed Vdisp_model) are excluded
+    // from the % average/max (0/0 is meaningless, not "0% different") but
+    // still count toward the absolute maxDiff/meanDiff above.
+    let maxPctDiff = 0, sumPctDiff = 0, pctCount = 0;
+    const ZERO_EPS = 1e-9;
     for (let i = 0; i < n; i++) {
       const a = parseFloat(rowsA[i][field]);
       const b = parseFloat(rowsB[i][field]);
@@ -243,9 +264,20 @@ function compareBootstraps(rowsA, rowsB) {
       maxDiff = Math.max(maxDiff, d);
       sumDiff += d;
       count += 1;
+      const denom = (Math.abs(a) + Math.abs(b)) / 2;
+      if (denom > ZERO_EPS) {
+        const pct = (d / denom) * 100;
+        maxPctDiff = Math.max(maxPctDiff, pct);
+        sumPctDiff += pct;
+        pctCount += 1;
+      }
     }
     if (count === 0) continue;
-    fields.push({ field, maxDiff, meanDiff: sumDiff / count, count });
+    fields.push({
+      field, maxDiff, meanDiff: sumDiff / count, count,
+      maxPctDiff: pctCount ? maxPctDiff : null,
+      meanPctDiff: pctCount ? sumPctDiff / pctCount : null,
+    });
   }
   return { skipped: false, rowCountMismatch, rowCountA: rowsA.length, rowCountB: rowsB.length, fields };
 }
@@ -332,28 +364,71 @@ async function main() {
 
   const jsonPath = argVal('json', path.join(__dirname, 'run_both_report.json'));
 
+  // Galaxy override -- default is GALAXY (WALLABY_J103538-484832) above.
+  // --objName switches to <objName>'s own folder under TestData/
+  // WALLABY_Test_sources/, defaulting cube/mask to that galaxy's own
+  // WALLABY_<objName>_VelCube.fits/_mask.fits naming -- override either
+  // with --cube/--mask (relative to TEST_DIR, or absolute) when a mask
+  // doesn't follow that convention. --pa/--inc override the estimates.
+  const objNameFlag = argVal('objName');
+  if (objNameFlag) {
+    GALAXY.ObjName = objNameFlag;
+    GALAXY.CubeName = `../TestData/WALLABY_Test_sources/${objNameFlag}/${objNameFlag}_VelCube.fits`;
+    GALAXY.MaskName = `../TestData/WALLABY_Test_sources/${objNameFlag}/${objNameFlag}_mask.fits`;
+  }
+  const cubeFlag = argVal('cube');
+  if (cubeFlag) GALAXY.CubeName = cubeFlag;
+  const maskFlag = argVal('mask');
+  if (maskFlag) GALAXY.MaskName = maskFlag;
+  const paFlag = argVal('pa');
+  if (paFlag !== undefined) GALAXY.PA_Estimate = parseFloat(paFlag);
+  const incFlag = argVal('inc');
+  if (incFlag !== undefined) GALAXY.Inc_Estimate = parseFloat(incFlag);
+
   if (!seed) {
     console.log('[run_both] WARNING: no --seed given -- both runs will use unseeded, '
       + 'time-based randomness. The comparison below will only be a loose statistical sanity '
       + 'check, not a matched-seed diff.');
   }
-  if (!skipJsDcp && !apiKey) {
+
+  // --local: run the js leg in-process (bootstrap-realization-launcher.js's
+  // own --local N mode via RunBootstrapsDCP.py/RunInitialFitDCP.py's
+  // DCP_FORCE_LOCAL fallback -- see their own comments) instead of real DCP
+  // dispatch. No network, no credentials, no compute spend -- for when DCP
+  // is down/unreachable or a --apiKey isn't available. Mutually exclusive
+  // with real dispatch: forces DCP_FORCE_LOCAL=1 in the leg's own
+  // subprocess env regardless of whether --apiKey/DCP_API_KEY is also set,
+  // and (unlike a real dispatch) never needs an apiKey to avoid the
+  // no-apiKey auto-skip below.
+  const runLocal = args.includes('--local');
+
+  if (!skipJsDcp && !runLocal && !apiKey) {
     console.log('[run_both] WARNING: no --apiKey given and DCP_API_KEY not set -- '
-      + 'skipping the js-dcp leg (nothing to authenticate a real dispatch with).');
+      + 'skipping the js-dcp leg (nothing to authenticate a real dispatch with). '
+      + 'Pass --local to run it in-process instead (no dispatch, no credentials needed).');
     skipJsDcp = true;
   }
 
+  // The js leg's key/folder/label all follow --local, so a local run and a
+  // real-dispatch run never collide in the same folder or get mislabeled as
+  // each other in the console/report (hit directly: an earlier version
+  // always called this leg "jsDcp" even when --local was used, making a
+  // local-only run look like it had been dispatched for real).
+  const jsLegKey = runLocal ? 'jsLocal' : 'jsDcp';
+  const jsLegFolderLabel = runLocal ? 'JSLocal' : 'JSDcp';
+  const jsLegLogLabel = runLocal ? 'JS-LOCAL (in-process, no dispatch)' : 'JS-DCP (real network dispatch)';
+
   const folders = {
     fortranLocal: 'TestFits_RunAllThree_FortranLocal',
-    jsDcp: 'TestFits_RunAllThree_JSDcp',
+    [jsLegKey]: `TestFits_RunAllThree_${jsLegFolderLabel}`,
   };
   const configPaths = {
     fortranLocal: path.join(TEST_DIR, 'run_both_fortran_local_config.py'),
-    jsDcp: path.join(TEST_DIR, 'run_both_js_dcp_config.py'),
+    [jsLegKey]: path.join(TEST_DIR, `run_both_${jsLegKey}_config.py`),
   };
 
   writeConfig(configPaths.fortranLocal, { targFolder: folders.fortranLocal, nBootstraps, nProcessors, useDCP: false, seed, cloudDensity });
-  writeConfig(configPaths.jsDcp, { targFolder: folders.jsDcp, nBootstraps, nProcessors, useDCP: true, seed, cloudDensity });
+  writeConfig(configPaths[jsLegKey], { targFolder: folders[jsLegKey], nBootstraps, nProcessors, useDCP: true, seed, cloudDensity });
 
   if (!skipWipe) {
     // Only wipe folders for legs actually running this invocation -- wiping
@@ -363,7 +438,7 @@ async function main() {
     // immediately-preceding full run).
     const activeFolders = [
       !skipFortran && folders.fortranLocal,
-      !skipJsDcp && folders.jsDcp,
+      !skipJsDcp && folders[jsLegKey],
     ].filter(Boolean);
     console.log(`[run_both] wiping prior output for: ${activeFolders.join(', ') || '(none -- everything skipped)'}`);
     for (const f of activeFolders) {
@@ -373,7 +448,7 @@ async function main() {
 
   console.log(`[run_both] seed=${seed || '(none)'} nBootstraps=${nBootstraps}`);
 
-  const results = { fortranLocal: null, jsDcp: null };
+  const results = { fortranLocal: null, [jsLegKey]: null };
 
   if (!skipFortran) {
     console.log('\n[run_both] running FORTRAN-LOCAL (fully-native) pipeline...');
@@ -383,22 +458,30 @@ async function main() {
   }
 
   if (!skipJsDcp) {
-    console.log('\n[run_both] running JS-DCP (real network dispatch)...');
-    const dcpEnv = { ...process.env, DCP_API_KEY: apiKey };
+    console.log(`\n[run_both] running ${jsLegLogLabel}...`);
+    const dcpEnv = { ...process.env };
+    if (runLocal) {
+      dcpEnv.DCP_FORCE_LOCAL = '1';
+      delete dcpEnv.DCP_API_KEY; // never needed for --local; don't leak one through if set for other reasons
+    } else {
+      dcpEnv.DCP_API_KEY = apiKey;
+    }
     if (computeGroups) dcpEnv.DCP_COMPUTE_GROUPS = computeGroups;
     if (slicePrice) dcpEnv.DCP_SLICE_PRICE = slicePrice;
-    results.jsDcp = await run('python3', [DRIVER, path.basename(configPaths.jsDcp)], { cwd: TEST_DIR, env: dcpEnv });
-    console.log(`[run_both] js-dcp: exit=${results.jsDcp.code} ${results.jsDcp.seconds.toFixed(1)}s`);
-    // nProcessors omitted (null): this leg's work runs on real DCP workers
-    // over the network, not as a local process pool -- their CPU counts
-    // aren't ours to report.
-    writeRunMeta(path.join(TEST_DIR, folders.jsDcp, GALAXY.ObjName), { seed, nBootstraps, nProcessors: null, cloudDensity: effectiveCloudDensity });
+    results[jsLegKey] = await run('python3', [DRIVER, path.basename(configPaths[jsLegKey])], { cwd: TEST_DIR, env: dcpEnv });
+    console.log(`[run_both] ${jsLegKey}: exit=${results[jsLegKey].code} ${results[jsLegKey].seconds.toFixed(1)}s`);
+    // nProcessors omitted (null) for real dispatch: that leg's work runs on
+    // real DCP workers over the network, not as a local process pool --
+    // their CPU counts aren't ours to report. Reported normally for
+    // --local, since that DOES run as a local worker_threads pool (see
+    // bootstrap-realization-launcher.js's own --local sizing).
+    writeRunMeta(path.join(TEST_DIR, folders[jsLegKey], GALAXY.ObjName), { seed, nBootstraps, nProcessors: runLocal ? nProcessors : null, cloudDensity: effectiveCloudDensity });
   }
 
   console.log('\n=== run_both report ===');
 
   const runs = {};
-  for (const key of ['fortranLocal', 'jsDcp']) {
+  for (const key of ['fortranLocal', jsLegKey]) {
     const r = results[key];
     const objFolder = path.join(TEST_DIR, folders[key], GALAXY.ObjName);
     const csvRows = fs.existsSync(objFolder) ? readBootstrapCsv(objFolder) : null;
@@ -437,7 +520,7 @@ async function main() {
 
   console.log('\n=== Pairwise numerical comparison ===');
   const comparisonPairs = [
-    ['fortranLocal', 'jsDcp'],
+    ['fortranLocal', jsLegKey],
   ];
   const comparisons = {};
   for (const [a, b] of comparisonPairs) {
@@ -446,9 +529,11 @@ async function main() {
     comparisons[`${a}_vs_${b}`] = cmp;
     if (!cmp.skipped) {
       console.log(`\n${a} vs ${b}:`);
-      console.log(`  ${'field'.padEnd(12)} ${'max|diff|'.padStart(12)} ${'mean|diff|'.padStart(12)}`);
+      console.log(`  ${'field'.padEnd(12)} ${'max|diff|'.padStart(12)} ${'mean|diff|'.padStart(12)} ${'max%diff'.padStart(10)} ${'mean%diff'.padStart(10)}`);
       for (const f of cmp.fields) {
-        console.log(`  ${f.field.padEnd(12)} ${f.maxDiff.toFixed(6).padStart(12)} ${f.meanDiff.toFixed(6).padStart(12)}`);
+        const maxPct = f.maxPctDiff != null ? f.maxPctDiff.toFixed(2) + '%' : 'n/a';
+        const meanPct = f.meanPctDiff != null ? f.meanPctDiff.toFixed(2) + '%' : 'n/a';
+        console.log(`  ${f.field.padEnd(12)} ${f.maxDiff.toFixed(6).padStart(12)} ${f.meanDiff.toFixed(6).padStart(12)} ${maxPct.padStart(10)} ${meanPct.padStart(10)}`);
       }
     }
   }
@@ -463,7 +548,7 @@ async function main() {
   console.log(`\n[run_both] wrote report to ${jsonPath}`);
 
   const ranOk = (skipFortran || (results.fortranLocal && results.fortranLocal.code === 0))
-    && (skipJsDcp || (results.jsDcp && results.jsDcp.code === 0));
+    && (skipJsDcp || (results[jsLegKey] && results[jsLegKey].code === 0));
   process.exit(ranOk ? 0 : 1);
 }
 

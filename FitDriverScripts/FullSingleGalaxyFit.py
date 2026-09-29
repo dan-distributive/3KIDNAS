@@ -189,7 +189,8 @@ def GalaxyFit():
     
     #   Once the bootstrap run is done, remove the bootstrap and SoFiA folders
     ClnCmd="rm -r "+GalaxyDict['BootstrapFolder']+" "+GalaxyDict['SoFiAFolder']
-    os.system(ClnCmd)
+    if os.environ.get('WRKP_KEEP_BOOTSTRAP_FOLDER') != '1':
+        os.system(ClnCmd)
    
 
 def BootstrapRunStep(step,GeneralDict,GalaxyDict):

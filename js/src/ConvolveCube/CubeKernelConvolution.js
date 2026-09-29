@@ -144,6 +144,34 @@ function convolve2DChannel(sliceIn, nPixels, b, sliceOut) {
       padded[i * ps1 + j] = sliceIn[i * ny + j];
 
   const complex = rdft2R2cSync(ps0, ps1, padded);
+
+  // One-off diagnostic (Dan probe, 2026-09-27): dump the forward FFT's
+  // raw double-precision complex output, first call only, to diff
+  // bin-for-bin against Fortran's matching FFTFORWARDTRACE print
+  // (TwoDConvolution.f) -- isolates whether the forward r2c FFT itself
+  // already differs (native vs wasm FFTW codelet selection) before the
+  // kernel multiply or inverse FFT ever run. Complex layout here is
+  // (nx=ps0 rows, ny/2+1 cols) interleaved re/im, i.e. bin(i,j) (1-based,
+  // matching Fortran) = complex[2*((i-1)*NC+(j-1))] / [+1].
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+    global.__fftForwardCallCount = (global.__fftForwardCallCount || 0) + 1;
+  }
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV
+      && global.__fftForwardCallCount === 27) {
+    const NCt = Math.floor(ps1 / 2) + 1;
+    const bin = (i, j) => {
+      const idx = (i - 1) * NCt + (j - 1);
+      return [complex[2 * idx], complex[2 * idx + 1]];
+    };
+    let sumRe = 0, sumIm = 0;
+    for (let idx = 0; idx < ps0 * NCt; idx++) { sumRe += complex[2 * idx]; sumIm += complex[2 * idx + 1]; }
+    console.error('FFTFORWARDTRACE bin(1,1)', ...bin(1, 1).map((v) => v.toExponential(19)));
+    console.error('FFTFORWARDTRACE bin(2,1)', ...bin(2, 1).map((v) => v.toExponential(19)));
+    console.error('FFTFORWARDTRACE bin(1,2)', ...bin(1, 2).map((v) => v.toExponential(19)));
+    console.error('FFTFORWARDTRACE bin(5,7)', ...bin(5, 7).map((v) => v.toExponential(19)));
+    console.error('FFTFORWARDTRACE sum', sumRe.toExponential(19), sumIm.toExponential(19));
+  }
+
   const NC = Math.floor(ps1 / 2) + 1;
   const nBins = ps0 * NC;
   for (let idx = 0; idx < nBins; idx++) {

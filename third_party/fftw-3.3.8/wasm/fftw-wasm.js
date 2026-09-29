@@ -183,6 +183,51 @@ function c2r2dSync(n0, n1, reIn, imIn) {
   return c2r2dCore(getModuleSync(), n0, n1, reIn, imIn);
 }
 
+let cachedImportWisdomFn = null;
+
+// One-off diagnostic (Dan probe, 2026-09-27): import FFTW wisdom exported
+// from Fortran's native build, forcing this build's planner to
+// reconstruct the identical plan tree instead of re-deriving its own
+// FFTW_ESTIMATE choice. Returns true if FFTW accepted the wisdom.
+function importWisdomSync(wisdomStr) {
+  const Module = getModuleSync();
+  if (!cachedImportWisdomFn) {
+    cachedImportWisdomFn = Module.cwrap('fftw_import_wisdom_wasm', 'number', ['number']);
+  }
+  const len = Module.lengthBytesUTF8(wisdomStr) + 1;
+  const p = Module._malloc(len);
+  try {
+    Module.stringToUTF8(wisdomStr, p, len);
+    return cachedImportWisdomFn(p) === 1;
+  } finally {
+    Module._free(p);
+  }
+}
+
+let cachedPlanStringFn = null;
+
+// One-off diagnostic (Dan probe, 2026-09-27): returns FFTW's own
+// fftw_sprint_plan() description of the r2c_2d(n0,n1) plan this build
+// would use (identical flags to r2c2dSync's real plan) -- for a direct
+// textual comparison against Fortran's dfftw_print_plan output for the
+// SAME transform, proving or disproving "does FFTW choose a different
+// internal algorithm here" instead of inferring it from bit-level output.
+function planStringSync(n0, n1) {
+  const Module = getModuleSync();
+  if (!cachedPlanStringFn) {
+    cachedPlanStringFn = Module.cwrap('fftw_r2c_2d_planstring_wasm', 'number', ['number', 'number', 'number', 'number']);
+  }
+  const bufLen = 8192;
+  const bufP = Module._malloc(bufLen);
+  try {
+    const rc = cachedPlanStringFn(n0, n1, bufP, bufLen);
+    if (rc !== 0) throw new Error(`fftw_r2c_2d_planstring_wasm failed, code ${rc}`);
+    return Module.UTF8ToString(bufP);
+  } finally {
+    Module._free(bufP);
+  }
+}
+
 /**
  * Complex-to-complex 1D DFT.
  * @param {number[]} reIn - real parts, length n
@@ -217,4 +262,4 @@ function r2c1dSync(reIn) {
   return r2c1dCore(getModuleSync(), reIn);
 }
 
-module.exports = { dft1d, r2c1d, warmUp, dft1dSync, r2c1dSync, r2c2dSync, c2r2dSync };
+module.exports = { dft1d, r2c1d, warmUp, dft1dSync, r2c1dSync, r2c2dSync, c2r2dSync, planStringSync, importWisdomSync };

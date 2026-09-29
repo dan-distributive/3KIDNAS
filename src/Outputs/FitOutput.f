@@ -154,6 +154,8 @@ c
       character(10) format_string
       real BeamArea
       real SpecNoise
+      character(64) EnvVal
+      integer EnvLen
 
 c           The best fitting tilted ring model should have been made in Galaxy fit, so we
 c           don't need to do the conversion of a parameter vector to tilted ring parameters
@@ -175,6 +177,26 @@ c               (parameters, idum) controlled for. No effect unless
 c               TRACE_OVERRIDE_IDUM is set.
       call MaybeOverrideIdum(idum)
       call MaybeTraceRingFields(ModelTiltedRing)
+      block
+        use BasicRanNumGen
+        character(64) EnvValC
+        integer EnvLenC, IDUnit, IDPI
+        integer FIdum2, FIv(32), FIy
+        call get_environment_variable("TRACE_DUMP_PRECONV",EnvValC,
+     &            EnvLenC)
+        if (EnvLenC .gt. 0) then
+          call GetRan2State(FIdum2,FIv,FIy)
+          open(newunit=IDUnit, file="OutputIdumTraceF.txt",
+     &        status="unknown", position="append")
+          write(IDUnit,'(A,I0)') "idum ", idum
+          write(IDUnit,'(A,I0)') "idum2 ", FIdum2
+          write(IDUnit,'(A,I0)') "iy ", FIy
+          do IDPI=1,32
+            write(IDUnit,'(A,I0,A,I0)') "iv",IDPI," ",FIv(IDPI)
+          enddo
+          close(IDUnit)
+        endif
+      end block
       call BuildTiltedRingModel(ModelTiltedRing,idum,SpecNoise
      &          ,ObservedDC,ObservedBeam)
 c       Create the point-source data cube
@@ -187,9 +209,33 @@ c               attributed to particle generation/binning (present here
 c               already) vs convolution (introduced after this point).
 c               Gated on TRACE_OVERRIDE_IDUM.
       call MaybeTracePreConvChecksum(ModelDC)
+c           One-off diagnostic (Dan probe, 2026-09-27): dump the FULL
+c               pre-convolution model cube to its own FITS file (not just
+c               a checksum) so it can be pixel-diffed directly against
+c               JS's own pre-convolution snapshot, isolating whether the
+c               particle-generation/binning stage or the beam-convolution
+c               stage is where the two platforms' cubes actually start to
+c               differ. Gated on TRACE_DUMP_PRECONV so it's silent by
+c               default; writes alongside the real AverageModel cube.
+      call get_environment_variable("TRACE_DUMP_PRECONV",EnvVal,
+     &          EnvLen)
+      if (EnvLen .gt. 0) then
+        call WriteDataCubeToFITS(ModelDC,ObservedBeam
+     &      ,trim(OutputFolder)//"/PreConvModel.fits","Test")
+      endif
 c        Convolve the cube with the beam
 c           Note that it is assumed that the real beam kernel has already been calculated
       call CubeBeamConvolution(ModelDC,ObservedBeam)
+c           One-off diagnostic (Dan probe, 2026-09-27): dump the cube
+c               immediately after convolution, BEFORE the BeamArea
+c               rescale, to isolate whether CubeBeamConvolution itself
+c               (the FFTW-based step) introduces the divergence, or
+c               whether it's the scalar BeamArea multiply right after it.
+c               Gated on TRACE_DUMP_PRECONV, same as the pre-conv dump.
+      if (EnvLen .gt. 0) then
+        call WriteDataCubeToFITS(ModelDC,ObservedBeam
+     &      ,trim(OutputFolder)//"/PostConvPreScaleModel.fits","Test")
+      endif
 c           Because the cube is in units of Jy/pixel, convert back to Jy/beam
       ModelDC%Flux=ModelDC%Flux*BeamArea
 c       Write the cube to a fits file
@@ -387,7 +433,29 @@ c     width would leave undefined trailing bytes from a previous write,
 c     corrupting output. ReadWRKPFit.py's parser already splits on
 c     whitespace (GeoLineAssign/NoiseLineAssign), not fixed columns, so
 c     widening this needs no change on the Python side.
-      character(16) ValStr,ErrStr
+c     BUG FIX (2026-09-28, Dan): F16.6 (6 decimal places) is NOT sufficient
+c     to round-trip a real(4) value losslessly through Python's DOUBLE-
+c     PRECISION consumer (RunBootstrapsDCP.ComputeBsCent's
+c     VCenter=DeltaV/dV+RefChan arithmetic operates directly on the parsed
+c     text, never re-quantizing to float32) -- confirmed directly: VSys_kin
+c     wrote "5745.641602" for the true value 5745.6416015625, a ~4.4e-7
+c     truncation that is small enough to still round-trip to the SAME
+c     nearest float32 bit pattern (explaining why this looked "good enough"
+c     when the F8.2->F16.6 fix was first made), but is NOT reabsorbed by
+c     ComputeBsCent's float64 division, producing a genuine, confirmed
+c     ~1 ULP-scale CentV divergence between the Fortran-local and JS-local
+c     pipelines' bootstrap-resample geometry -- traced via a direct
+c     BS_Cent%CentV comparison after independently proving both platforms'
+c     amoeba trajectory AND raw best-fit parameter vector bit-identical, so
+c     this text round-trip was the only remaining place precision could be
+c     lost. X_kin/Y_kin happened to round-trip losslessly through the same
+c     F16.6 format by luck of their specific decimal digits (rounding down
+c     at the 7th place instead of up), not because F16.6 is actually safe.
+c     Switched to list-directed (format-free) internal writes, matching the
+c     already-correct, already-verified-exact approach RawGeom_v1.txt uses
+c     for PA/Inc. Widened the buffer accordingly (list-directed real4
+c     output needs more than 16 characters for some values/signs).
+      character(30) ValStr,ErrStr
       character(18) PreambleStr
       character(20) RadialProfStr(6)
 
@@ -440,28 +508,28 @@ c       Write out the noise measurements
 c           First the RMS--which needs to be converted
       write(10,*) " "
       PreambleStr="RMS (mJy/beam)"
-      write(ValStr, '(F16.6)')ObservedDC%DH%Uncertainty
-     &              *ObservedBeam%BeamAreaPixels*1000.
+      write(ValStr,*)DBLE(ObservedDC%DH%Uncertainty
+     &              *ObservedBeam%BeamAreaPixels*1000.)
       OutStr=PreambleStr//"    "//ValStr
       write(10,'(a)') trim(OutStr)
 c       Next the integrated S/N
       PreambleStr="SN_Integrated "
-      write(ValStr, '(F16.6)')ObservedDC%DH%SN_Int
+      write(ValStr,*)DBLE(ObservedDC%DH%SN_Int)
       OutStr=PreambleStr//"    "//ValStr
       write(10,'(a)') trim(OutStr)
 c       And the peak S/N
       PreambleStr="SN_Peak "
-      write(ValStr, '(F16.6)')ObservedDC%DH%SN_Peak
+      write(ValStr,*)DBLE(ObservedDC%DH%SN_Peak)
       OutStr=PreambleStr//"    "//ValStr
       write(10,'(a)') trim(OutStr)
 c       And the average S/N
       PreambleStr="SN_Avg "
-      write(ValStr, '(F16.6)')ObservedDC%DH%SN_Avg
+      write(ValStr,*)DBLE(ObservedDC%DH%SN_Avg)
       OutStr=PreambleStr//"    "//ValStr
       write(10,'(a)') trim(OutStr)
 c       And the median S/N
       PreambleStr="SN_Median "
-      write(ValStr, '(F16.6)')ObservedDC%DH%SN_Median
+      write(ValStr,*)DBLE(ObservedDC%DH%SN_Median)
       OutStr=PreambleStr//"    "//ValStr
       write(10,'(a)') trim(OutStr)
 
@@ -489,25 +557,25 @@ c      print*, "Central Position Deg", RA,DEC
       do i=0, 7
         if( i.eq. 0) then
             PreambleStr="X_kin (pixels)"
-            write(ValStr, '(F16.6)')ModelTiltedRing%R(0)%CentPos(0)
-            write(ErrStr, '(F16.6)')0.0
+            write(ValStr,*)DBLE(ModelTiltedRing%R(0)%CentPos(0))
+            write(ErrStr,*)0.0
         elseif(i .eq. 1) then
             PreambleStr="Y_kin (pixels)"
-            write(ValStr, '(F16.6)')ModelTiltedRing%R(0)%CentPos(1)
-            write(ErrStr, '(F16.6)')0.0
+            write(ValStr,*)DBLE(ModelTiltedRing%R(0)%CentPos(1))
+            write(ErrStr,*)0.0
         elseif(i .eq. 2) then
             PreambleStr="RA_kin (degrees)"
-            write(ValStr, '(F16.6)')RA
-            write(ErrStr, '(F16.6)')0.0
+            write(ValStr,*)DBLE(RA)
+            write(ErrStr,*)0.0
         elseif(i .eq. 3) then
             PreambleStr="DEC_kin (degrees)"
-            write(ValStr, '(F16.6)')DEC
-            write(ErrStr, '(F16.6)')0.0
+            write(ValStr,*)DBLE(DEC)
+            write(ErrStr,*)0.0
         elseif(i .eq. 4) then
             PreambleStr="Inc_kin (degrees)"
-            write(ValStr, '(F16.6)')ModelTiltedRing%R(0)%Inclination
-     &                  *180./Pi
-            write(ErrStr, '(F16.6)')0.0
+            write(ValStr,*)DBLE(ModelTiltedRing%R(0)%Inclination
+     &                  *180./Pi)
+            write(ErrStr,*)0.0
         elseif(i .eq. 5) then
             PreambleStr="PA_kin (degrees)"
 c           MIRRORED IN JS: this -90 deg convention offset + [0,360) wrap is
@@ -525,21 +593,56 @@ c           this transform, update that function too.
                 PAOut=PAOut-360.
                 goto 100
             endif
-            write(ValStr, '(F16.6)')PAOut
-            write(ErrStr, '(F16.6)')0.0
+            write(ValStr,*)DBLE(PAOut)
+            write(ErrStr,*)0.0
         elseif(i .eq. 6) then
             PreambleStr="VSys_kin (km/s)"
-            write(ValStr, '(F16.6)')ModelTiltedRing%R(0)%VSys
-            write(ErrStr, '(F16.6)')0.0
+            write(ValStr,*)DBLE(ModelTiltedRing%R(0)%VSys)
+            write(ErrStr,*)0.0
         elseif(i .eq. 7) then
             PreambleStr="VDisp_kin (km/s)"
-            write(ValStr, '(F16.6)')ModelTiltedRing%R(0)%VDisp
-            write(ErrStr, '(F16.6)')0.0
+            write(ValStr,*)DBLE(ModelTiltedRing%R(0)%VDisp)
+            write(ErrStr,*)0.0
         endif
 
         OutStr=PreambleStr//"    "//ValStr//" "//ErrStr
         write(10,'(a)') trim(OutStr)
       enddo
+
+c       One-off diagnostic turned permanent fix (Dan, 2026): bootstrap
+c       resampling's geometry (WriteBootstrapFile/computeBsCent) used to
+c       re-derive PA by reading PA_kin back OUT of this file (the F16.6
+c       degrees value just written above, itself already round-tripped
+c       through a -90/wrap/+90 "kinematic PA" display convention) and
+c       reversing that convention in Python -- two independent, lossy
+c       re-derivations (this one through F16.6 text, JS's through its own
+c       in-memory but still degrees-and-back recomputation) that have no
+c       reason to agree bit-for-bit. Traced directly via a COORDTRACE/
+c       ROTTRACE hex bisection to a 1-ULP PA difference propagating into
+c       every cell's coordinate transform via fd_cos/fd_sin(-PA). Fix:
+c       write the RAW, pre-"kinematic" angle (no -90 offset, no [0,360)
+c       wrap) to its own small companion file, full list-directed
+c       precision, so WriteBootstrapFile/computeBsCent can consume it
+c       directly instead of each re-deriving their own approximation.
+c       GATED ON FitNum.eq.2 (the converged/"AvgModel" call) ONLY --
+c       StandardModelOutput is ALSO called with FitNum=0 further down in
+c       OutputBestFit_Simple, AFTER ModelTiltedRing has been overwritten
+c       with PVIni (the INITIAL GUESS, not the fit) for the "IniEstimate"
+c       output. An earlier, unguarded version of this write used a fixed
+c       filename with no FitNum check, so that SECOND call silently
+c       clobbered this file with the initial guess's PA instead of the
+c       converged fit's -- confirmed directly by tagging a diagnostic
+c       print with FitNum+ObjName: FitNum=2 printed 2.8587160110 (matches
+c       GalaxyFit.f's own FINALVEC for this run); FitNum=0 printed
+c       2.9892427921 (the initial guess) and was the one left on disk.
+      if (FitNum .eq. 2) then
+        open(11,file=trim(OutputFolder)//"/"//trim(CatItem%ObjName)
+     &            //"_RawGeom_v1.txt",status='replace')
+        write(11,*) ModelTiltedRing%R(0)%PositionAngle
+        write(11,*) ModelTiltedRing%R(0)%Inclination
+        close(11)
+      endif
+
 c       Write out the radial profiles
       write(10,*)" "
 
@@ -899,6 +1002,7 @@ c           untouched, including on a blank/unset/unparseable value).
       integer, INTENT(INOUT) :: idum
       character(64) EnvVal
       integer EnvLen, IOStat, NewIdum
+      integer FullIdum2, FullIv(32), FullIy
 
       call get_environment_variable("TRACE_OVERRIDE_IDUM",EnvVal,
      &          EnvLen)
@@ -914,6 +1018,22 @@ c                   spare-value state -- must clear it explicitly too,
 c                   for a true apples-to-apples reset against JS's
 c                   always-fresh makeRng().
           call ResetGasdevCache()
+        endif
+      else
+c           One-off diagnostic (Dan probe, 2026-09-27): print the NATURAL
+c               (un-overridden) idum right before it's used for output
+c               resynthesis, so it can be captured and fed into JS's own
+c               TRACE_OVERRIDE_IDUM for a controlled cross-platform test
+c               -- without disturbing Fortran's own run at all. Gated on
+c               WRKP_TRACE_DEBUG so it's silent by default.
+        call get_environment_variable("WRKP_TRACE_DEBUG",EnvVal,
+     &            EnvLen)
+        if (EnvLen .gt. 0) then
+          print*, "TRACE natural idum before resynthesis:", idum
+          call GetRan2State(FullIdum2,FullIv,FullIy)
+          print*, "TRACE natural idum2 before resynthesis:",FullIdum2
+          print*, "TRACE natural iy before resynthesis:",FullIy
+          print*, "TRACE natural iv before resynthesis:",FullIv
         endif
       endif
 

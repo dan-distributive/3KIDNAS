@@ -80,7 +80,11 @@ c     This routine does brightness conversion
 c       The surface brightness needs to be converted to Jy pixel^2
       if(Switch .eq. 0) then        !0=Jy km/s arcsec^-2 to Jy arcsec^-2
         A=A/abs(ChannelSize)
-        A=A*abs(PixelSize)**2.           !Then Jy arcsec^2 to Jy pixel
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+        A=A*(abs(PixelSize)*abs(PixelSize)) !Then Jy arcsec^2 to Jy pixel
       elseif(Switch .eq. 1) then    !1=mJy/beam to Jy/Beam
         A=A/1000.
       elseif(Switch .eq. 2) then    !2=Jy arcsec^-2 to Jy/Beam
@@ -292,7 +296,8 @@ c       get final units of Jy/pixel
 c       The cell brighness needs to be in Jy/pixel
 c      print*, "DataCube Units ", DC%DH%FUnit
       if(DC%DH%FUnit .eq. 'Jy/beam'
-     &       .or. DC%DH%FUnit .eq. 'Jy/Beam') then
+     &       .or. DC%DH%FUnit .eq. 'Jy/Beam'
+     &      .or. DC%DH%FUnit .eq. 'Jy Beam-1') then
 c              The beam area in pixels should already be
 c                   calculated in the beam allocation.
         BeamArea=Beam%BeamAreaPixels

@@ -55,7 +55,13 @@ function fullCircATan(x, y) {
   } else if (x < f32(0.0) && y < f32(0.0)) {
     theta = f32(theta + Pi);
   } else if (x >= f32(0.0) && y < f32(0.0)) {
-    theta = f32(theta + f32(2.0) * Pi);
+    // BUG FIX (Dan, 2026): Fortran's Theta=Theta+2.*Pi is two separately-
+    // rounded steps (round(2.*Pi), then round(Theta+that)). `*` binds
+    // tighter than `+` in JS, so `theta + f32(2.0) * Pi` computed
+    // `f32(2.0)*Pi` at full double precision before adding -- missing the
+    // intermediate round. Same bug class as every other "combine multiply
+    // and add/divide in one f32() call" fix this session.
+    theta = f32(theta + f32(f32(2.0) * Pi));
   }
 
   return theta;

@@ -72,7 +72,12 @@ c
 c       First set the maximum number of rings possible based on the map shape
 c
 
-      RTest=Maps%DH%nPixels(0)**2.+Maps%DH%nPixels(1)**2.
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+      RTest=real(Maps%DH%nPixels(0))*real(Maps%DH%nPixels(0))
+     &          +real(Maps%DH%nPixels(1))*real(Maps%DH%nPixels(1))
       RTest=sqrt(RTest)/2.
       RTest=RTest/Beam%BeamMajorAxis
       nRings=int(RTest*FittingOptions%nRingsPerBeam)+1
@@ -127,6 +132,12 @@ c        nRings=sum(ModelerableRingSwitch)
 c       Otherwise use the number of input rings
       else
         nRings=FittingOptions%nTargRings
+      endif
+c           However, if this is more than the maximum number of rings, just
+c           stop as the issue the extra ring is trying to solve shouldn't be
+c           an issue. (adopted from upstream, Dan, 2026)
+      if(nRings .gt. nRingsMax) then
+          nRings=nRingsMax
       endif
       print*, "Total modelable number of rings", nRings,nRingsMax
       if(nRings .eq. 0) then
@@ -646,7 +657,12 @@ c       It is necessary to start RIndx at 0 and then add from there
      &              , RadialProfile(2,i)
         k=2
 c           Get the corrected radius....note that this may need some adjustment in the innermost region
-100     RCorr=RadialProfile(0,i)**2.-(Beam%BeamMajorAxis/k)**2.
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+100     RCorr=RadialProfile(0,i)*RadialProfile(0,i)
+     &          -(Beam%BeamMajorAxis/k)*(Beam%BeamMajorAxis/k)
         if (RCorr .lt. 0.) then
             k=k+1
             goto 100

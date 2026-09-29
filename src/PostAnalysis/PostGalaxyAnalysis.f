@@ -79,7 +79,12 @@ cccccc
       Type(DataCube), INTENT(IN) :: DC
 
       FTot=sum(DC%Flux)
-      M1=0.236*(GalaxyDict%Distance*1000.)**2.*FTot
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+      M1=0.236*(GalaxyDict%Distance*1000.)*(GalaxyDict%Distance*1000.)
+     &              *FTot
       GalaxyDict%logMass=log10(M1
      &              *abs(DC%DH%Channelsize))
 

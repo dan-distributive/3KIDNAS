@@ -525,7 +525,9 @@ function estimateProfiles(maps, beamMajorAxis, center, pa, vSys, opts, sdLims, v
   const Pi = f32(Math.PI);
   if (leadingVelProfile <= trailingVelProfile) {
     paOut = f32(paOut + Pi);
-    if (paOut >= f32(2.0) * Pi) paOut = f32(paOut - f32(2.0) * Pi);
+    // BUG FIX (Dan, 2026): Fortran's PA=PA-2.*pi is two separately-rounded
+    // steps -- see FullCircTrig.js's matching fix for the full rationale.
+    if (paOut >= f32(2.0) * Pi) paOut = f32(paOut - f32(f32(2.0) * Pi));
   }
 
   if (isTraceDebug()) {

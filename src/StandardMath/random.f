@@ -15,6 +15,20 @@ c               does. Purely a location change -- identical behavior for
 c               every existing call site.
       integer :: GasdevIset = 0
       real :: GasdevGset = 0.0
+c           ran2's own shuffle-table state (idum2, iv(32), iy), moved from
+c               function-local SAVE to module level for the SAME reason
+c               and by the SAME pattern as GasdevIset/GasdevGset above
+c               (Dan probe, 2026-09-27): a bare idum integer is NOT
+c               ran2's full state -- transplanting only idum into a fresh
+c               JS rng object (which never re-triggers its own `idum<=0`
+c               reinit for a positive value) leaves iv/iy/idum2 at their
+c               construction-time defaults, disconnected from any real
+c               evolved stream. GetRan2State/SetRan2State below let a
+c               caller (MaybeOverrideIdum) read/write the FULL state for
+c               a genuine apples-to-apples transplant test against JS.
+      integer :: Ran2Idum2 = 123456789
+      integer :: Ran2Iv(32) = 0
+      integer :: Ran2Iy = 0
       contains
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -136,8 +150,14 @@ c
       parameter(RNMX=1.-EPS)
 c
       integer idum2,j,k,iv(NTAB),iy
-      SAVE iv,iy,idum2
-      DATA idum2/123456789/, iv/NTAB*0/,iy/0/
+c           Local copies of the module-level state, not SAVE'd here anymore
+c               -- see the module header comment on Ran2Idum2/Ran2Iv/Ran2Iy
+c               for why. Copy in, run the UNCHANGED algorithm below, copy
+c               back out before every return. Purely a storage-location
+c               change, identical in spirit to the GasdevIset move above.
+      idum2=Ran2Idum2
+      iv=Ran2Iv
+      iy=Ran2Iy
 c
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c
@@ -164,6 +184,9 @@ c
       if(iy .lt.1) iy=iy+IMM1
       ran2=min(AM*iy,RNMX)
       if(ran2 .le. 0.) print*, 'bug in ran2'
+      Ran2Idum2=idum2
+      Ran2Iv=iv
+      Ran2Iy=iy
       return
       end function
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -261,9 +284,17 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c
       if (idum.lt. 0) GasdevIset=0
       if(GasdevIset .eq. 0) then
+c           BUG FIX (Dan, 2026): X**2. (real exponent literal) is not
+c               guaranteed bit-identical to X*X in gfortran -- confirmed
+c               directly (see PhysCoordTransform.f's matching fix/comment
+c               for the reproduction). The JS port already used v1*v1/
+c               v2*v2 (no real**real ambiguity to port), so this was a
+c               one-sided Fortran divergence risk in the RNG's own hot
+c               path. Verbatim upstream code (byte-identical to
+c               NateDeg/3KIDNAS) -- reported upstream, also fixed here.
  1      v1=2.*ran2(idum)-1.
         v2=2.*ran2(idum)-1.
-        rsq=v1**2.+v2**2.
+        rsq=v1*v1+v2*v2
         if(rsq .ge. 1. .or. rsq .eq. 0.) goto 1
         fac=sqrt(-2.*fd_log(rsq)/rsq)
         GasdevGset=v1*fac
@@ -288,6 +319,24 @@ c           doesn't achieve this.
       subroutine ResetGasdevCache()
       implicit none
       GasdevIset=0
+      return
+      end subroutine
+ccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+c       GetRan2State/SetRan2State: one-off diagnostic (Dan probe,
+c           2026-09-27) -- read/write ran2's FULL shuffle-table state
+c           (idum2, iv(32), iy), not just the bare idum scalar. See this
+c           module's header comment on Ran2Idum2/Ran2Iv/Ran2Iy for why a
+c           bare idum transplant into JS is insufficient (JS's own ran2
+c           only reinitializes iv/iy/idum2 when idum<=0, so a positive
+c           override idum leaves them at construction-time defaults,
+c           disconnected from any real evolved stream).
+      subroutine GetRan2State(idum2Out,ivOut,iyOut)
+      implicit none
+      integer, INTENT(OUT) :: idum2Out,ivOut(32),iyOut
+      idum2Out=Ran2Idum2
+      ivOut=Ran2Iv
+      iyOut=Ran2Iy
       return
       end subroutine
 ccccccccccccccccccccccccccccccccccccccccccccccccccccc

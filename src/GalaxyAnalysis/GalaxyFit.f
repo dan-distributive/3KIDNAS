@@ -34,7 +34,9 @@ c
 
       real,ALLOCATABLE :: paramGuesses(:,:),chiArray(:)
       real chi2
-      integer i,iter,StrictEstimate
+      integer i,j,iter,StrictEstimate
+      character(500) SimplexDumpPath
+      integer SimplexDumpLen
 
       logical FitFlag
 
@@ -77,6 +79,18 @@ c           Create an array of parameter guesses
       endif
       call TiltedRingModelComparison(PVModel%Param,chi2)
       print*, "Initial model fit", chi2
+      block
+        character(64) EnvVal5
+        integer EnvLen5, CIUnit
+        call get_environment_variable("TRACE_DUMP_PRECONV",EnvVal5,
+     &            EnvLen5)
+        if (EnvLen5 .gt. 0) then
+          open(newunit=CIUnit, file="Chi2IniTraceF.txt",
+     &        status="unknown", position="append")
+          write(CIUnit,'(A,ES27.19)') "chi2Ini ", DBLE(chi2)
+          close(CIUnit)
+        endif
+      end block
 
 c       ProbeSwitch: evaluate the objective function at specific parameter
 c           vectors (read from probe_params.txt) with a fixed, reset RNG
@@ -107,7 +121,7 @@ c           Make the set of initial guesses
      &              ParamGuesses(1,1:PVModel%nParams)
       PV_FirstFit%BestLike=chiArray(1)
 
-      IniGuessWidth=0.5
+      IniGuessWidth=0.25
       ftol=ftol/5.
 
 c           Make the set of initial guesses
@@ -115,12 +129,56 @@ c           Make the set of initial guesses
       call MakeParamGuessArray(PVModel,ParamGuesses
      &          ,PVIni%nParams,idum,IniGuessWidth,StrictEstimate)
 
+c           One-off diagnostic (Dan, 2026): dump the FULL pass-2 starting
+c           simplex (all nParams+1 vertices, full float32 precision) to a
+c           file, so the exact same starting simplex can be force-fed into
+c           the JS port's amoeba directly -- a controlled experiment to
+c           tell apart "amoeba itself has a bug" from "the two platforms
+c           start from very slightly different points and Nelder-Mead's
+c           well-known sensitivity to that does the rest" for a
+c           realization where JS burns way more iterations than Fortran
+c           (or fails to converge) on what should be an equivalent fit.
+c           No effect unless FORTRAN_SIMPLEX_DUMP_PATH is set. Suffixed
+c           with CatItem%ObjName (e.g. "..._Bootstrap_4") so a whole
+c           parallel batch of realizations each gets its own dump file
+c           instead of racing to overwrite one shared path.
+      call get_environment_variable("FORTRAN_SIMPLEX_DUMP_PATH",
+     &          SimplexDumpPath,SimplexDumpLen)
+      if (SimplexDumpLen .gt. 0) then
+        open(77,file=trim(SimplexDumpPath)//"."//trim(CatItem%ObjName),
+     &          status='replace')
+        do i=1,PVModel%nParams+1
+          do j=1,PVModel%nParams
+            write(77,'(Z8.8)') transfer(ParamGuesses(i,j),0)
+          enddo
+        enddo
+        close(77)
+      endif
+
 c      print*, "PV Model",PVModel%Param
 
       call DownhillSimplexRun(PVModel%nParams
      &                  ,paramGuesses,chiArray)
 
-
+c           One-off diagnostic (Dan, 2026): dump the ACTUAL final returned
+c           vector (PVModel%Param right after the SECOND/refined-pass
+c           DownhillSimplexRun) -- not inferred from the per-evaluation
+c           TRACE/FULLVEC history, which doesn't distinguish "the vertex
+c           the simplex settled on" from "whatever the last/lowest-chi2
+c           individual evaluation happened to probe" (Nelder-Mead's last
+c           call is often a rejected probe, and the historical chi2-
+c           minimum trial isn't always the final kept vertex either -- see
+c           the very next comment block's own "bisection paradox" note for
+c           a real, related, already-fixed bug of this exact class). This
+c           is the single source of truth for "what did the optimizer
+c           actually decide."
+      if (TraceSwitch .eq. 1) then
+        print '(A)', "FINALVEC"
+        do i=0,PVModel%nParams-1
+          print '(A,I3,1X,Z8.8,1X,ES17.9)', "FINALVECPARAM",i+1
+     &          ,transfer(PVModel%Param(i),0),PVModel%Param(i)
+        enddo
+      endif
 
 c      print*, PVModel%Param
 c           TEMPORARY WORK
@@ -240,6 +298,22 @@ c       Get the goodness of fit for each guess
         chiArray(i)=chi2
         print*, PID,i,paramGuesses(i,:),chi2
       enddo
+      block
+        character(64) EnvVal6
+        integer EnvLen6, SXUnit
+        call get_environment_variable("TRACE_DUMP_PRECONV",EnvVal6,
+     &            EnvLen6)
+        if (EnvLen6 .gt. 0) then
+          open(newunit=SXUnit, file="SimplexTraceF.txt",
+     &        status="unknown", position="append")
+          do i=1,PVModel%nParams+1
+            write(SXUnit,'(A,I0,A,ES27.19)') "vertex",i-1," ",
+     &          DBLE(chiArray(i))
+          enddo
+          write(SXUnit,'(A)') "---"
+          close(SXUnit)
+        endif
+      end block
 
 c       Run the downhill simplex
       call amoeba(paramGuesses,chiArray
@@ -248,6 +322,13 @@ c       Run the downhill simplex
      &                  ,PVModel%nParams,ftol
      &                  ,TiltedRingModelComparison,iter,PID
      &                  ,FitFlag)
+
+c           NOTE: DownhillSimplexRun is shared by BOTH passes -- this
+c               fires twice per fit (pass1 then pass2); use call ORDER
+c               (2nd = pass2) to tell them apart, there's no per-pass
+c               label available at this shared subroutine's scope.
+      print '(A,I6,1X,L1,1X,ES17.9)', "ITER_F",iter,FitFlag
+     &          ,chiArray(1)
 
 c       Store the best model in the PVModel object
       PVModel%BestLike=chiArray(1)
@@ -263,6 +344,22 @@ c           model-cube resynthesis for a direct apples-to-apples compare.
         print*, "CONVERGED_VECTOR", PVModel%Param(0:PVModel%nParams-1)
      &          ,PVModel%BestLike
       endif
+      block
+        character(64) EnvValA
+        integer EnvLenA, PVUnit, PVj
+        call get_environment_variable("TRACE_DUMP_PRECONV",EnvValA,
+     &            EnvLenA)
+        if (EnvLenA .gt. 0) then
+          open(newunit=PVUnit, file="PvBestTraceF.txt",
+     &        status="unknown", position="append")
+          do PVj=0,PVModel%nParams-1
+            write(PVUnit,'(A,I0,A,ES27.19)') "p",PVj," ",
+     &          DBLE(PVModel%Param(PVj))
+          enddo
+          write(PVUnit,'(A)') "---"
+          close(PVUnit)
+        endif
+      end block
 
       return
       end subroutine

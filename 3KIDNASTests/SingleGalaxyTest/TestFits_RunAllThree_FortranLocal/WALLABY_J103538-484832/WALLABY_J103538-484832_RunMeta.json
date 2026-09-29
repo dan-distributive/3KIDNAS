@@ -3,6 +3,6 @@
   "nBootstraps": 1,
   "nProcessors": 1,
   "totalLogicalCores": 8,
-  "cloudDensity": 500,
-  "timestamp": "2026-08-17T15:32:58.145Z"
+  "cloudDensity": 20,
+  "timestamp": "2026-09-29T01:00:39.141Z"
 }

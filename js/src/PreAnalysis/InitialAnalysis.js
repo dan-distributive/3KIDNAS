@@ -74,7 +74,25 @@ function constructProjectionsFromCube(obsDC, maskDC) {
   const maskedObservedDC = copyDataCube(obsDC);
   maskCube(maskedObservedDC, maskDC);
 
+  if (process.env.PARITY_DEBUG === '1') {
+    let sum = 0, count = 0, mx = -Infinity;
+    for (const v of maskedObservedDC.flux) { sum += v; if (v !== 0) count++; if (v > mx) mx = v; }
+    console.error('PARITYDBG MaskedCubeFlux sum', sum, 'count_nonzero', count, 'maxval', mx);
+  }
+
   const observedMaps = constructMomentMaps(maskedObservedDC);
+
+  if (process.env.PARITY_DEBUG === '1') {
+    const nx = observedMaps.dh.nPixels[0], ny = observedMaps.dh.nPixels[1];
+    let sum = 0, count = 0, mx = -Infinity;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const v = observedMaps.flux[i * ny * 3 + j * 3 + 0];
+      sum += v; if (v !== 0) count++; if (v > mx) mx = v;
+    }
+    console.error('PARITYDBG Mom0Flux sum', sum, 'count_nonzero', count, 'maxval', mx);
+    console.error('PARITYDBG Mom0Shape', nx, ny);
+  }
+
   const observedVelocityProfile = makeVelProfile(maskedObservedDC);
 
   return { maskedObservedDC, observedMaps, observedVelocityProfile };
@@ -116,25 +134,62 @@ function getNoise(observedDC) {
 function computeSNDiagnostics(maskedObservedDC, maskDC, noise, beamAreaPixels) {
   const eps = f32(1.0e-20);
   const flux = maskedObservedDC.flux;
+  const dh = maskedObservedDC.dh;
+  const nx = dh.nPixels[0], ny = dh.nPixels[1], nc = dh.nChannels;
 
   // SPeak=maxval(...), SInt=sum(...) -- over the FULL cube array (masked-out
   // voxels are exactly 0.0, so this is equivalent to max/sum over the
   // nonzero-only set for SInt, but NOT for SPeak if every true value were
   // negative -- matching Fortran's maxval/sum over the whole array, not a
   // filtered one, preserves that edge case faithfully).
+  //
+  // TRAVERSAL ORDER MATTERS for sInt (see CalculateBeamKernel.js's matching
+  // comment on its kernel sum -- same root cause, much bigger array here).
+  // Fortran's DataCube%Flux(i,j,k) is column-major: i (x) varies fastest in
+  // memory, k (channel) slowest -- so TRUE memory-order traversal is k
+  // OUTERMOST, j middle, i INNERMOST (i fastest-varying, matching a real
+  // sequential walk of Fortran's memory). JS's flux is stored k-fastest/
+  // i-slowest (flatIndxCalc: k + j*nChannels + i*nChannels*nPixels[1] --
+  // see DataCube.js), the FULL REVERSE of Fortran's memory order.
+  // FIRST FIX ATTEMPT (2026-09-28, WRONG): used i-outer/j-middle/k-inner,
+  // which visits the flat index in strictly increasing order -- i.e.
+  // IDENTICAL to a flat sequential scan, not actually Fortran's order at
+  // all (confirmed empirically: gave the same wrong SInt as the original
+  // bug). Corrected here to k-outer/j-middle/i-inner, the genuine
+  // column-major walk. maxval has no such issue (max is associative/
+  // order-independent), only the sum does.
   let sPeak = flux[0], sInt = f32(0.0);
   for (let i = 0; i < flux.length; i++) {
-    const v = flux[i];
-    if (v > sPeak) sPeak = v;
-    sInt = f32(sInt + f32(v));
+    if (flux[i] > sPeak) sPeak = flux[i];
+  }
+  for (let k = 0; k < nc; k++) {
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        sInt = f32(sInt + f32(flux[k + j * nc + i * nc * ny]));
+      }
+    }
   }
 
   // nCells=int(sum(DataCubeMask%Flux)) -- the 0/1 mask cube's own sum, NOT
-  // a count of nonzero maskedObservedDC entries (see header comment).
+  // a count of nonzero maskedObservedDC entries (see header comment). Same
+  // column-major traversal-order fix as sInt above.
   let maskSum = f32(0.0);
   const mflux = maskDC.flux;
-  for (let i = 0; i < mflux.length; i++) maskSum = f32(maskSum + f32(mflux[i]));
+  const mdh = maskDC.dh;
+  const mnx = mdh.nPixels[0], mny = mdh.nPixels[1], mnc = mdh.nChannels;
+  for (let k = 0; k < mnc; k++) {
+    for (let j = 0; j < mny; j++) {
+      for (let i = 0; i < mnx; i++) {
+        maskSum = f32(maskSum + f32(mflux[k + j * mnc + i * mnc * mny]));
+      }
+    }
+  }
   const nCells = Math.trunc(maskSum);
+
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+    require('fs').appendFileSync('SIntTraceJS.txt',
+      `SInt ${sInt.toExponential(19)}\nnCells ${nCells}\nSPeak ${sPeak.toExponential(19)}\n`);
+  }
 
   // MakeMaskedFlatFluxArr: every |value|>eps entry of MaskedObservedDC%Flux,
   // in cube order (order doesn't matter -- sorted below).
@@ -187,10 +242,25 @@ function getObjectCenter(observedMaps, centerSource, observedDC) {
 // only, see module header for why the PFlags%ShapeSource branch is dead.
 // ---------------------------------------------------------------------------
 function getGalaxyShape(catalogueEllipseIncDeg, catalogueEllipsePADeg) {
-  const incl = f32(f32(catalogueEllipseIncDeg) * Pi / f32(180.0));
-  let pa = f32(f32(f32(catalogueEllipsePADeg) + f32(90.0)) * Pi / f32(180.0));
-  if (pa < f32(0.0)) pa = f32(pa + f32(2.0) * Pi);
-  if (pa > f32(2.0) * Pi) pa = f32(pa - f32(2.0) * Pi);
+  // BUG FIX (Dan, 2026): Fortran's Incl=CatItem%EllipseInc*Pi/180. and
+  // PA=(CatItem%EllipsePA+90.)*Pi/180. are each TWO separately-rounded
+  // steps (round after the multiply, round again after the divide). This
+  // port combined the multiply and divide inside one f32() call, computing
+  // at full double precision and rounding only once -- traced directly
+  // (hex dump, WALLABY_J100336-262923) to the ROOT of this session's
+  // entire idum-desync investigation: this is where Inc first diverges by
+  // 1 ULP, in the very first (unperturbed) call of the optimizer, before
+  // any iteration even begins -- every downstream difference in VRot/Sigma
+  // (via BuildIniProfile's inclination-dependent deprojection) and the
+  // eventual particle-count/idum divergence traces back to this one
+  // missing intermediate round.
+  const incl = f32(f32(f32(catalogueEllipseIncDeg) * Pi) / f32(180.0));
+  let pa = f32(f32(f32(f32(catalogueEllipsePADeg) + f32(90.0)) * Pi) / f32(180.0));
+  // BUG FIX (Dan, 2026): Fortran's PA=PA+2.*Pi / PA=PA-2.*Pi are each two
+  // separately-rounded steps -- see FullCircTrig.js's matching fix for the
+  // full rationale.
+  if (pa < f32(0.0)) pa = f32(pa + f32(f32(2.0) * Pi));
+  if (pa > f32(2.0) * Pi) pa = f32(pa - f32(f32(2.0) * Pi));
   return { incl, pa };
 }
 

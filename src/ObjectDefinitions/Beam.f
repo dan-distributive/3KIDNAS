@@ -55,7 +55,11 @@ c           If BeamFWHM <0 then the axis values should be set prior to the alloc
         B%BeamSigmaVector(2)=B%BeamPositionAngle
       endif
 c       Calculate the beam area in pixels
-      B%BeamAreaPixels=2.*Pi/2.355**2.
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+      B%BeamAreaPixels=2.*Pi/(2.355*2.355)
      &              *B%BeamMajorAxis*B%BeamMinorAxis
 c       Now get the beam area in the pixel length units
       B%BeamAreaUnits=B%BeamAreaPixels*abs(B%PixelSize(0))
@@ -72,6 +76,11 @@ c           Allocate a square kernel to account for all the cells
 
       B%ComplexKernelCreated=.False.
       B%PaddedSize=2*B%nRadialCells+1+nCubePixels
+c           TEMP TEST (Dan probe, 2026-09-27): force a power-of-2 padded
+c               size to test whether that eliminates FFTW's plan
+c               divergence between native and wasm builds. Revert after.
+      B%PaddedSize(1)=64
+      B%PaddedSize(2)=64
       B%ComplexSize(1)=B%PaddedSize(1)/2+1
       B%ComplexSize(2)=B%PaddedSize(2)
 c       Note the array is centered on 1 to make sure it works with the fftw library

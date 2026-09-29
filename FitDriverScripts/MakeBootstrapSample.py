@@ -79,8 +79,19 @@ def WriteBootstrapFile(GeneralDict,GalaxyDict,Step):
     #print(VCenter)
     
     GeoStr+=str(VCenter)+"\t"
-    GeoStr+=str((Model['POSITIONANGLE'][0]+90.)*np.pi/180.)+"\t"
-    GeoStr+=str(Model['INCLINATION'][0]*np.pi/180.)+"\n"
+    #   Use the RAW (pre-"kinematic PA" convention) angles directly, not
+    #   POSITIONANGLE/INCLINATION (degrees, already round-tripped through a
+    #   -90/wrap/[+90 here] display convention meant for reporting, not for
+    #   feeding back into resampling) -- see FitOutput.f's own comment on
+    #   why re-deriving from that lossy value doesn't round-trip bit-exact.
+    #   Falls back to the old (lossy) formula only if an older Fortran
+    #   binary's output didn't include the raw-geometry companion file.
+    if 'POSITIONANGLE_RAW_RAD' in Model:
+        GeoStr+=str(Model['POSITIONANGLE_RAW_RAD'][0])+"\t"
+        GeoStr+=str(Model['INCLINATION_RAW_RAD'][0])+"\n"
+    else:
+        GeoStr+=str((Model['POSITIONANGLE'][0]+90.)*np.pi/180.)+"\t"
+        GeoStr+=str(Model['INCLINATION'][0]*np.pi/180.)+"\n"
     
     ExplanatoryStr="#    The geometry used for bootstrap resampling (centre pt. in pixels plus PA & INC in radians) \n"
     f.write(ExplanatoryStr)

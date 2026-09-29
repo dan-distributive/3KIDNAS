@@ -84,15 +84,22 @@ def WriteWRKPMainFile(WorkingMainLines,GalaxyDict,FixtureOnlySwitch=0,ProbeSwitc
         mFile.write(x)
     mFile.close()
     
-def WriteWRKPOptionsFile(WorkingOptionsLines,GalaxyDict,BootstrapSwitch):
-    
+def WriteWRKPOptionsFile(WorkingOptionsLines,GalaxyDict,BootstrapSwitch,cdens=0):
+
     #   Set the name of the cube to be used for initial estimates beyond the inclination and position angle
     WorkingOptionsLines[9]=GalaxyDict['CubeNameU']+"\n"
     #   And give it the name of the mask file
     WorkingOptionsLines[10]=GalaxyDict['MaskNameU']+"\n"
+    #   Override the base cloud surface density (line 25, right after the
+    #   "The base cloud surface density" comment) if the config set cdens=
+    #   -- see SetFileLocations.cdens for why this previously did nothing.
+    if cdens:
+        WorkingOptionsLines[24]=str(cdens)+"\n"
     #   If we are doing a bootstrap, we want to set the number of rings to the original number
     if BootstrapSwitch ==1:
         nRTarg=len(GalaxyDict['BestFitModel']['R'])
+        if os.environ.get('WRKP_TRACE_DEBUG') == '1':
+            print("PARITYDBG nRTarg=", nRTarg, "BestFitModel[R]=", GalaxyDict['BestFitModel']['R'])
         #print("Bootstrap WRKP options", BootstrapSwitch)
         WorkingOptionsLines[30]=str(nRTarg)+"\n"
         #print(nRTarg,WorkingOptionsLines[28])
@@ -111,6 +118,8 @@ def WriteWRKPOptionsFile(WorkingOptionsLines,GalaxyDict,BootstrapSwitch):
     for x in WorkingOptionsLines:
         oFile.write(x)
     oFile.close()
+    if BootstrapSwitch == 1 and os.environ.get('WRKP_TRACE_DEBUG') == '1':
+        print("PARITYDBG WorkingOptionsLines[28:60]=", WorkingOptionsLines[28:60])
 
 
 
@@ -148,7 +157,7 @@ def RunWRKP(GeneralDict,GalaxyDict,BSSwitch):
     #       First copy general options lines to a local variable
     WorkingOptionsLines=copy.copy(GeneralDict['MainWRKPOptionsLines'])
     #       And next we'll write the specific fitting options for this run
-    WriteWRKPOptionsFile(WorkingOptionsLines,GalaxyDict,BSSwitch)
+    WriteWRKPOptionsFile(WorkingOptionsLines,GalaxyDict,BSSwitch,cdens=GeneralDict.get('cdens',0))
     #   As before, we'll clean by getting rid of the working set of options lines
     del WorkingOptionsLines
     

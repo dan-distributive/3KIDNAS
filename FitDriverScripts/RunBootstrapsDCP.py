@@ -62,12 +62,29 @@ def ComputeBsCent(GalaxyDict):
     dV = GalaxyDict['CubeHeader']['CDELT3'] / 1000.
     DeltaV = Model['VSYS'][0] - RefVel / 1000.
     VCenter = DeltaV / dV + RefChan
+    # Prefer the raw (pre-"kinematic PA" convention) angles straight off the
+    # converged model when available -- see MakeBootstrapSample.
+    # WriteBootstrapFile's matching comment. POSITIONANGLE/INCLINATION are
+    # display-only values already round-tripped through a degrees
+    # conversion (and, for PA, a -90/wrap offset); re-deriving resampling
+    # geometry from them independently of the OTHER leg's own (separately
+    # lossy) re-derivation of the SAME display value is exactly what let
+    # the two sides' bootstrap resample cubes drift apart at the ~1e-7
+    # abs-per-cell level. Falls back to the old formula for any Model dict
+    # that predates these fields.
+    hasRaw = 'POSITIONANGLE_RAW_RAD' in Model and 'INCLINATION_RAW_RAD' in Model
+    if hasRaw:
+        pa = float(Model['POSITIONANGLE_RAW_RAD'][0])
+        inc = float(Model['INCLINATION_RAW_RAD'][0])
+    else:
+        pa = float((Model['POSITIONANGLE'][0] + 90.) * np.pi / 180.)
+        inc = float(Model['INCLINATION'][0] * np.pi / 180.)
     return {
         'centX': float(Model['XCENTER'][0]),
         'centY': float(Model['YCENTER'][0]),
         'centV': float(VCenter),
-        'pa': float((Model['POSITIONANGLE'][0] + 90.) * np.pi / 180.),
-        'inc': float(Model['INCLINATION'][0] * np.pi / 180.),
+        'pa': pa,
+        'inc': inc,
     }
 
 

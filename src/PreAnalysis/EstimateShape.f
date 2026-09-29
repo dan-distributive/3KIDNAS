@@ -150,7 +150,12 @@ c           First estimate the center using the full map
       call EstimateCenter(Maps,Center)
 c       Now set the limiting radius a fraction of the map size
 c           First get RMax
-      RMax=sqrt(Maps%DH%nPixels(0)**2.+Maps%DH%nPixels(1)**2.)
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here (and at every other **2. site in this file).
+      RMax=sqrt(real(Maps%DH%nPixels(0))*real(Maps%DH%nPixels(0))
+     &          +real(Maps%DH%nPixels(1))*real(Maps%DH%nPixels(1)))
       RMax=RMax/2.
 c           Now set the radius limit
       RLim=0.5*Rmax
@@ -161,8 +166,8 @@ c       Now iterate the center calculation until convergence
       imax=10
       do i=1,imax
 c           First get the change in the center position
-        delR=sqrt((Center(0)-CentTemp(0))**2.
-     &          +(Center(1)-CentTemp(1))**2.)
+        delR=sqrt((Center(0)-CentTemp(0))*(Center(0)-CentTemp(0))
+     &          +(Center(1)-CentTemp(1))*(Center(1)-CentTemp(1)))
 c        print*, "Center CHeck",i, delR, Center, CentTemp,RLim
 c       Now set the center to the R-limited value
         Center=CentTemp
@@ -251,7 +256,8 @@ c
       nNonZero=0
       RMax=0.
 
-      RMax2=sqrt(Maps%DH%nPixels(0)**2.+Maps%DH%nPixels(1)**2.)
+      RMax2=sqrt(real(Maps%DH%nPixels(0))*real(Maps%DH%nPixels(0))
+     &          +real(Maps%DH%nPixels(1))*real(Maps%DH%nPixels(1)))
       RMax2=RMax2/2.
 c           Now set the radius limit
       RLim=0.5*Rmax2
@@ -273,7 +279,7 @@ c            Y=Maps%Pixels(1,j)-Center(1)
 c               Add a check in case the center is precisely at a pixel
 c                   value
                 if(R2 .ne. 0.
-     &              .and. R2 .le. RLim**2.) then
+     &              .and. R2 .le. RLim*RLim) then
 c               Calculate the xx,yy,and xy 2 moments
                     Moments(0)=Moments(0)+X*X*Maps%Flux(i,j,0)
                     Moments(1)=Moments(1)+Y*Y*Maps%Flux(i,j,0)
@@ -325,7 +331,8 @@ c
       nNonZero=0
       RMax=0.
 
-      RMax2=sqrt(Maps%DH%nPixels(0)**2.+Maps%DH%nPixels(1)**2.)
+      RMax2=sqrt(real(Maps%DH%nPixels(0))*real(Maps%DH%nPixels(0))
+     &          +real(Maps%DH%nPixels(1))*real(Maps%DH%nPixels(1)))
       RMax2=RMax2/2.
 c           Now set the radius limit
       RLim=0.5*Rmax2
@@ -346,7 +353,7 @@ c               Get the current position relative to the center
 c               Add a check in case the center is precisely at a pixel
 c                   value
                 if(R2 .ne. 0.
-     &              .and. R2 .le. RLim**2.) then
+     &              .and. R2 .le. RLim*RLim) then
 c               Calculate the xx,yy,and xy 2 moments
 c                   BUG FIX: native cos()/sin() -> fd_cos()/fd_sin(),
 c                   same class of Fortran/JS divergence as
@@ -365,7 +372,7 @@ c                print*, i,j,X,Y,R2,Moments,Center
         enddo
       enddo
 
-      A2=sqrt((aa2**2.+bb2**2)/FTot**2.)
+      A2=sqrt((aa2*aa2+bb2*bb2)/(FTot*FTot))
       call FullCircATan(aa2,bb2,Phi)
       Phi=0.5*Phi
 
@@ -399,7 +406,8 @@ c
       nNonZero=0
       RMax=0.
 
-      RMax2=sqrt(Maps%DH%nPixels(0)**2.+Maps%DH%nPixels(1)**2.)
+      RMax2=sqrt(real(Maps%DH%nPixels(0))*real(Maps%DH%nPixels(0))
+     &          +real(Maps%DH%nPixels(1))*real(Maps%DH%nPixels(1)))
       RMax2=RMax2/2.
 c           Now set the radius limit
       RLim=0.5*Rmax2
@@ -420,7 +428,7 @@ c               Get the current position relative to the center
 c               Add a check in case the center is precisely at a pixel
 c                   value
                 if(R2 .ne. 0.
-     &              .and. R2 .le. RLim**2.) then
+     &              .and. R2 .le. RLim*RLim) then
 c               Calculate the a and b moment 1 components
 c                   BUG FIX: native cos()/sin() -> fd_cos()/fd_sin(), see
 c                   CalculateFourerA2Moments's identical fix above.
@@ -435,7 +443,7 @@ c                print*, i,j,X,Y,R2,Moments,Center
         enddo
       enddo
 
-      A1=sqrt((aa1**2.+bb1**2)/FTot**2.)
+      A1=sqrt((aa1*aa1+bb1*bb1)/(FTot*FTot))
       call FullCircATan(aa1,bb1,Phi)
       Phi=Phi
 

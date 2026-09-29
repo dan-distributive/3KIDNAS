@@ -44,6 +44,22 @@ c      print*, PVModel%nParams
 
 
       PVModel%Param=TestParams
+c           One-off diagnostic (Dan, 2026): dumps the full trial parameter
+c           vector going into every call, to compare against JS's own dump
+c           call-by-call. This is what found and confirmed the fix for the
+c           getGalaxyShape/JyAS_To_MsolPC rounding bugs (see
+c           UPSTREAM_SYNC.md / JS_FORTRAN_PARITY_SESSION_2026-09-15.md) --
+c           bisecting this way (call 99 -> call 1 -> call 3 -> resolved)
+c           found the true origin instead of guessing at candidate
+c           functions. Left in (TraceSwitch-gated, zero cost when off) as
+c           permanent tooling for the next time this needs doing.
+      if (TraceSwitch.eq.1 .and. TraceCallCounter+1.le.400) then
+        print '(A,I3)', "FULLVEC call=",TraceCallCounter+1
+        do i=1,PVModel%nParams
+          print '(A,I3,1X,Z8.8,1X,ES17.9)', "FULLVECPARAM",i
+     &          ,transfer(TestParams(i),0),TestParams(i)
+        enddo
+      endif
 c       Set the tilted ring parameters from the vector and the fitting options
       call ParamToTiltedRing(PVModel,ModelTiltedRing
      &          ,TR_FittingOptions)

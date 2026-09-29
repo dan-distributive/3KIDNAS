@@ -66,7 +66,12 @@ c       Now get the tilted ring model
       call ReadTiltedRingModel(ModelTiltedRing,TiltedRingInputFile)
 c       Include a unit conversion for surface densities
 
-      BeamArea=2.*Pi*ModelBeam%BeamSigmaVector(0)**2.
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+      BeamArea=2.*Pi*ModelBeam%BeamSigmaVector(0)
+     &              *ModelBeam%BeamSigmaVector(0)
       BeamPixels=BeamArea/(ModelDC%DH%PixelSize(0)
      &              *ModelDC%DH%PixelSize(1))
       ModelDC%DH%Uncertainty=ModelDC%DH%Uncertainty/1000!.*BeamPixels

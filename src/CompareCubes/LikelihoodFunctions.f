@@ -39,9 +39,18 @@ c           This routine calculates the tradition chi^2 statistic
 
 c      print*, "Calculating chi^2",nElements,Uncertainties(0)
 
+c           BUG FIX (Dan, 2026): X**2. (real exponent literal) is not
+c               guaranteed bit-identical to X*X in gfortran -- see
+c               PhysCoordTransform.f's matching fix/comment for the
+c               reproduction. This is the main per-pixel chi^2 objective
+c               function, called on every single optimizer evaluation --
+c               the hottest path in the whole fit. JS's port already used
+c               direct multiplication. Verbatim upstream code -- reported
+c               upstream, also fixed here.
       chi2=0.
       do i=0,nElements-1
-        chi2=chi2+(Model(i)-Obs(i))**2./Uncertainties(i)**2.
+        chi2=chi2+(Model(i)-Obs(i))*(Model(i)-Obs(i))
+     &          /(Uncertainties(i)*Uncertainties(i))
 c        print*, "chi2 sum",i, chi2,Model(i),Obs(i),Uncertainties(i)
       enddo
 
@@ -92,8 +101,12 @@ c      print*, "Calculating chi^2"
         if(M .le. Small) M=Small
         if(O .le. Small) O=Small
 
-        chi2=chi2+(log10(M)-log10(O))**2.
-     &                  /Uncertainties(i)**2.
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+        chi2=chi2+(log10(M)-log10(O))*(log10(M)-log10(O))
+     &                  /(Uncertainties(i)*Uncertainties(i))
 c        print*, "chi2Elements sum", i, chi2, M, O
 c     &              , log10(M), log10(O), Uncertainties(i)
       enddo

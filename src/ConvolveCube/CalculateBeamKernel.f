@@ -43,20 +43,86 @@ c               Now rotate these to the major axis
             xp=x*cpa-y*spa
             yp=x*spa+y*cpa
 c               Get the normalized squared radius
-            R2=(xp/B%BeamSigmaVector(0))**2.
-     &              +(yp/B%BeamSigmaVector(1))**2.
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
+            R2=(xp/B%BeamSigmaVector(0))*(xp/B%BeamSigmaVector(0))
+     &              +(yp/B%BeamSigmaVector(1))*(yp/B%BeamSigmaVector(1))
 c               Calculate the kernel value for this cell
             B%Kernel(i,j)=1./sqrt(2.*Pi*B%BeamSigmaVector(0)
      &                  *B%BeamSigmaVector(1))
      &                  *fd_exp(-R2/2)
         enddo
       enddo
+c           Diagnostic (Dan probe, 2026-09-28): raw pre-normalization
+c               kernel center value + sum, to isolate whether the
+c               Gaussian evaluation itself or the sum()/renormalization
+c               step is where Fortran and JS first diverge.
+      block
+        character(64) EnvVal3
+        integer EnvLen3
+        integer KTUnit2
+        call get_environment_variable("TRACE_DUMP_PRECONV",EnvVal3,
+     &            EnvLen3)
+        if (EnvLen3 .gt. 0) then
+          open(newunit=KTUnit2, file="KernelTraceF.txt",
+     &        status="unknown", position="append")
+          write(KTUnit2,'(A,ES27.19)') "rawcenter ",
+     &        DBLE(B%Kernel(0,0))
+          write(KTUnit2,'(A,ES27.19)') "rawsum ",
+     &        DBLE(sum(B%Kernel))
+          close(KTUnit2)
+        endif
+      end block
 c           Renormalize so that the sum of the kernel is 1.
 c      cellArea=PixelSizes(0)*PixelSizes(1)
 c      B%Kernel=B%Kernel/(sum(B%Kernel)*cellArea)
 c      print*, sum(B%kernel)
       B%Kernel=B%Kernel/(sum(B%Kernel))
 c      print*, sum(B%kernel)
+
+c           One-off diagnostic (Dan probe, 2026-09-28): dump the
+c               real-space kernel's checksum + corner/center sample
+c               values to a dedicated file (not stdout -- bootstrap
+c               sub-process stdout redirection makes prints unreliable
+c               to capture) to check whether the REAL-SPACE Gaussian
+c               kernel (before any FFT) already differs between
+c               platforms -- the forward r2c FFT itself is now proven
+c               bit-exact in isolation, so if this kernel differs,
+c               that's upstream of the FFT, in the fd_cos/fd_sin/fd_exp
+c               construction.
+      block
+        character(64) EnvVal2
+        integer EnvLen2
+        integer KTUnit
+        call get_environment_variable("TRACE_DUMP_PRECONV",EnvVal2,
+     &            EnvLen2)
+        if (EnvLen2 .gt. 0) then
+          open(newunit=KTUnit, file="KernelTraceF.txt",
+     &        status="unknown", position="append")
+          write(KTUnit,'(A,ES27.19)') "pa ",
+     &        DBLE(B%BeamSigmaVector(2))
+          write(KTUnit,'(A,ES27.19)') "sigma0 ",
+     &        DBLE(B%BeamSigmaVector(0))
+          write(KTUnit,'(A,ES27.19)') "sigma1 ",
+     &        DBLE(B%BeamSigmaVector(1))
+          write(KTUnit,'(A,ES27.19)') "cpa ", DBLE(cpa)
+          write(KTUnit,'(A,ES27.19)') "spa ", DBLE(spa)
+          write(KTUnit,'(A,ES27.19)') "sum ", DBLE(sum(B%Kernel))
+          write(KTUnit,'(A,ES27.19)') "center ",
+     &        DBLE(B%Kernel(0,0))
+          write(KTUnit,'(A,ES27.19)') "corner ",
+     &        DBLE(B%Kernel(-B%nRadialCells,-B%nRadialCells))
+          write(KTUnit,'(A,ES27.19)') "r1c1 ",
+     &        DBLE(B%Kernel(1,1))
+          write(KTUnit,'(A,ES27.19)') "r2c3 ",
+     &        DBLE(B%Kernel(2,3))
+          write(KTUnit,'(A,I0)') "nRadialCells ",
+     &        B%nRadialCells
+          close(KTUnit)
+        endif
+      end block
 
       return
       end subroutine

@@ -106,8 +106,8 @@ echo "== Compiling driver and linking =="
 emcc -O2 fftw-driver.c "$LIBFFTW3A" "$WORK"/fdlibm-obj/*.o \
   -I"$FFTW_SRC/api" \
   -s MODULARIZE=1 -s EXPORT_NAME=FftwModule \
-  -s EXPORTED_FUNCTIONS='["_fftw_dft_1d_wasm","_fftw_r2c_1d_wasm","_fftw_r2c_2d_wasm","_fftw_c2r_2d_wasm","_malloc","_free"]' \
-  -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPF64","getValue","setValue"]' \
+  -s EXPORTED_FUNCTIONS='["_fftw_dft_1d_wasm","_fftw_r2c_1d_wasm","_fftw_r2c_2d_wasm","_fftw_c2r_2d_wasm","_fftw_r2c_2d_planstring_wasm","_fftw_import_wisdom_wasm","_malloc","_free"]' \
+  -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPF64","getValue","setValue","UTF8ToString","stringToUTF8","lengthBytesUTF8"]' \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s SINGLE_FILE=1 \
   -o fftw-module.js

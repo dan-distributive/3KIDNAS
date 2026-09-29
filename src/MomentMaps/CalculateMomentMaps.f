@@ -54,8 +54,12 @@ c               from every moment (flagged by Dan, 2026).
 c               Adjust the Moment 0 map flux by the channel width
             Maps%Flux(i,j,0)=Maps%Flux(i,j,0)*abs(DC%DH%ChannelSize)
 c           Switch the second moment to a velocity dispersion
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran, even for a literal exponent -- see
+c               PhysCoordTransform.f's matching fix/comment. Verbatim
+c               upstream code -- reported upstream, also fixed here.
             Maps%Flux(i,j,2)=Maps%Flux(i,j,2)-
-     &              Maps%Flux(i,j,1)**2.
+     &              Maps%Flux(i,j,1)*Maps%Flux(i,j,1)
             Maps%Flux(i,j,2)=sqrt(Maps%Flux(i,j,2))
 c            print*, i,j,Maps%Flux(i,j,0:2)
         enddo
@@ -171,10 +175,15 @@ c               If the total flux is below some limit, set it to zero
 c               Normalize the moment 1 map by the total flux
             Maps%Flux(i,j,1)=Maps%Flux(i,j,1)/Maps%Flux(i,j,0)
 c           Now loop through the channels again to get the moment 2 value
+c           BUG FIX (Dan, 2026): X**2. not guaranteed bit-identical to
+c               X*X in gfortran -- see PhysCoordTransform.f's matching
+c               fix/comment. Verbatim upstream code -- reported upstream,
+c               also fixed here.
             do k=0, DC%DH%nChannels-1
                 Maps%Flux(i,j,2)=Maps%Flux(i,j,2)
      &                  +DC%Flux(i,j,k)
-     &                  *(DC%Channels(k)-Maps%Flux(i,j,1))**2.
+     &                  *((DC%Channels(k)-Maps%Flux(i,j,1))
+     &                  *(DC%Channels(k)-Maps%Flux(i,j,1)))
             enddo
 c           And normalize by the flux again
 c            print*, "Radio check",i,j,Maps%Flux(i,j,0:2)

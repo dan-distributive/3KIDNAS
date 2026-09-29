@@ -1,4 +1,4 @@
-module.declare(["./TiltedRingModelGeneration.js","./FillDataCubeByTiltedRing.js","./CubeKernelConvolution.js","./CubeComparison.js","./DataCube.js"], function (require, exports, module) {
+module.declare(["./TiltedRingModelGeneration.js","./FillDataCubeByTiltedRing.js","./CubeKernelConvolution.js","./CubeComparison.js","./DataCube.js","./fdlibm.js"], function (require, exports, module) {
 'use strict';
 
 // =============================================================================
@@ -39,6 +39,7 @@ const { fillDataCubeWithTiltedRing }    = require('./FillDataCubeByTiltedRing.js
 const { cubeBeamConvolution }           = require('./CubeKernelConvolution.js');
 const { cubeCompare }                   = require('./CubeComparison.js');
 const { flatIndxCalc }                  = require('./DataCube.js');
+const { fdSin }                         = require('./fdlibm.js');
 
 // Investigative-only, paired against Fortran's TraceSwitch (FullModelComparison.f):
 // print call counter, idum (RNG state), chi2, PA (testParams[3]) per call, gated
@@ -95,34 +96,47 @@ function badModelCheck(modelTiltedRing, observedDC) {
   for (let i = 0; i < modelTiltedRing.nRings; i++) {
     const r = modelTiltedRing.r[i];
     if (r.inclination < f32(0.0) || r.inclination > f32(Pi / 2.0)) {
+      badModelCheck._lastReason = `INC ${i} ${r.inclination}`;
       if (traceOn) console.error('TRACE BADMODEL reason INC', i, r.inclination);
       return true;
     }
     if (r.vRot < f32(0.0)) {
+      badModelCheck._lastReason = `VROT ${i} ${r.vRot}`;
       if (traceOn) console.error('TRACE BADMODEL reason VROT', i, r.vRot);
       return true;
     }
 
     // velocity extent must stay inside the observed channel range
-    const vSinI = f32(f32(r.vRot) * f32(Math.sin(r.inclination)));
+    // BUG FIX (Dan, 2026-09-16): native Math.sin() uses a different internal
+    // algorithm than gfortran's runtime sin() -- can disagree by more than
+    // 1 ULP for some inputs. Every other trig call in the hot model-
+    // generation path already goes through fdSin/fdCos; this one boundary
+    // check (badModelCheck, evaluated on EVERY optimizer call) was missed.
+    // A sign/threshold flip here changes whether a vertex is accepted or
+    // rejected as physical, which can steer the whole simplex differently.
+    const vSinI = f32(f32(r.vRot) * f32(fdSin(r.inclination)));
     const vLow  = f32(f32(r.vSys) - vSinI);
     const vHigh = f32(f32(r.vSys) + vSinI);
     if (vLow  < chMin) {
+      badModelCheck._lastReason = `VLOW ${i} ${vLow} ${chMin}`;
       if (traceOn) console.error('TRACE BADMODEL reason VLOW', i, vLow, chMin);
       return true;
     }
     if (vHigh > chMax) {
+      badModelCheck._lastReason = `VHIGH ${i} ${vHigh} ${chMax}`;
       if (traceOn) console.error('TRACE BADMODEL reason VHIGH', i, vHigh, chMax);
       return true;
     }
 
     if (r.sigma < f32(0.0)) {
+      badModelCheck._lastReason = `SIGMA ring=${i} of nRings=${modelTiltedRing.nRings} sigma=${r.sigma} sigUse=${r.sigUse}`;
       if (traceOn) console.error('TRACE BADMODEL reason SIGMA', i, r.sigma);
       return true;
     }
     for (let j = 0; j <= 1; j++) {
       if (r.centPos[j] < f32(0.0) ||
           r.centPos[j] > f32(dh.nPixels[j] - 1)) {
+        badModelCheck._lastReason = `CENTPOS ${i} ${j} ${r.centPos[j]}`;
         if (traceOn) console.error('TRACE BADMODEL reason CENTPOS', i, j, r.centPos[j]);
         return true;
       }
@@ -168,11 +182,60 @@ function getEvalStats() { return { evalCount }; }
 
 function tiltedRingModelComparison(testParams, state) {
   evalCount += 1;
+  // TEMPORARY (Dan, 2026-09-16): cross-module tag so SingleRingGeneration.js's
+  // ring_CalcNumParticles (no direct access to `state`) can file-log
+  // particle counts for the one realization under investigation, keyed by
+  // this same evalCount, for a direct Fortran/JS nParticles comparison.
+  global.__TRACE_REALIZATION_INDEX = state.realizationIndex;
+  global.__TRACE_EVAL_COUNT = evalCount;
   const {
     pvModel, modelTiltedRing, modelDC, observedDC, observedBeam,
     trFittingOptions, rng, linearLogSDSwitch = 0, paramToTiltedRing,
     likelihoodSwitch = 1,          // ← see below
+    realizationIndex,              // one-off diagnostic tag, see FULLVEC dump below
   } = state;
+
+  // TEMPORARY (Dan, 2026-09-16): per-call idum injection, one value per
+  // line in JS_IDUM_OVERRIDE_SEQUENCE_PATH, applied starting at evalCount
+  // JS_IDUM_OVERRIDE_START (line 0 -> that call's INPUT idum, i.e. the
+  // value the PREVIOUS call's TRACE line printed on the Fortran side,
+  // since idum is one continuously-advancing stream and TRACE prints the
+  // POST-call state). Tests whether funk() itself, given byte-identical
+  // (params, idum) pairs, reproduces Fortran's chi2 -- isolating "RNG
+  // stream desynced upstream" from "funk/amoeba itself disagrees" for the
+  // seed=1000/realization=4 bisection. Revert once concluded.
+  // Scoped to JS_OVERRIDE_REALIZATION_INDEX (Dan, 2026-09-16 fix): each
+  // parallel realization runs FullModelComparison.js's module state in its
+  // own worker thread with its own evalCount, so without this scope check
+  // EVERY realization's worker would apply the override once ITS OWN
+  // evalCount reached the target range, not just the one being
+  // investigated.
+  const idumOverrideRealizationIndex = process.env.JS_OVERRIDE_REALIZATION_INDEX != null
+    ? parseInt(process.env.JS_OVERRIDE_REALIZATION_INDEX, 10) : null;
+  const idumOverrideScopeOk = (idumOverrideRealizationIndex == null
+    || realizationIndex === idumOverrideRealizationIndex)
+    // pass-2-only: pass 1 shares realizationIndex and can pass through the
+    // same evalCount range naturally -- see GalaxyFit.js's matching comment.
+    && state._simplexOverrideActive === true;
+  if (process.env.JS_IDUM_OVERRIDE_SEQUENCE_PATH && idumOverrideScopeOk) {
+    if (!tiltedRingModelComparison._idumSeq) {
+      tiltedRingModelComparison._idumSeq = require('fs')
+        .readFileSync(process.env.JS_IDUM_OVERRIDE_SEQUENCE_PATH, 'utf8')
+        .trim().split('\n').map(Number);
+    }
+    // Anchor dynamically to the FIRST call seen once the flag is active,
+    // rather than a hardcoded evalCount guess (JS_IDUM_OVERRIDE_START) --
+    // pass 1's natural (unforced) length varies run to run as this file's
+    // own instrumentation changes, so a fixed guess silently misaligns.
+    if (tiltedRingModelComparison._idumSeqStartCall == null) {
+      tiltedRingModelComparison._idumSeqStartCall = evalCount;
+    }
+    const seq = tiltedRingModelComparison._idumSeq;
+    const idx = evalCount - tiltedRingModelComparison._idumSeqStartCall;
+    if (idx >= 0 && idx < seq.length) {
+      state.rng.state.ran2State.idum = seq[idx];
+    }
+  }
 
   // Fortran: ModelDC%Flux=0.  — reset before every synthesis, since
   // fillDataCubeWithTiltedRing ACCUMULATES (dc.flux[idx] += ...).
@@ -181,6 +244,37 @@ function tiltedRingModelComparison(testParams, state) {
   // Step 1: load candidate params
   for (let i = 0; i < pvModel.nParams; i++) {
     pvModel.param[i] = f32(testParams[i]);
+  }
+
+  // One-off diagnostic (Dan, 2026): dumps the full trial parameter vector
+  // going into every call -- paired against Fortran's matching FULLVEC/
+  // FULLVECPARAM dump (FullModelComparison.f). This bisection (call 99 ->
+  // call 1 -> call 3 -> resolved) is what found and confirmed the fix for
+  // the getGalaxyShape/JyAS_To_MsolPC rounding bugs -- see
+  // JS_FORTRAN_PARITY_SESSION_2026-09-15.md. Left in (TRACE_DEBUG-gated,
+  // zero cost when off) as permanent tooling for next time.
+  if (TRACE_DEBUG && evalCount <= 250) {
+    const hexBuf = new ArrayBuffer(4);
+    const hexF32v = new Float32Array(hexBuf);
+    const hexU32v = new Uint32Array(hexBuf);
+    const lines = [`FULLVEC call= ${evalCount}`];
+    for (let i = 0; i < pvModel.nParams; i++) {
+      hexF32v[0] = pvModel.param[i];
+      lines.push(`FULLVECPARAM ${i + 1} ${hexU32v[0].toString(16).toUpperCase().padStart(8, '0')} ${pvModel.param[i]}`);
+    }
+    // See GalaxyFit.js's matching FINALVEC comment: console.error from
+    // inside a worker_threads Worker races worker.terminate(), silently
+    // dropping whatever hasn't flushed through the stderr pipe relay yet.
+    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
+      // Suffixed with realizationIndex (when the caller set state.
+      // realizationIndex -- runInitialFit's anchor-fit state doesn't) so
+      // a worker-pool batch of realizations running in parallel doesn't
+      // interleave their FULLVEC lines into one unparseable file.
+      const suffix = realizationIndex != null ? `.r${realizationIndex}` : '';
+      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE + suffix, lines.join('\n') + '\n');
+    } else {
+      console.error(lines.join('\n'));
+    }
   }
 
   // Step 2: deserialize PV → TiltedRing
@@ -222,6 +316,11 @@ function tiltedRingModelComparison(testParams, state) {
     if (TRACE_DEBUG) {
       console.error('TRACE', traceCallCounter, rng.state.ran2State.idum,
         f32(1.0e20), f32(testParams[3]), 'BADMODEL');
+      if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
+        const suffix = realizationIndex != null ? `.r${realizationIndex}` : '';
+        require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE + suffix,
+          `EVALCHI2 call=${evalCount} BADMODEL reason=${badModelCheck._lastReason}\n`);
+      }
     }
     return f32(1.0e20);
   }
@@ -262,10 +361,30 @@ function tiltedRingModelComparison(testParams, state) {
       px(15, 23, 89), px(15, 23, 90), px(15, 24, 89), px(15, 24, 90));
   }
 
+  // One-off diagnostic (Dan probe, 2026-09-27): stash a FULL snapshot of
+  // the pre-convolution flux array on `global` so the outer caller
+  // (bootstrap-realization-launcher.js, which has cfitsio available and
+  // already writes the real post-convolution model cube to FITS) can
+  // export this snapshot to its own FITS file the same way, for a direct
+  // pixel-by-pixel diff against Fortran's matching PreConvModel.fits
+  // (FitOutput.f). Matches Fortran's TRACE_DUMP_PRECONV gate.
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+    global.__PRECONV_FLUX_SNAPSHOT = Float32Array.from(modelDC.flux);
+  }
+
   // Step 7: beam convolution
   cubeBeamConvolution(modelDC, observedBeam);
   if (TRACE_DEBUG && traceCallCounter === 0) {
     console.error('STAGE POSTCONV', sumArrayDouble(modelDC.flux));
+  }
+
+  // One-off diagnostic (Dan probe, 2026-09-27): stash a snapshot
+  // immediately after convolution, before the caller's beamAreaPixels
+  // rescale, to isolate whether cubeBeamConvolution itself (the FFTW
+  // step) introduces the divergence vs. the scalar rescale after it.
+  // Matches Fortran's PostConvPreScaleModel.fits dump.
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+    global.__POSTCONV_PRESCALE_FLUX_SNAPSHOT = Float32Array.from(modelDC.flux);
   }
 
   // Step 8: compare cubes
@@ -287,6 +406,15 @@ function tiltedRingModelComparison(testParams, state) {
   if (TRACE_DEBUG) {
     console.error('TRACE', traceCallCounter, rng.state.ran2State.idum,
       chi2, f32(testParams[3]));
+    // TEMPORARY (Dan, 2026-09-16): mirror the TRACE line into the same
+    // per-realization file as FULLVEC (console.error alone races with
+    // worker.terminate() and is silently lost). Revert once the
+    // seed=1000/realization=4 bisection concludes.
+    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
+      const suffix = realizationIndex != null ? `.r${realizationIndex}` : '';
+      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE + suffix,
+        `EVALCHI2 call=${evalCount} chi2=${chi2} idum=${rng.state.ran2State.idum}\n`);
+    }
   }
 
   return chi2;

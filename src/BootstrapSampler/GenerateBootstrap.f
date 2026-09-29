@@ -155,6 +155,13 @@ c           This routine selects a subsection of data from the
 c               main cube that may be correlated
       subroutine SelectDataBlock(BaseCube,DataBlock
      &              ,bSizePix,bSizeChan,CubeMask)
+c           BUG FIX (Dan, 2026): RANDOM_NUMBER -> ran2(idum), same reasoning
+c           as Build_DataBlock_PhysSelect's fix -- see that one. This
+c           subroutine's own call chain is dead code (BlockResampleCube is
+c           never called, see GenBootstrapSample's own commented-out call),
+c           fixed anyway for consistency in case it's ever revived.
+      use BootstrapGlobals
+      use BasicRanNumGen
       implicit none
 
       integer, INTENT(IN) :: bSizePix,bSizeChan
@@ -175,7 +182,7 @@ c           Set up the limits for the random selections to make sure everything 
 c       Nose select the low limits randomly and set the upper limits accordingly
 100   continue
       do i=1,3
-        call RANDOM_NUMBER(RandVal)
+        RandVal=ran2(idum)
         LowCut(i)=int(RanSize(i)*RandVal)
         if(i .le. 2) then
             HighCut(i)=LowCut(i)+bSizePix-1
@@ -397,6 +404,12 @@ c               main cube that may be correlated
      &              ,bSizePix,bSizeChan, PtIndx
      &              ,CoordArr
      &              ,DeltaRange)
+c           BUG FIX (Dan, 2026): RANDOM_NUMBER -> ran2(idum), same reasoning
+c           as Build_DataBlock_PhysSelect's fix -- see that one. This
+c           subroutine's own call chain is dead code too (BlockResampleCube_
+c           Phys is never called), fixed anyway for consistency.
+      use BootstrapGlobals
+      use BasicRanNumGen
       implicit none
 
       integer, INTENT(IN) :: bSizePix,bSizeChan
@@ -425,7 +438,7 @@ c           Set up the limits for the random selections to make sure everything 
 c       Nose select the low limits randomly and set the upper limits accordingly
 100   continue
       do i=1,3
-        call RANDOM_NUMBER(RandVal)
+        RandVal=ran2(idum)
         LowCut(i)=int(RanSize(i)*RandVal)
         if(i .le. 2) then
             HighCut(i)=LowCut(i)+bSizePix-1
@@ -637,6 +650,20 @@ c               main cube that may be correlated
      &              ,CoordArr
      &              ,DeltaRange
      &              ,XC,YC,VSys,PA,Inc)
+c           BUG FIX (Dan, 2026): this was RANDOM_NUMBER (Fortran's
+c           unseeded system RNG) with no JS-side equivalent seed at all
+c           (JS used plain Math.random()) -- neither side reproducible,
+c           and the two sides couldn't agree even in principle regardless
+c           of any BootstrapSeed passed in. Switched to the same seeded
+c           ran2(idum) already used by FlippingBootstrap.f's flip
+c           resampling (same shared BootstrapGlobals idum, already
+c           threaded per-realization via BootstrapSeed -- see
+c           MakeBootstrapSample.py's Idum=-(abs(BootstrapSeed)+Step+1)) so
+c           this resampling perturbation is deterministic, differs
+c           realization-to-realization, and (once the JS port's rng is
+c           seeded identically) matches Fortran bit-for-bit.
+      use BootstrapGlobals
+      use BasicRanNumGen
       implicit none
 
       integer, INTENT(IN) :: bSizePix,bSizeChan
@@ -660,7 +687,7 @@ c
 c           First randomly select the delta values
 100   continue
       do i=1,3
-        call RANDOM_NUMBER(RandVal)
+        RandVal=ran2(idum)
         Delta(i)=(2.*RandVal-1) *DeltaRange(i)
       enddo
 c      print*, "Shift in physical coordinates", Delta,PtIndx
@@ -737,13 +764,20 @@ c           Those localized-but-real flux differences feed directly into
 c           every bootstrap realization's resampled dataset, so even
 c           without desyncing idum they still perturb the fit's starting
 c           data enough for Nelder-Mead to converge to a different answer.
+c           BUG FIX (Dan, 2026): round-to-nearest at 12-bit mantissa
+c           granularity, NOT floor -- same fix as RoundForParticleStability/
+c           RoundForBinStability. `iand(ix,MASK)` alone always truncates
+c           DOWN, disagreeing with the JS port whenever this platform's own
+c           value lands exactly on a masking-grid boundary while the JS
+c           port's tiny independent float32 noise puts it just below.
       real function RoundForInterpStability(x)
       implicit none
       real, INTENT(IN) :: x
       integer(4) ix
       integer(4), parameter :: MASK = int(z'FFFFF000',4)
+      integer(4), parameter :: HALFSTEP = int(z'800',4)
       ix = transfer(x, 0)
-      ix = iand(ix, MASK)
+      ix = iand(ix+HALFSTEP, MASK)
       RoundForInterpStability = transfer(ix, 0.0)
       return
       end function

@@ -80,14 +80,57 @@ function calculate2DBeamKernel(b, pixelSizes) {
 
   // Renormalize so sum = 1
   // Fortran: B%Kernel = B%Kernel / sum(B%Kernel)
-  // sum accumulated in f32 matching Fortran array reduction
+  // sum accumulated in f32 matching Fortran array reduction.
+  //
+  // TRAVERSAL ORDER MATTERS: floating-point addition is not associative, and
+  // Fortran's B%Kernel(-n:n,-n:n) is column-major, so its first index (i)
+  // varies fastest in memory. Fortran's sum() intrinsic walks the array in
+  // that memory order, i.e. effectively j-outer/i-inner -- NOT the i-outer/
+  // j-inner order the fill loop above uses lexically. JS's kernel is stored
+  // row-major (kernelIdx = (i+n)*kSize+(j+n), j fastest -- see Beam.js), so
+  // matching Fortran's actual summation order requires an explicit j-outer/
+  // i-inner loop via kernelGet, not a flat sequential scan of b.kernel.
+  // Found via a real, confirmed mismatch: a flat sequential sum here gave
+  // sum=5.2892465591430664063e+0 vs Fortran's 5.2892456054687500000E+00 for
+  // the same, bit-identical per-element Gaussian values.
   const kSize = 2 * n + 1;
   let kernelSum = f32(0.0);
-  for (let idx = 0; idx < kSize * kSize; idx++) {
-    kernelSum = f32(kernelSum + f32(b.kernel[idx]));
+  for (let j = -n; j <= n; j++) {
+    for (let i = -n; i <= n; i++) {
+      kernelSum = f32(kernelSum + f32(kernelGet(b, i, j)));
+    }
+  }
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+    require('fs').appendFileSync('KernelTraceJS.txt',
+      `rawcenter ${kernelGet(b, 0, 0).toExponential(19)}\nrawsum ${kernelSum.toExponential(19)}\n`);
   }
   for (let idx = 0; idx < kSize * kSize; idx++) {
     b.kernel[idx] = f32(b.kernel[idx] / kernelSum);
+  }
+
+  // One-off diagnostic (Dan probe, 2026-09-27): dump the real-space
+  // kernel's checksum + corner/center sample values, matching Fortran's
+  // KERNELTRACE print -- checks whether the real-space Gaussian kernel
+  // (before any FFT) already differs between platforms, upstream of the
+  // now-proven-bit-exact forward FFT.
+  if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
+    let sum = 0;
+    for (let idx = 0; idx < kSize * kSize; idx++) sum += b.kernel[idx];
+    const lines = [
+      `pa ${pa.toExponential(19)}`,
+      `sigma0 ${sigma0.toExponential(19)}`,
+      `sigma1 ${sigma1.toExponential(19)}`,
+      `cpa ${cpa.toExponential(19)}`,
+      `spa ${spa.toExponential(19)}`,
+      `sum ${sum.toExponential(19)}`,
+      `center ${kernelGet(b, 0, 0).toExponential(19)}`,
+      `corner ${kernelGet(b, -n, -n).toExponential(19)}`,
+      `r1c1 ${kernelGet(b, 1, 1).toExponential(19)}`,
+      `r2c3 ${kernelGet(b, 2, 3).toExponential(19)}`,
+      `nRadialCells ${n}`,
+      '',
+    ].join('\n');
+    require('fs').appendFileSync('KernelTraceJS.txt', lines);
   }
 }
 
