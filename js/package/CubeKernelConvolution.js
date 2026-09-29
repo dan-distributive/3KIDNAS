@@ -157,8 +157,13 @@ function convolve2DChannel(sliceIn, nPixels, b, sliceOut) {
   if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
     global.__fftForwardCallCount = (global.__fftForwardCallCount || 0) + 1;
   }
+  // See TwoDConvolution.f's identical comment: calls 1-~19 are warm-up
+  // passes on an empty/all-zero array (every bin, including DC, prints
+  // exactly 0 for those); 20-22 is the first real per-ring model
+  // convolution for a typical single-galaxy fit. Adjust for a different
+  // test case if the warm-up count differs.
   if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV
-      && global.__fftForwardCallCount === 27) {
+      && global.__fftForwardCallCount >= 20 && global.__fftForwardCallCount <= 22) {
     const NCt = Math.floor(ps1 / 2) + 1;
     const bin = (i, j) => {
       const idx = (i - 1) * NCt + (j - 1);
@@ -166,11 +171,12 @@ function convolve2DChannel(sliceIn, nPixels, b, sliceOut) {
     };
     let sumRe = 0, sumIm = 0;
     for (let idx = 0; idx < ps0 * NCt; idx++) { sumRe += complex[2 * idx]; sumIm += complex[2 * idx + 1]; }
-    console.error('FFTFORWARDTRACE bin(1,1)', ...bin(1, 1).map((v) => v.toExponential(19)));
-    console.error('FFTFORWARDTRACE bin(2,1)', ...bin(2, 1).map((v) => v.toExponential(19)));
-    console.error('FFTFORWARDTRACE bin(1,2)', ...bin(1, 2).map((v) => v.toExponential(19)));
-    console.error('FFTFORWARDTRACE bin(5,7)', ...bin(5, 7).map((v) => v.toExponential(19)));
-    console.error('FFTFORWARDTRACE sum', sumRe.toExponential(19), sumIm.toExponential(19));
+    const cc = global.__fftForwardCallCount;
+    console.error(`FFTFORWARDTRACE call=${cc} bin(1,1)`, ...bin(1, 1).map((v) => v.toExponential(19)));
+    console.error(`FFTFORWARDTRACE call=${cc} bin(2,1)`, ...bin(2, 1).map((v) => v.toExponential(19)));
+    console.error(`FFTFORWARDTRACE call=${cc} bin(1,2)`, ...bin(1, 2).map((v) => v.toExponential(19)));
+    console.error(`FFTFORWARDTRACE call=${cc} bin(5,7)`, ...bin(5, 7).map((v) => v.toExponential(19)));
+    console.error(`FFTFORWARDTRACE call=${cc} sum`, sumRe.toExponential(19), sumIm.toExponential(19));
   }
 
   const NC = Math.floor(ps1 / 2) + 1;

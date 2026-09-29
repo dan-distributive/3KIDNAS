@@ -737,4 +737,84 @@ bar than anything targeted this session, and arguably chasing noise below
 any physically meaningful threshold), or (b) patching SoFiA-2's own source
 to make its noise statistic less sensitive to sub-threshold ringing (a
 third-party dependency, out of scope for a JS/Fortran parity project).
-Not pursued further -- this is the honest end of this particular thread.
+
+## PINPOINTED 2026-09-29: the exact function, per Dan's explicit request to keep bisecting
+
+Dan asked directly: "what is the function in the model regeneration that
+causes the difference?" -- so the noise-floor finding above needed one
+more level. Used the EXISTING (prior-session-built) `TRACE_DUMP_PRECONV`
+hooks in `CalculateBeamKernel.f`/`.js` and `TwoDConvolution.f`/
+`CubeKernelConvolution.js` (`KernelTraceF.txt`/`KernelTraceJS.txt`,
+`FFTFORWARDTRACE` prints) to bisect stage by stage, same methodology as
+bug #7 earlier this session:
+
+1. **Pre-convolution model cube**: 102,168/102,168 voxels bit-exact
+   (100.00% exact match). Particle synthesis/binning is clean.
+2. **Beam kernel** (`CalculateBeamKernel.f`/`.js`): every individual cell
+   value (`rawcenter`, `center`, `corner`, `r1c1`, `r2c3`) matches Fortran
+   exactly. The renormalization divisor (`kernelSum`, using the
+   already-fixed j-outer/i-inner traversal order) also matches exactly
+   (`5.3154277801513671875E+00` both sides) -- so the REAL kernel array
+   fed into convolution is bit-identical. (Found and fixed a real, but
+   separate and inconsequential, bug along the way: the trace's OWN
+   diagnostic-only checksum print used a flat sequential sum instead of
+   the correct traversal order -- cosmetic, not used anywhere in the real
+   computation, fixed anyway.)
+3. **Forward FFT output** (`FFTFORWARDTRACE`, widened the existing
+   hardcoded `ConvolveCallCount==27` gate -- a leftover from a prior
+   session's different test case -- to a documented `20-22` range after
+   confirming calls 1-~19 are FFTW warm-up passes on an all-zero array):
+   the DC bin (`bin(1,1)`, pure sum, no trigonometry) matches Fortran
+   exactly. Every OTHER bin (`bin(2,1)`, `bin(1,2)`, `bin(5,7)`), which
+   require twiddle-factor trigonometry, does NOT match -- off by amounts
+   consistent with the finding below, not gross errors.
+4. **Post-convolution model cube**: only 59,762/102,168 (58.49%) bit-exact,
+   confirming the divergence enters exactly here, between kernel
+   construction and the convolved output.
+
+**The function**: `rdft2R2cSync` in `js/src/ConvolveCube/
+FFTW3WasmRank2.js`. Its own header comment (written by a PRIOR session,
+already fully diagnosing this) explains why: it composes the 2D FFT from
+SEPARATE row-wise-then-column-wise 1D calls into the real compiled FFTW3
+wasm library, because `fftw-wasm.js` only exposes 1D primitives, not a
+native 2D entry point. Fortran's `dfftw_plan_dft_r2c_2d` instead lets
+FFTW's own planner choose its internal strategy -- for this exact 64x64
+transform size, the wisdom dump (captured directly, `WISDOMSTART`/
+`WISDOMEND` in the trace) shows it picks a FUSED `rdft2-rank>=2` direct
+codelet (`rdft2-r2hc-direct-64-x64`), not a row-then-column decomposition.
+Both are mathematically valid, IEEE-754-legal ways to compute the same 2D
+transform, but they accumulate in a different order -- non-associative
+floating-point addition, so genuinely different (not wrong) intermediate
+rounding.
+
+That prior session already quantified this precisely (see the file's own
+comment, verified against a real compiled ground-truth harness): "~50% of
+values differ, but only by 1-96 ULP in DOUBLE PRECISION (~1e-16 to
+~2e-14 relative)" -- about 1000-100000x smaller than a single float32 ULP,
+and every real consumer rounds to float32 immediately after. This is
+exactly consistent with everything found today: the post-conv model's
+noise-floor ringing (max 2.3e-8, vs real signal at 0.0127), which SoFiA's
+own MAD statistic (already proven, via the native-vs-wasm 2x2 matrix, to
+be the actual amplifier) is sensitive enough to shift its threshold by a
+hair for this one marginal source.
+
+**Full causal chain, now fully traced function-by-function**:
+`rdft2R2cSync`'s row-then-column FFT decomposition (vs Fortran's native
+fused 2D codelet) → double-precision-ULP-scale differences in the
+convolved model cube's near-zero noise floor (not the real signal) →
+SoFiA-2's MAD-based noise/threshold statistic (sampling the whole cube,
+including noise-floor voxels) computes a very slightly different RMS →
+a handful of pixels right at the segmentation boundary flip inclusion →
+a measurably different starting guess for the optimizer → (only visible
+at `cloudDensity=100`'s harder landscape) a different converged fit for
+one specific realization.
+
+**Not fixable without a real architectural change**: closing this gap
+would mean either giving `fftw-wasm.js` a genuine native 2D transform
+entry point (nontrivial C/wasm work, previously ruled out as impractical
+per this same file's own comment), or making SoFiA-2's own noise statistic
+insensitive to sub-float32-ULP input noise (a third-party dependency).
+Both are out of scope for this session. This is the complete, honest,
+function-level answer to where the bits change -- not just "somewhere in
+SoFiA" but the exact FFT decomposition strategy that's the root numerical
+cause, several layers upstream.

@@ -115,8 +115,22 @@ function calculate2DBeamKernel(b, pixelSizes) {
   // (before any FFT) already differs between platforms, upstream of the
   // now-proven-bit-exact forward FFT.
   if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
-    let sum = 0;
-    for (let idx = 0; idx < kSize * kSize; idx++) sum += b.kernel[idx];
+    // BUG FIX (2026-09-29, Dan): this diagnostic-only checksum used a flat
+    // sequential scan (idx 0..kSize*kSize-1), NOT the j-outer/i-inner order
+    // matching Fortran's sum() (established immediately above, for the
+    // REAL renormalization divisor kernelSum). Confirmed via a real,
+    // reproducible mismatch: this printed 1.0000001789085217752 where
+    // Fortran's post-renormalization sum() printed 1.0000002384185791016
+    // -- purely a traversal-order artifact of THIS print statement, not a
+    // real divergence: every individual kernel cell (center/corner/r1c1/
+    // r2c3, printed alongside) already matched Fortran exactly, and the
+    // real renormalization above already uses the correctly-ordered sum.
+    let sum = f32(0.0);
+    for (let j = -n; j <= n; j++) {
+      for (let i = -n; i <= n; i++) {
+        sum = f32(sum + f32(kernelGet(b, i, j)));
+      }
+    }
     const lines = [
       `pa ${pa.toExponential(19)}`,
       `sigma0 ${sigma0.toExponential(19)}`,

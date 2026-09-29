@@ -100,24 +100,27 @@ c           Do the fft transform of the padded image
       ConvolveCallCount=ConvolveCallCount+1
       call get_environment_variable("TRACE_DUMP_PRECONV",EnvVal,
      &          EnvLen)
-      if (EnvLen .gt. 0 .and. ConvolveCallCount .eq. 27) then
-        print*, "PLANPRINT SizePad", SizePad(1), SizePad(2)
-        call dfftw_print_plan(ArrPlan_r2c)
-        print*, ""
-        WisdomBufLen = 8192
-        call fftw_export_wisdom_cstr(WisdomStrBuf, WisdomBufLen)
-        print*, "WISDOMSTART"
-        print*, trim(WisdomStrBuf)
-        print*, "WISDOMEND"
-        print '(A,2ES27.19)', "FFTFORWARDTRACE bin(1,1)",
+c     Calls 1-~19 are warm-up passes on an empty/all-zero array (confirmed
+c     directly: every bin including the DC term prints exactly 0 for those
+c     calls) -- 20-22 is the first real per-ring model convolution reached
+c     for a typical single-galaxy fit. Adjust this range for a different
+c     test case if the warm-up count differs (varies with nRings).
+      if (EnvLen .gt. 0 .and. ConvolveCallCount .ge. 20
+     &    .and. ConvolveCallCount .le. 22) then
+        print '(A,I0,A,2ES27.19)', "FFTFORWARDTRACE call=",
+     &      ConvolveCallCount," bin(1,1)",
      &      DBLE(ComplexArr(1,1)),DIMAG(ComplexArr(1,1))
-        print '(A,2ES27.19)', "FFTFORWARDTRACE bin(2,1)",
+        print '(A,I0,A,2ES27.19)', "FFTFORWARDTRACE call=",
+     &      ConvolveCallCount," bin(2,1)",
      &      DBLE(ComplexArr(2,1)),DIMAG(ComplexArr(2,1))
-        print '(A,2ES27.19)', "FFTFORWARDTRACE bin(1,2)",
+        print '(A,I0,A,2ES27.19)', "FFTFORWARDTRACE call=",
+     &      ConvolveCallCount," bin(1,2)",
      &      DBLE(ComplexArr(1,2)),DIMAG(ComplexArr(1,2))
-        print '(A,2ES27.19)', "FFTFORWARDTRACE bin(5,7)",
+        print '(A,I0,A,2ES27.19)', "FFTFORWARDTRACE call=",
+     &      ConvolveCallCount," bin(5,7)",
      &      DBLE(ComplexArr(5,7)),DIMAG(ComplexArr(5,7))
-        print '(A,2ES27.19)', "FFTFORWARDTRACE sum",
+        print '(A,I0,A,2ES27.19)', "FFTFORWARDTRACE call=",
+     &      ConvolveCallCount," sum",
      &      DBLE(sum(ComplexArr)),DIMAG(sum(ComplexArr))
       endif
 
