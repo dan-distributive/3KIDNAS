@@ -444,3 +444,67 @@ TRACE_DUMP_PRECONV=1 node js/tools/run_both.js --local --skip-fortran --seed 42 
   volume in the same container; resolved itself/was resolved externally
   during the session). If this recurs, check
   `tmutil listlocalsnapshots /` and Disk Utility, not this repo.
+
+## OPEN, narrowed significantly 2026-09-29: cloudDensity=100 divergence isolated to the amoeba fit itself
+
+Continuing the bug hunt on `WALLABY_J100336-262923`, 11 bootstraps,
+`cloudDensity=100` (bugs #8/#9/#10 fixed the same test at `cloudDensity=20`;
+this harder setting -- 5x the particles per ring -- exposed a NEW,
+much larger divergence: realization 10 alone (of 11) differs by
+X≈0.35/Inc≈0.91 absolute, ~1-2% relative, while the other 10 realizations
+still match exactly).
+
+**Ruled out, with direct proof, not just code review:**
+1. `GeometryEstimates.js`'s `Math.acos` vs Python's `np.arccos` (initial
+   inclination estimate): empirically swept 99,999 test values through
+   both at float32 precision -- **zero differences**. Not the cause.
+2. `FlipBootstrap.js`'s `thetaNew` rounding: initially suspected a missing
+   intermediate float32 rounding (`f32(f32(2.0)*Pi - theta)`), but doubling
+   a float32 value is always exact in IEEE-754, so the "fix" was a
+   mathematical no-op (confirmed: adding it changed nothing; reverted).
+3. `gasdev`'s rejection-sampling retry loop (`v1²+v2²<1`) -- the strongest
+   structural candidate (a retry that COULD consume a different number of
+   `ran2()` draws per platform) -- already matches Fortran's exact
+   per-operation rounding sequence in `random.js`. No divergence possible.
+4. `nParticles = int(CloudSurfDens * Sigma^cmode * PixelRingArea) + 1` --
+   `cmode=0` for this test config (`Inputs/SingleGalaxyTestFittingOptions_
+   Base.txt`), so `Sigma^0 = 1.0` exactly on both platforms (every `pow`
+   implementation special-cases exponent 0). The rest of the formula
+   already uses correctly-sequenced rounding matching Fortran op-for-op.
+5. **Bootstrap resampling itself, proven bit-exact by direct reconstruction**
+   (`js/tools/repro_resample.js` + a hand-built `BootstrapRuntimeInputs.f`
+   input file replicating `MakeBootstrapSample.WriteBootstrapFile`'s exact
+   geometry for realization 10, idum=-(42+10+1)=-53): ran JS's
+   `genFlipBootstrapSample` and Fortran's real `Programs/BootStrapSampler`
+   on identical inputs, dumped both flux arrays, sorted and compared --
+   **zero differences** (the two arrays contain the identical multiset of
+   values; a naive index-aligned diff showed nonzero only because the two
+   dumps use different axis orderings, not because any value differs).
+   Bonus: both sides also print an identical hardcoded `PXTRACE` debug line
+   at voxel (14,15,29) -- matched to 8 decimals.
+6. **SoFiA extraction itself, proven bit-exact between wasm and native**
+   (`js/tools/repro_sofia.js`, run on the SAME `ReproBS10.fits` from #5):
+   compared the WASM `sofia-wasm.js` build against the real native
+   `third_party/SoFiA-2-master_2_5_1/sofia` binary -- **identical catalog
+   row** (x, y, ell_maj, ell_min, ell_pa, kin_pa all matched to the
+   catalog's own 6-decimal text precision). This was a previously-
+   unexamined cross-platform boundary (wasm vs native compiled SoFiA-2 C
+   code, not JS-port-vs-Fortran) -- worth remembering as a candidate for
+   any FUTURE divergence too.
+
+**Conclusion**: #5+#6 together prove the ENTIRE resample+SoFiA INPUT to
+realization 10's fit -- the resampled cube AND the catalog-derived starting
+guess -- is bit-identical between Fortran and JS. The divergence is
+isolated to the amoeba fit itself (chi2 evaluation / particle generation
+during optimization / convolution / simplex decisions), not anything
+upstream. Given the fit's own RNG (`fitIdum`) is STATIC and NOT
+realization-dependent (`bootstrap-realization-launcher.js`'s own comment:
+"matches Fortran, RunWRKP never varies idum across realizations"), and
+every particle-generation formula already checked out in earlier sessions'
+extensive 2026-08-18 gasdev-desync bisection, the next step is a genuine
+per-iteration amoeba trajectory trace for realization 10 specifically
+(reusing `TRACE_OVERRIDE_IDUM`/`PARTTRACE`/`BISECTTRACE`, forcing the
+EXACT verified starting guess into both a standalone `SingleGalaxyFitter`
+run and a JS single-realization run) -- not yet done; this is a
+substantially larger undertaking than anything fixed so far this session
+and was not completed.
