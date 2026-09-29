@@ -1,6 +1,6 @@
 {
     "name": "cfitsio4wasm",
-    "version": "4.6.3-1",
+    "version": "4.6.3-2",
     "files": {
         "cfitsio-wasm.js": "cfitsio-wasm.js"
     }
