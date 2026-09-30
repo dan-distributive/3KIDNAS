@@ -112,7 +112,7 @@ RunBootstrapsDCP()
  |-- LaunchDCPFitJob()         spawns: node bootstrap-fit-launcher.js
  |                             --> dispatches bootstrap(delta, fixtureStr)
  |                                   galaxyFit_Simple            (JS tilted-ring optimizer)
- |                                   cubeBeamConvolution          (FFTW3JS-based beam convolution,
+ |                                   cubeBeamConvolution          (real compiled FFTW3-based beam convolution,
  |                                                                 called once per objective-function eval)
  |                             <-- per realization: fitted params, chi2, timings
  |                             writes: DCPjobData/deltas.ndjson,

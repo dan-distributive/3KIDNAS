@@ -5,10 +5,12 @@ module.declare([], function (require, exports, module) {
 // FFTW3WasmRank2.js
 // 2D real<->complex transform composed from the REAL compiled FFTW3 (via
 // third_party/fftw-3.3.8/wasm/fftw-wasm.js's synchronous 1D primitives),
-// not a hand port -- unlike FFTW3JS/Rank2Orchestration.js, this calls the
-// actual library for every 1D pass. Matches Rank2Orchestration.js's
-// interface (interleaved-complex in/out) so CubeKernelConvolution.js's call
-// sites need minimal changes when switching engines.
+// not a hand port -- unlike the old hand-ported Rank2Orchestration.js engine
+// (src/FFTW3JS/, removed 2026-09-30: confirmed dead code, unreferenced
+// anywhere in the live pipeline), this calls the actual library for every
+// 1D pass. Matched that engine's interface (interleaved-complex in/out) so
+// CubeKernelConvolution.js's call sites needed minimal changes when
+// switching engines, back when both existed side by side.
 //
 // DECOMPOSITION
 // -------------
@@ -16,9 +18,10 @@ module.declare([], function (require, exports, module) {
 // of N0 rows, THEN column-wise complex->complex forward DFT (fftw.dft1dSync)
 // for each of NC=floor(N1/2)+1 columns -- the same row-then-column order
 // real FFTW's own r2c_2d plan uses internally (confirmed by reading
-// rank-geq2-rdft2.c directly, see Rank2Orchestration.js's header for that
-// citation; this file composes the equivalent result from the library's own
-// 1D entry points instead of a hand-ported codelet dispatch).
+// rank-geq2-rdft2.c directly, see the removed Rank2Orchestration.js's own
+// header for that citation; this file composes the equivalent result from
+// the library's own 1D entry points instead of a hand-ported codelet
+// dispatch).
 //
 // Inverse (c2r): column-wise complex->complex INVERSE DFT first, then
 // row-wise inverse via a full-length complex IDFT built from the
@@ -28,15 +31,15 @@ module.declare([], function (require, exports, module) {
 // (X[N1-k]=conj(X[k])) and takes a full N1-point complex IDFT, keeping the
 // real part). UNNORMALIZED, matching FFTW's own convention (forward+inverse
 // without dividing by N0*N1 recovers N0*N1 * original) and this project's
-// existing convolve2DChannelFFTW3JS caller, which already does that
-// division itself.
+// existing caller, which already does that division itself.
 //
-// VERIFIED -- directly against REAL compiled FFTW3. FFTW3JS/
-// Rank2Orchestration.js (the earlier hand-ported engine) is NOT used here or
-// anywhere else in the live pipeline -- disabled outright (the self-test's
-// old secondary comparison against it was removed), not just unreferenced:
+// VERIFIED -- directly against REAL compiled FFTW3. The earlier hand-ported
+// Rank2Orchestration.js engine (src/FFTW3JS/) was never used here or
+// anywhere else in the live pipeline -- confirmed dead code and removed
+// 2026-09-30 (only its verify/ subfolder survives, moved to
+// src/FFTW3Verify/, still used below):
 // --------
-// Checked against src/FFTW3JS/verify/ground_truth_harness (a real C binary
+// Checked against src/FFTW3Verify/ground_truth_harness (a real C binary
 // linked against this project's own compiled libfftw3.a) at the production
 // size (57x53, from nRadialCells=6 + the real 44x40 cube):
 //   - delta-function input (forward AND inverse): BIT-EXACT, 0 mismatches.
@@ -60,9 +63,9 @@ module.declare([], function (require, exports, module) {
 //     this check's ~3000 values per direction.
 //   - See this file's self-test for the exact harness invocation.
 // Also checked: round-trip (forward then inverse, /(N0*N1)) recovers the
-// original input, and forward output agrees with FFTW3JS
-// (Rank2Orchestration.js) to ~1e-14 max abs diff -- a secondary,
-// same-conclusion cross-check, not the primary evidence above.
+// original input, and forward output agreed with the (since-removed)
+// hand-ported Rank2Orchestration.js engine to ~1e-14 max abs diff -- a
+// secondary, same-conclusion cross-check, not the primary evidence above.
 //
 // PACKAGE: fftw3wasm-v3 is a published DCP package (third_party/fftw-3.3.8/
 // wasm/package/package.dcp) -- a real DCP worker resolves the bare
@@ -303,14 +306,14 @@ if (require.main === module) {
     const N0 = 57, N1 = 53;
 
     console.log('=== PRIMARY: direct bit-exact check vs REAL compiled FFTW3 (ground_truth_harness) ===');
-    console.log('(bypasses FFTW3JS entirely -- see module header for the full result/interpretation)');
+    console.log('(compares directly against real compiled FFTW3 -- see module header for the full result/interpretation)');
     try {
       const path = require('path');
       const fs = require('fs');
       const { execFileSync } = require('child_process');
       const { readFixture, compareBuffers, reportComparison } = require('./compare.js');
-      const HARNESS = path.join(__dirname, '../FFTW3JS/verify/ground_truth_harness');
-      const FIXTURES = path.join(__dirname, '../FFTW3JS/verify/fixtures');
+      const HARNESS = path.join(__dirname, '../FFTW3Verify/ground_truth_harness');
+      const FIXTURES = path.join(__dirname, '../FFTW3Verify/fixtures');
 
       function jsRandomReal(n0, n1, seed) {
         let s = seed >>> 0;
@@ -358,12 +361,13 @@ if (require.main === module) {
       return m;
     }
 
-    // FFTW3JS (the hand-ported engine, src/FFTW3JS/Rank2Orchestration.js)
-    // is no longer invoked anywhere, including here -- Dan asked for it to
-    // be disabled outright, not just unused by the live pipeline (it
-    // already wasn't: not required by bootstrap-realization-launcher.js,
-    // not present in package/, only ever reachable via this self-test's
-    // now-removed secondary comparison). The PRIMARY check above (direct
+    // The hand-ported Rank2Orchestration.js engine (formerly src/FFTW3JS/,
+    // removed 2026-09-30) was no longer invoked anywhere, including here,
+    // well before its removal -- Dan asked for it to be disabled outright,
+    // not just unused by the live pipeline (it already wasn't: not
+    // required by bootstrap-realization-launcher.js, not present in
+    // package/, only ever reachable via this self-test's now-removed
+    // secondary comparison). The PRIMARY check above (direct
     // bit-exact comparison against the real compiled FFTW3 ground-truth
     // harness) is the authoritative one; this secondary comparison against
     // a hand-port added no verification value beyond that.

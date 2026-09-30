@@ -9,9 +9,9 @@
 // -------------
 // FFT convolution via FFTW3WasmRank2.js -- the REAL compiled FFTW3 (through
 // third_party/fftw-3.3.8/wasm/fftw-wasm.js's synchronous 1D primitives),
-// never FFTW3JS's hand-ported engine (retired from this file, and disabled
-// outright everywhere else too -- src/FFTW3JS/ is unreferenced by any live
-// or self-test code path; see FFTW3WasmRank2.js's own header). Since this
+// never the old hand-ported Rank2Orchestration.js engine (retired from this
+// file, confirmed dead everywhere else too, and removed 2026-09-30 --
+// see FFTW3WasmRank2.js's own header). Since this
 // is the actual library, not a curated port, it handles ANY N0xN1 natively
 // -- no isTransformSupported gate or ndarray-fft fallback needed anymore.
 //
@@ -35,8 +35,8 @@
 // PRECISION
 // ---------
 // Real compiled FFTW3, double precision throughout the transform. Verified
-// against FFTW3JS (the old bit-exact-vs-real-FFTW3 hand-port) at the real
-// production size (57x53): agrees to ~1e-14, far below the float32
+// against the old hand-ported Rank2Orchestration.js engine (since removed)
+// at the real production size (57x53): agreed to ~1e-14, far below the float32
 // rounding everything here is subjected to anyway (see
 // FFTW3WasmRank2.js's self-test).
 // =============================================================================
