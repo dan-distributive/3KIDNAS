@@ -62,6 +62,9 @@ network, no credentials) JS run, and writes both a JSON report and an
 auto-opening HTML report (js/tools/run_both_report.html) summarizing
 numerical agreement and performance. Run it from js/tools/.
 
+Example output, no need to clone and rerun the pipeline to see what it looks
+like: [js/tools/examples/fortran-vs-js-dcp-fidelity-performance.pdf](js/tools/examples/fortran-vs-js-dcp-fidelity-performance.pdf)
+
 Fortran vs. DCP (with optional --skip-fortran flag; remove it to also run
 and compare against the native Fortran leg):  
 ```
