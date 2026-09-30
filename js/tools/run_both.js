@@ -91,10 +91,19 @@ function getPerformanceCoreCount() {
 // fresh copy of that template with the just-produced `report` baked in as
 // a <script id="embedded-report-data" type="application/json"> (inserted
 // right after the EMBEDDED_REPORT_DATA_MARKER comment near the end of the
-// file, replacing whatever a prior run left there), so opening the file
-// shows results immediately -- no fetch(), so it works from a plain
-// file:// open too, not just over HTTP. Then auto-opens it in the
-// default browser.
+// file, replacing whatever a prior run left there), then opens it directly
+// as a file:// URL in the default browser -- no server needed.
+//
+// (A local HTTP server was tried first, to work around what looked like a
+// file://-specific Chrome error -- "Unsafe attempt to load URL file://X
+// from frame with URL file://X. 'file:' URLs are treated as unique
+// security origins." Turned out to be a red herring: the REAL bug was
+// run_both_report.html's own auto-load script running in a <script> block
+// that appears BEFORE the embedded-data <script> tag in document order, so
+// getElementById('embedded-report-data') returned null every time
+// (confirmed directly) -- fixed there by deferring that check to
+// DOMContentLoaded. Once that was actually fixed, file:// worked fine, so
+// the server was removed again rather than kept as unneeded complexity.)
 //
 // Overwrites run_both_report.html in place (not a timestamped copy) --
 // deliberate: this is a dev tool's "latest run" view, same spirit as the
@@ -131,10 +140,11 @@ function writeAndOpenHtmlReport(report) {
     fs.writeFileSync(templatePath, html);
     console.log(`[run_both] wrote HTML report to ${templatePath}`);
 
+    const fileUrl = require('node:url').pathToFileURL(templatePath).href;
     const openCmd = process.platform === 'darwin' ? 'open'
       : process.platform === 'win32' ? 'start ""'
       : 'xdg-open';
-    exec(`${openCmd} ${JSON.stringify(templatePath)}`, (err) => {
+    exec(`${openCmd} ${JSON.stringify(fileUrl)}`, (err) => {
       if (err) console.log(`[run_both] could not auto-open the HTML report (${err.message}) -- open it manually: ${templatePath}`);
     });
   } catch (e) {

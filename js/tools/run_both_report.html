@@ -1392,23 +1392,36 @@
 
   // ---------------------------------------------------------------------
   // Auto-load: run_both.js writes a fresh copy of THIS file with the run's
-  // report JSON baked into the #embedded-report-data script tag below (see
-  // its own header comment), so opening this file (file:// or http://,
-  // either works -- no fetch(), no CORS issue) immediately shows the
-  // results, no drag-and-drop needed. Falls through to the normal
+  // report JSON baked into the #embedded-report-data script tag BELOW this
+  // one, near the end of <body> (see EMBEDDED_REPORT_DATA_MARKER's own
+  // comment for exactly where) -- so opening this file (file:// or
+  // http://, either works -- no fetch(), no CORS issue) immediately shows
+  // the results, no drag-and-drop needed. Falls through to the normal
   // dropzone UI untouched when no embedded data is present (e.g. this
   // template opened directly from a fresh git checkout).
+  //
+  // Deferred to DOMContentLoaded, not run inline here: this whole IIFE is
+  // itself a <script> block that appears BEFORE the embedded-data script
+  // tag in document order, so at the time this line would otherwise run,
+  // the parser hasn't reached that later tag yet and getElementById
+  // returns null every time (confirmed directly: the page loaded fine,
+  // dropzone and all, but never auto-rendered -- silently, since the
+  // `if (embeddedDataEl && ...)` guard treats "not found yet" the same as
+  // "genuinely absent"). Waiting for DOMContentLoaded runs this after the
+  // ENTIRE document, including that later tag, has been parsed.
   // ---------------------------------------------------------------------
-  var embeddedDataEl = document.getElementById('embedded-report-data');
-  if (embeddedDataEl && embeddedDataEl.textContent.trim()) {
-    try {
-      var embedded = JSON.parse(embeddedDataEl.textContent);
-      if (embedded && typeof embedded === 'object' && embedded.runs) render(embedded);
-    } catch (e) {
-      parseErrorEl.textContent = 'Could not parse the embedded report data: ' + e.message;
-      parseErrorEl.style.display = 'block';
+  document.addEventListener('DOMContentLoaded', function () {
+    var embeddedDataEl = document.getElementById('embedded-report-data');
+    if (embeddedDataEl && embeddedDataEl.textContent.trim()) {
+      try {
+        var embedded = JSON.parse(embeddedDataEl.textContent);
+        if (embedded && typeof embedded === 'object' && embedded.runs) render(embedded);
+      } catch (e) {
+        parseErrorEl.textContent = 'Could not parse the embedded report data: ' + e.message;
+        parseErrorEl.style.display = 'block';
+      }
     }
-  }
+  });
 })();
 </script>
 <!-- EMBEDDED_REPORT_DATA_MARKER -- run_both.js finds this exact comment and
