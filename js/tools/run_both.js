@@ -206,8 +206,8 @@ function readBaseCloudDensity() {
 // Reproducibility metadata, written into a leg's OWN output folder right
 // alongside its BootstrapFits.csv/BootstrapTimings.json -- travels with the
 // results regardless of which invocation produced them, so a later, separate
-// invocation (or build_partial_report.js, reading a stale leg from disk)
-// can still recover what this leg was actually run with. nProcessors/
+// invocation reading a stale leg from disk can still recover what this leg
+// was actually run with. nProcessors/
 // totalLogicalCores are null for js-dcp: that leg's work is dispatched to
 // real DCP workers over the network, whose CPU counts aren't knowable here
 // at all (unlike fortran-local, which runs as a process pool sized off THIS
