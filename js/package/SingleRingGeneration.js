@@ -132,11 +132,11 @@ function ring_CalcNumParticles(r, cmode, cloudSurfDens, noise, avgChannelsPerPix
     // whether a truncation-boundary difference in nParticles injects
     // extra Monte Carlo noise into chi2 beyond ordinary float32 rounding.
     if (process.env.JS_OVERRIDE_REALIZATION_INDEX != null
-        && global.__TRACE_REALIZATION_INDEX === parseInt(process.env.JS_OVERRIDE_REALIZATION_INDEX, 10)
+        && globalThis.__TRACE_REALIZATION_INDEX === parseInt(process.env.JS_OVERRIDE_REALIZATION_INDEX, 10)
         && process.env.TRACE_DEBUG_FINALVEC_FILE) {
-      const suffix = `.r${global.__TRACE_REALIZATION_INDEX}`;
+      const suffix = `.r${globalThis.__TRACE_REALIZATION_INDEX}`;
       require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE + suffix,
-        `NPTRACE call=${global.__TRACE_EVAL_COUNT} rmid=${r.rmid} sigma=${r.sigma} sigmaHex=${hexF32(r.sigma)} nParticles=${r.nParticles}\n`);
+        `NPTRACE call=${globalThis.__TRACE_EVAL_COUNT} rmid=${r.rmid} sigma=${r.sigma} sigmaHex=${hexF32(r.sigma)} nParticles=${r.nParticles}\n`);
     }
   }
 }

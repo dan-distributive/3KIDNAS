@@ -74,7 +74,17 @@ function constructProjectionsFromCube(obsDC, maskDC) {
   const maskedObservedDC = copyDataCube(obsDC);
   maskCube(maskedObservedDC, maskDC);
 
-  if (process.env.PARITY_DEBUG === '1') {
+  // BUG FIX (2026-09-30, Dan): both PARITY_DEBUG checks below used to be
+  // bare `process.env.PARITY_DEBUG` with no `typeof process !== 'undefined'`
+  // guard (unlike every other TRACE_DEBUG/PARITY_DEBUG check in this
+  // codebase, e.g. this file's own TRACE_DUMP_PRECONV check below) --
+  // harmless in Node (process always exists there, so --local never
+  // triggered it), but a real DCP worker sandbox has no `process` global at
+  // all, so this threw "process is not defined" on every real dispatch of
+  // runInitialFit, unconditionally, regardless of PARITY_DEBUG actually
+  // being set -- confirmed via a real dispatch to a live worker, not
+  // inferred.
+  if (typeof process !== 'undefined' && process.env && process.env.PARITY_DEBUG === '1') {
     let sum = 0, count = 0, mx = -Infinity;
     for (const v of maskedObservedDC.flux) { sum += v; if (v !== 0) count++; if (v > mx) mx = v; }
     console.error('PARITYDBG MaskedCubeFlux sum', sum, 'count_nonzero', count, 'maxval', mx);
@@ -82,7 +92,7 @@ function constructProjectionsFromCube(obsDC, maskDC) {
 
   const observedMaps = constructMomentMaps(maskedObservedDC);
 
-  if (process.env.PARITY_DEBUG === '1') {
+  if (typeof process !== 'undefined' && process.env && process.env.PARITY_DEBUG === '1') {
     const nx = observedMaps.dh.nPixels[0], ny = observedMaps.dh.nPixels[1];
     let sum = 0, count = 0, mx = -Infinity;
     for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {

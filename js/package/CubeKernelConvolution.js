@@ -54,7 +54,17 @@ const { flatIndxCalc } = require('./DataCube.js');
 // versions call FFTW's own 2D planner directly (one fftw_execute per
 // transform) and are verified round-trip-correct + matching the composed
 // path exactly (see FFTW3WasmRank2.js's self-test).
-const { rdft2R2cSyncNative: rdft2R2cSync, rdft2C2rSyncNative: rdft2C2rSync, warmUp } = require('./FFTW3WasmRank2.js');
+// Fortran-matched variants (rdft2R2cSyncFortranMatched/
+// rdft2C2rSyncFortranMatched), NOT the plain native ones -- see
+// FFTW3WasmRank2.js's header on those two functions and
+// JS_FORTRAN_PARITY_BISECTION_LEDGER.md's "ROOT CAUSE" section for why:
+// Fortran's own FFTW calls implicitly transpose their input (column-major
+// array passed untransposed into a C API), producing a real, few-ULP
+// different floating-point result from a straightforward row-major call --
+// these wrappers reproduce that exact computation instead of the
+// "obviously correct" one. Both require SQUARE transforms (see their own
+// header); this project's PaddedSize is currently always square (64x64).
+const { rdft2R2cSyncFortranMatched: rdft2R2cSync, rdft2C2rSyncFortranMatched: rdft2C2rSync, warmUp } = require('./FFTW3WasmRank2.js');
 
 
 // ---------------------------------------------------------------------------
@@ -155,7 +165,7 @@ function convolve2DChannel(sliceIn, nPixels, b, sliceOut) {
   // (nx=ps0 rows, ny/2+1 cols) interleaved re/im, i.e. bin(i,j) (1-based,
   // matching Fortran) = complex[2*((i-1)*NC+(j-1))] / [+1].
   if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
-    global.__fftForwardCallCount = (global.__fftForwardCallCount || 0) + 1;
+    globalThis.__fftForwardCallCount = (globalThis.__fftForwardCallCount || 0) + 1;
   }
   // See TwoDConvolution.f's identical comment: calls 1-~19 are warm-up
   // passes on an empty/all-zero array (every bin, including DC, prints
@@ -163,7 +173,7 @@ function convolve2DChannel(sliceIn, nPixels, b, sliceOut) {
   // convolution for a typical single-galaxy fit. Adjust for a different
   // test case if the warm-up count differs.
   if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV
-      && global.__fftForwardCallCount >= 20 && global.__fftForwardCallCount <= 22) {
+      && globalThis.__fftForwardCallCount >= 20 && globalThis.__fftForwardCallCount <= 22) {
     const NCt = Math.floor(ps1 / 2) + 1;
     const bin = (i, j) => {
       const idx = (i - 1) * NCt + (j - 1);
@@ -171,7 +181,7 @@ function convolve2DChannel(sliceIn, nPixels, b, sliceOut) {
     };
     let sumRe = 0, sumIm = 0;
     for (let idx = 0; idx < ps0 * NCt; idx++) { sumRe += complex[2 * idx]; sumIm += complex[2 * idx + 1]; }
-    const cc = global.__fftForwardCallCount;
+    const cc = globalThis.__fftForwardCallCount;
     console.error(`FFTFORWARDTRACE call=${cc} bin(1,1)`, ...bin(1, 1).map((v) => v.toExponential(19)));
     console.error(`FFTFORWARDTRACE call=${cc} bin(2,1)`, ...bin(2, 1).map((v) => v.toExponential(19)));
     console.error(`FFTFORWARDTRACE call=${cc} bin(1,2)`, ...bin(1, 2).map((v) => v.toExponential(19)));

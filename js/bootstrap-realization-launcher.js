@@ -417,7 +417,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
     }
 
     // ---- Write the bootstrap cube as real FITS bytes (feeds SoFiA) ----
-    if (process.env.PARITY_DEBUG === '1') {
+    if (typeof process !== 'undefined' && process.env && process.env.PARITY_DEBUG === '1') {
       console.error('PARITYDBG resampleBeam.beamPositionAngle', resampleBeam.beamPositionAngle, 'observedBeam.beamSigma2', observedBeam.beamSigma2);
     }
     const cubeFitsBytes = await dataCubeToFitsBytes(cfitsio, bootstrapCube, resampleBeam);
@@ -510,7 +510,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
     //      selected source ID (Fortran/SoFiA_Driver.py's AdjustMaskFile:
     //      MDataNew = (MData == TargVal).astype(int)) ----
     const maskDC = await fitsBytesToDataCube(cfitsio, files.get('result_mask.fits'), bootstrapCube);
-    if (process.env.PARITY_DEBUG === '1') {
+    if (typeof process !== 'undefined' && process.env && process.env.PARITY_DEBUG === '1') {
       const rawVals = new Set();
       for (let i = 0; i < maskDC.flux.length; i++) rawVals.add(maskDC.flux[i]);
       console.error('PARITYDBG rawMaskVals', [...rawVals], 'maskVal', parsed.maskVal);
@@ -518,7 +518,7 @@ async function runBootstrapRealization(realizationIndex, payload) {
     for (let i = 0; i < maskDC.flux.length; i++) {
       maskDC.flux[i] = (maskDC.flux[i] === parsed.maskVal) ? f32(1.0) : f32(0.0);
     }
-    if (process.env.PARITY_DEBUG === '1') {
+    if (typeof process !== 'undefined' && process.env && process.env.PARITY_DEBUG === '1') {
       let nz = 0;
       for (let i = 0; i < maskDC.flux.length; i++) if (maskDC.flux[i] !== 0) nz++;
       console.error('PARITYDBG maskDC nonzero', nz);
@@ -1622,8 +1622,8 @@ async function runInitialFit(realizationIndex, payload) {
     // ran with it (so the snapshot exists).
     let preConvModelCubeFitsB64 = null;
     if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV
-        && global.__PRECONV_FLUX_SNAPSHOT) {
-      const preConvDC = { dh: fitModelDC.dh, flux: global.__PRECONV_FLUX_SNAPSHOT };
+        && globalThis.__PRECONV_FLUX_SNAPSHOT) {
+      const preConvDC = { dh: fitModelDC.dh, flux: globalThis.__PRECONV_FLUX_SNAPSHOT };
       preConvModelCubeFitsB64 = bytesToB64(
         await dataCubeToFitsBytes(cfitsio, preConvDC, fitBeam)
       );
@@ -1639,8 +1639,8 @@ async function runInitialFit(realizationIndex, payload) {
     // site (FullModelComparison.js).
     let postConvPreScaleModelCubeFitsB64 = null;
     if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV
-        && global.__POSTCONV_PRESCALE_FLUX_SNAPSHOT) {
-      const postConvPreScaleDC = { dh: fitModelDC.dh, flux: global.__POSTCONV_PRESCALE_FLUX_SNAPSHOT };
+        && globalThis.__POSTCONV_PRESCALE_FLUX_SNAPSHOT) {
+      const postConvPreScaleDC = { dh: fitModelDC.dh, flux: globalThis.__POSTCONV_PRESCALE_FLUX_SNAPSHOT };
       postConvPreScaleModelCubeFitsB64 = bytesToB64(
         await dataCubeToFitsBytes(cfitsio, postConvPreScaleDC, fitBeam)
       );
@@ -2030,52 +2030,52 @@ if (typeof module === 'undefined' && typeof globalThis !== 'undefined') {
 // bundling papers over it there), so leaving them on the old list carries
 // no regression risk.
 //
-// Every file in the 3kidnas-test2 package is listed individually below,
+// Every file in the 3kidnas-test4 package is listed individually below,
 // not just initialFitEntry.js -- confirmed via isolated probes
 // (package-probe3 through package-probe6) that the sandbox only
 // auto-discovers module.declare()-declared dependencies transitively up
 // to 2 deep; beyond that, each file must appear in job.requires() itself
 // or it fails with "Module '<path>' is not available."
 const INITIAL_FIT_ONLY_MODULES = [
-  '3kidnas-test2/initialFitEntry.js',
-  '3kidnas-test2/CubeDifference.js',
-  '3kidnas-test2/DataCubeFits.js',
-  '3kidnas-test2/FlipBootstrap.js',
-  '3kidnas-test2/GenerateBootstrap.js',
-  '3kidnas-test2/PhysCoordTransform.js',
-  '3kidnas-test2/CubeComparison.js',
-  '3kidnas-test2/FullModelComparison.js',
-  '3kidnas-test2/LikelihoodFunctions.js',
-  '3kidnas-test2/MaskCube.js',
-  '3kidnas-test2/CalculateBeamKernel.js',
-  '3kidnas-test2/CubeKernelConvolution.js',
-  '3kidnas-test2/FFTW3WasmRank2.js',
-  '3kidnas-test2/GalaxyFit.js',
-  '3kidnas-test2/Beam.js',
-  '3kidnas-test2/DataCube.js',
-  '3kidnas-test2/ParameterVector.js',
-  '3kidnas-test2/Particle.js',
-  '3kidnas-test2/TiltedRing.js',
-  '3kidnas-test2/ParameterToTiltedRingVector.js',
-  '3kidnas-test2/EstimateCubeNoise.js',
-  '3kidnas-test2/EstimateRadialProfiles.js',
-  '3kidnas-test2/EstimateShape.js',
-  '3kidnas-test2/GetMomentMaps.js',
-  '3kidnas-test2/InitialAnalysis.js',
-  '3kidnas-test2/ModellingInitializations.js',
-  '3kidnas-test2/VelProfileAnalysis.js',
-  '3kidnas-test2/BasicConstants.js',
-  '3kidnas-test2/FullCircTrig.js',
-  '3kidnas-test2/Interpolation.js',
-  '3kidnas-test2/fdlibm-module.js',
-  '3kidnas-test2/fdlibm-wasm.js',
-  '3kidnas-test2/fdlibm.js',
-  '3kidnas-test2/fma.js',
-  '3kidnas-test2/random.js',
-  '3kidnas-test2/SingleRingGeneration.js',
-  '3kidnas-test2/TiltedRingModelGeneration.js',
-  '3kidnas-test2/FillDataCubeByTiltedRing.js',
-  '3kidnas-test2/UnitConversions.js',
+  '3kidnas-test4/initialFitEntry.js',
+  '3kidnas-test4/CubeDifference.js',
+  '3kidnas-test4/DataCubeFits.js',
+  '3kidnas-test4/FlipBootstrap.js',
+  '3kidnas-test4/GenerateBootstrap.js',
+  '3kidnas-test4/PhysCoordTransform.js',
+  '3kidnas-test4/CubeComparison.js',
+  '3kidnas-test4/FullModelComparison.js',
+  '3kidnas-test4/LikelihoodFunctions.js',
+  '3kidnas-test4/MaskCube.js',
+  '3kidnas-test4/CalculateBeamKernel.js',
+  '3kidnas-test4/CubeKernelConvolution.js',
+  '3kidnas-test4/FFTW3WasmRank2.js',
+  '3kidnas-test4/GalaxyFit.js',
+  '3kidnas-test4/Beam.js',
+  '3kidnas-test4/DataCube.js',
+  '3kidnas-test4/ParameterVector.js',
+  '3kidnas-test4/Particle.js',
+  '3kidnas-test4/TiltedRing.js',
+  '3kidnas-test4/ParameterToTiltedRingVector.js',
+  '3kidnas-test4/EstimateCubeNoise.js',
+  '3kidnas-test4/EstimateRadialProfiles.js',
+  '3kidnas-test4/EstimateShape.js',
+  '3kidnas-test4/GetMomentMaps.js',
+  '3kidnas-test4/InitialAnalysis.js',
+  '3kidnas-test4/ModellingInitializations.js',
+  '3kidnas-test4/VelProfileAnalysis.js',
+  '3kidnas-test4/BasicConstants.js',
+  '3kidnas-test4/FullCircTrig.js',
+  '3kidnas-test4/Interpolation.js',
+  '3kidnas-test4/fdlibm-module.js',
+  '3kidnas-test4/fdlibm-wasm.js',
+  '3kidnas-test4/fdlibm.js',
+  '3kidnas-test4/fma.js',
+  '3kidnas-test4/random.js',
+  '3kidnas-test4/SingleRingGeneration.js',
+  '3kidnas-test4/TiltedRingModelGeneration.js',
+  '3kidnas-test4/FillDataCubeByTiltedRing.js',
+  '3kidnas-test4/UnitConversions.js',
   // runInitialFit itself never calls these two -- they're only here because
   // initialFitEntry.js's own module.declare() dependency array unconditionally
   // requires them (added for runBootstrapRealization's benefit, since both
@@ -2085,8 +2085,8 @@ const INITIAL_FIT_ONLY_MODULES = [
   // to work around, just for these 2 files specifically -- confirmed
   // directly: real initial-fit dispatch failed with "Module
   // './ParseSoFiACatalog.js' is not available." until they were added here.
-  '3kidnas-test2/ParseSoFiACatalog.js',
-  '3kidnas-test2/GeometryEstimates.js',
+  '3kidnas-test4/ParseSoFiACatalog.js',
+  '3kidnas-test4/GeometryEstimates.js',
   // Published DCP packages
   'fftw3wasm-v3/fftw-wasm.js',
   'cfitsio4wasm/cfitsio-wasm.js',

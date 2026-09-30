@@ -344,6 +344,83 @@ when Fortran writes >10ish bootstrap files under this test harness. Not
 investigated further — orthogonal to everything this session touched;
 10-bootstraps runs are reliable.)
 
+## REAL-DISPATCH AUDIT (2026-09-30) — DCP packages, index.html, and 3 more real bugs found
+
+Triggered by three explicit questions: (1) do the DCP packages need updating,
+(2) audit `index.html` and related JS for missing fixes, (3) actually run a
+computation from `index.html`'s own dispatch path and compare to
+`run_both.js`.
+
+**(1) Packages needed updating — confirmed and done.** `js/package/`
+(published as `3kidnas-test2`) bundles `Beam.js`, `CubeKernelConvolution.js`,
+`FFTW3WasmRank2.js` verbatim from `src/` — all three carry this session's
+fixes. `index.html` dispatches via `job.requires(window.INITIAL_FIT_ONLY_MODULES
+/ BOOTSTRAP_ONLY_MODULES)`, which pull from that published package, NOT from
+local source (unlike `run_both.js`'s own real-dispatch path, which — newly
+discovered — uses a completely different, local-file-based module list and
+therefore never exercises the package at all). Rebuilt via
+`build-bravojs-package.js` and republished.
+
+**Discovered along the way: republishing under an existing package name
+does not reliably propagate to `job.requires()`.** Confirmed empirically,
+twice: publishing new content to `3kidnas-test2` (then `3kidnas-test3`) with
+a version bump produced a successful-looking `publish` CLI response, but a
+real dispatch kept running the OLD content. The first publish to a brand
+new name always worked immediately; a second publish to that same name did
+not. This matches an already-established precedent elsewhere in this
+project (`fftw3wasm` couldn't be republished either — the fix at the time
+was publishing under `fftw3wasm-v3` instead). Ended up on `3kidnas-test4`
+after two renames; `bootstrap-realization-launcher.js`'s `INITIAL_FIT_ONLY_
+MODULES`/`BOOTSTRAP_ONLY_MODULES` lists were updated to match (42 string
+replacements, mechanical).
+
+**(2)/(3) Real dispatch surfaced 3 more real, previously-undiscovered bugs**
+— none related to FFT/padding, all pre-existing, all only reachable via an
+actual DCP sandbox dispatch (never triggered by `--local`, since Node always
+has `process`/`global`; the sandbox has neither):
+
+- `InitialAnalysis.js` (`constructProjectionsFromCube`): two bare
+  `process.env.PARITY_DEBUG` checks, no `typeof process !== 'undefined'`
+  guard (every other check in the same file already had one). Crashed
+  every real `runInitialFit` dispatch unconditionally.
+- `GalaxyFit.js` / `FullModelComparison.js`: several more bare
+  `process.env.X` checks (`JS_OVERRIDE_REALIZATION_INDEX`,
+  `JS_FORCE_PVINI_HEX_PATH`, `JS_FORCE_IDUM`, `JS_SIMPLEX_OVERRIDE_PATH`,
+  `JS_IDUM_OVERRIDE_SEQUENCE_PATH`) sitting OUTSIDE any `TRACE_DEBUG`-style
+  guard, unlike sibling checks in the same files. Added a shared `getEnv(name)`
+  helper to each file and routed every one through it.
+- `bootstrap-realization-launcher.js` itself (not part of the package —
+  shipped directly as the dispatched function's source): three more bare
+  `process.env.PARITY_DEBUG` checks in `runBootstrapRealization`, same fix.
+- `FullModelComparison.js` / `CubeKernelConvolution.js` /
+  `SingleRingGeneration.js` / `bootstrap-realization-launcher.js`: several
+  **unconditional, unguarded `global.X` references** (`global` doesn't
+  exist in the sandbox either — Node-only, unlike universal `globalThis`).
+  The worst one, `tiltedRingModelComparison`'s `global.__TRACE_REALIZATION_INDEX
+  = ...`, is UNCONDITIONAL and runs on every single optimizer evaluation —
+  meaning every real bootstrap dispatch failed on its very first
+  evaluation, always, regardless of any debug flag. Fixed by replacing
+  every `global.` with `globalThis.` (safe and correct in Node, browsers,
+  and sandboxed VMs alike).
+
+**Final verification — real dispatch vs `--local`, same payload, both
+directions:**
+- Real `runInitialFit` dispatch (via `3kidnas-test4`, ibm compute group):
+  `chi2=121271.5546875`, converged. `--local` run with the byte-identical
+  payload file: `chi2=121271.555`. Match.
+- Real `runBootstrapRealization` dispatch, 3 realizations (via `sofia2wasm`
+  + `3kidnas-test4`): all 3 converged,
+  `chi2 = 118911.563 / 124570.516 / 116417.414`. `--local` run with the
+  byte-identical payload file: **the exact same three chi2 values**, to 3
+  decimal places, in the same per-realization order.
+
+This is the first real, successful, verified DCP dispatch of this pipeline
+through `index.html`'s own code path (payload builder + published package +
+`job.requires`) since at least the `process`/`global` bugs were introduced —
+likely since before this session's FFT/padding fixes even started, since
+those bugs would have blocked EVERY prior real dispatch attempt
+unconditionally regardless of FFT correctness.
+
 ## STILL OPEN
 
 - The tiny remaining diffs (RA_model/DEC_model/RHI_AS/VHI, ~1-2e-6 absolute,

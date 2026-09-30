@@ -120,12 +120,22 @@ function allocate_Beam2D(b, nCubePixels) {
 
   b.complexKernelCreated = false;
 
-  // PaddedSize = 2*nRadialCells + 1 + nCubePixels  (per axis)
-  // Fortran: B%PaddedSize = 2*B%nRadialCells+1 + nCubePixels
-  // Fortran arrays PaddedSize(2), ComplexSize(2) are 1-indexed
-  // → stored here 0-indexed: [0]=axis1, [1]=axis2
-  b.paddedSize[0] = 2 * b.nRadialCells + 1 + nCubePixels[0];
-  b.paddedSize[1] = 2 * b.nRadialCells + 1 + nCubePixels[1];
+  // BUG FIX (2026-09-29, Dan): PaddedSize used to be computed dynamically
+  // here (2*nRadialCells+1+nCubePixels per axis, matching Fortran's OWN
+  // dynamic formula on Beam.f's line 78) -- but Fortran's Allocate_Beam2D
+  // immediately OVERRIDES that with a hardcoded PaddedSize=64x64 (a
+  // "TEMP TEST... revert after" that was committed and never reverted,
+  // confirmed still live in the currently-compiled native binaries). Real
+  // test case: nCubePixels=[43,44], nRadialCells=6 -- the dynamic formula
+  // gives [56,57] here but Fortran actually uses [64,64], a genuinely
+  // different FFT transform size (see
+  // JS_FORTRAN_PARITY_BISECTION_LEDGER.md's "SECOND BUG" section). Matching
+  // Fortran's ACTUAL behavior, not its "intended" one -- if
+  // nRadialCells+nCubePixels ever exceeds 64, Fortran's own hardcode is
+  // already broken (kernel/data wouldn't fit), which is Fortran's bug to
+  // fix, not something to work around here.
+  b.paddedSize[0] = 64;
+  b.paddedSize[1] = 64;
 
   // ComplexSize(1) = PaddedSize(1)/2 + 1  (r2c FFT output)
   // ComplexSize(2) = PaddedSize(2)

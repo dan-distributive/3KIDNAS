@@ -210,9 +210,86 @@ function rdft2C2rSyncNative(N0, N1, complexInterleaved) {
   return Float64Array.from(out);
 }
 
+// ---------------------------------------------------------------------------
+// Fortran-matched forward/inverse 2D transforms.
+//
+// ROOT CAUSE (see JS_FORTRAN_PARITY_BISECTION_LEDGER.md for the full,
+// 100%-bit-exact repro chain that found and confirmed this): Fortran's
+// PaddedArray/PaddedKernel/ComplexArr/ComplexKernel arrays are stored
+// column-major. TwoDConvolution.f and CalculateBeamKernel.f pass them
+// directly (untransposed) into FFTW's C API
+// (dfftw_plan_dft_r2c_2d/dfftw_execute_dft_r2c, and the c2r equivalent)
+// with unswapped nominal dimensions -- so FFTW's codelets actually process
+// that raw memory as if it were row-major, i.e. Fortran computes FFT(A^T),
+// not FFT(A). DFT2D(A^T)(u,v) = DFT2D(A)(v,u) is an exact MATH identity but
+// NOT a floating-point one: FFTW's row-then-column composed codelet chain
+// sums in a genuinely different order for A vs A^T, producing a real,
+// few-ULP difference in nearly every bin (confirmed: 99.95% of bins differ
+// at the raw double-precision level for a 64x64 transform).
+//
+// THE FIX: transpose the input before the forward transform, and transpose
+// the real output after the inverse transform -- reproducing Fortran's
+// actual floating-point computation path bit-for-bit, not just its
+// "logical" (mathematically-equivalent-but-not-bit-equivalent) result.
+// The complex-spectrum elementwise kernel multiply in between needs NO
+// change: both the data spectrum and kernel spectrum end up in the SAME
+// consistently-transposed ("raw") labeling once both go through
+// rdft2R2cSyncFortranMatched, so a plain position-by-position multiply
+// already matches Fortran's ComplexConvolve(i,j)=ComplexArr(i,j)*
+// ComplexKernel(i,j) exactly -- confirmed via the ledger's derivation and
+// the separately-verified bit-exact complex-multiply-formula repro.
+//
+// ONLY valid for SQUARE transforms (N0===N1). This matches Fortran's own
+// current padded-size convention (Beam.f currently hardcodes
+// PaddedSize=64x64 -- see the ledger for a separate, unrelated issue about
+// that hardcoding vs JS's own dynamically-computed paddedSize). A
+// non-square transform would need a more general fix (not implemented --
+// no live caller needs it today).
+// ---------------------------------------------------------------------------
+function transposeSquare(N, arr) {
+  const out = new Float64Array(N * N);
+  for (let i = 0; i < N; i++)
+    for (let j = 0; j < N; j++)
+      out[j * N + i] = arr[i * N + j];
+  return out;
+}
+
+// NON-SQUARE FALLBACK: this transpose fix is only derived/verified for
+// N0===N1 (see this file's header). A real, SEPARATE bug was found while
+// wiring this up (see JS_FORTRAN_PARITY_BISECTION_LEDGER.md): Fortran's
+// own Allocate_Beam2D (src/ObjectDefinitions/Beam.f) hardcodes
+// PaddedSize=64x64 unconditionally, while bootstrap-realization-launcher.js
+// computes paddedSize dynamically per-dimension (2n+1+nPixels[dim]) -- for
+// at least one real test case this gives Fortran 64x64 vs JS 56x57. Until
+// THAT is resolved, bit-exactness isn't achievable for a non-square call
+// regardless of what this function does, so rather than throw (a new,
+// avoidable crash/regression) it falls back to the plain native transform
+// (the pre-existing behavior) with a one-time warning.
+let warnedNonSquare = false;
+function rdft2R2cSyncFortranMatched(N0, N1, input) {
+  if (N0 !== N1) {
+    if (!warnedNonSquare) {
+      warnedNonSquare = true;
+      console.warn(`rdft2R2cSyncFortranMatched: non-square transform (N0=${N0}, N1=${N1}) -- falling back to plain native transform, NOT Fortran-bit-matched. See FFTW3WasmRank2.js header + JS_FORTRAN_PARITY_BISECTION_LEDGER.md.`);
+    }
+    return rdft2R2cSyncNative(N0, N1, input);
+  }
+  const inputT = transposeSquare(N0, input);
+  return rdft2R2cSyncNative(N0, N1, inputT);
+}
+
+function rdft2C2rSyncFortranMatched(N0, N1, complexInterleaved) {
+  if (N0 !== N1) {
+    return rdft2C2rSyncNative(N0, N1, complexInterleaved);
+  }
+  const rawOut = rdft2C2rSyncNative(N0, N1, complexInterleaved);
+  return transposeSquare(N0, rawOut);
+}
+
 module.exports = {
   rdft2R2cSync, rdft2C2rSync,
   rdft2R2cSyncNative, rdft2C2rSyncNative,
+  rdft2R2cSyncFortranMatched, rdft2C2rSyncFortranMatched,
   warmUp: fftw.warmUp,
 };
 

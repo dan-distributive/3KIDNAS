@@ -35,6 +35,20 @@ const f32 = Math.fround;
 
 const TRACE_DEBUG = typeof process !== 'undefined' && process.env && process.env.TRACE_DEBUG === '1';
 
+// BUG FIX (2026-09-30, Dan): `process` doesn't exist in a real DCP worker
+// sandbox (browser-like environment, not Node.js) -- several env-var checks
+// below used to reference `process.env.X` directly with no guard (unlike
+// TRACE_DEBUG above), which threw "process is not defined" on EVERY real
+// dispatch of galaxyFit_Simple (i.e. every real initial fit and every real
+// bootstrap realization), confirmed directly via a real dispatch to a live
+// worker -- never caught before because all prior testing used --local
+// (Node, where `process` always exists). This helper centralizes the guard
+// so none of these diagnostic-only overrides can crash a real dispatch
+// again, active or not.
+function getEnv(name) {
+  return (typeof process !== 'undefined' && process.env) ? process.env[name] : undefined;
+}
+
 const { allocateDataCube }              = require('../ObjectDefinitions/DataCube.js');
 const { allocateParamVector, ParameterVector } = require('../ObjectDefinitions/ParameterVector.js');
 const { calculate2DBeamKernel }         = require('../ConvolveCube/CalculateBeamKernel.js');
@@ -395,12 +409,12 @@ function galaxyFit_Simple(state) {
   // JS_OVERRIDE_REALIZATION_INDEX (same convention as
   // JS_SIMPLEX_OVERRIDE_PATH below) so it doesn't corrupt the anchor fit
   // or other realizations.
-  const forceRealizationIndex = process.env.JS_OVERRIDE_REALIZATION_INDEX != null
-    ? parseInt(process.env.JS_OVERRIDE_REALIZATION_INDEX, 10) : null;
+  const forceRealizationIndex = getEnv('JS_OVERRIDE_REALIZATION_INDEX') != null
+    ? parseInt(getEnv('JS_OVERRIDE_REALIZATION_INDEX'), 10) : null;
   const forceScopeOk = forceRealizationIndex == null
     || state.realizationIndex === forceRealizationIndex;
-  if (process.env.JS_FORCE_PVINI_HEX_PATH && forceScopeOk) {
-    const hexLines = require('fs').readFileSync(process.env.JS_FORCE_PVINI_HEX_PATH, 'utf8')
+  if (getEnv('JS_FORCE_PVINI_HEX_PATH') && forceScopeOk) {
+    const hexLines = require('fs').readFileSync(getEnv('JS_FORCE_PVINI_HEX_PATH'), 'utf8')
       .trim().split('\n');
     const fBuf = new ArrayBuffer(4);
     const fU32 = new Uint32Array(fBuf);
@@ -409,18 +423,18 @@ function galaxyFit_Simple(state) {
       fU32[0] = parseInt(hexLines[j], 16);
       pvModel.param[j] = fF32[0];
     }
-    const fMsg = `JS_FORCE_PVINI applied: ${hexLines.length} values from ${process.env.JS_FORCE_PVINI_HEX_PATH}\n`;
-    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
-      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE + '.debug', fMsg);
+    const fMsg = `JS_FORCE_PVINI applied: ${hexLines.length} values from ${getEnv('JS_FORCE_PVINI_HEX_PATH')}\n`;
+    if (getEnv('TRACE_DEBUG_FINALVEC_FILE')) {
+      require('fs').appendFileSync(getEnv('TRACE_DEBUG_FINALVEC_FILE') + '.debug', fMsg);
     } else {
       console.error(fMsg.trim());
     }
   }
-  if (process.env.JS_FORCE_IDUM != null && forceScopeOk) {
-    state.rng.state.ran2State.idum = parseInt(process.env.JS_FORCE_IDUM, 10);
+  if (getEnv('JS_FORCE_IDUM') != null && forceScopeOk) {
+    state.rng.state.ran2State.idum = parseInt(getEnv('JS_FORCE_IDUM'), 10);
     const iMsg = `JS_FORCE_IDUM applied: ${state.rng.state.ran2State.idum}\n`;
-    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
-      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE + '.debug', iMsg);
+    if (getEnv('TRACE_DEBUG_FINALVEC_FILE')) {
+      require('fs').appendFileSync(getEnv('TRACE_DEBUG_FINALVEC_FILE') + '.debug', iMsg);
     } else {
       console.error(iMsg.trim());
     }
@@ -474,12 +488,12 @@ function galaxyFit_Simple(state) {
   // initial fit AND all 5 bootstrap realizations, not just the one being
   // investigated -- corrupting the initial fit ("No best fit model made")
   // and cascading into every realization derived from it.
-  const overrideRealizationIndex = process.env.JS_OVERRIDE_REALIZATION_INDEX != null
-    ? parseInt(process.env.JS_OVERRIDE_REALIZATION_INDEX, 10) : null;
+  const overrideRealizationIndex = getEnv('JS_OVERRIDE_REALIZATION_INDEX') != null
+    ? parseInt(getEnv('JS_OVERRIDE_REALIZATION_INDEX'), 10) : null;
   const overrideScopeOk = overrideRealizationIndex == null
     || state.realizationIndex === overrideRealizationIndex;
-  if (process.env.JS_SIMPLEX_OVERRIDE_PATH && overrideScopeOk) {
-    const hexLines = require('fs').readFileSync(process.env.JS_SIMPLEX_OVERRIDE_PATH, 'utf8')
+  if (getEnv('JS_SIMPLEX_OVERRIDE_PATH') && overrideScopeOk) {
+    const hexLines = require('fs').readFileSync(getEnv('JS_SIMPLEX_OVERRIDE_PATH'), 'utf8')
       .trim().split('\n');
     const ovBuf = new ArrayBuffer(4);
     const ovU32 = new Uint32Array(ovBuf);
@@ -499,21 +513,21 @@ function galaxyFit_Simple(state) {
     // where pass 2 actually starts. This flag makes the idum override
     // strictly pass-2-only regardless of evalCount.
     state._simplexOverrideActive = true;
-    const overrideMsg = `JS_SIMPLEX_OVERRIDE applied: ${hexIdx} values from ${process.env.JS_SIMPLEX_OVERRIDE_PATH}\n`;
+    const overrideMsg = `JS_SIMPLEX_OVERRIDE applied: ${hexIdx} values from ${getEnv('JS_SIMPLEX_OVERRIDE_PATH')}\n`;
     // console.error from inside a worker_threads Worker races
     // worker.terminate() -- see FINALVEC's identical comment/fix below.
-    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
-      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE, overrideMsg);
+    if (getEnv('TRACE_DEBUG_FINALVEC_FILE')) {
+      require('fs').appendFileSync(getEnv('TRACE_DEBUG_FINALVEC_FILE'), overrideMsg);
     } else {
       console.error(overrideMsg.trim());
     }
   }
 
   const { iter: pass2Iter, noConvergence } = downhillSimplexRun(paramGuesses, chiArray, state, report);
-  if (process.env.JS_SIMPLEX_OVERRIDE_PATH || TRACE_DEBUG) {
+  if (getEnv('JS_SIMPLEX_OVERRIDE_PATH') || TRACE_DEBUG) {
     const iterMsg = `PASS2_ITER ${pass2Iter} noConvergence=${noConvergence} finalChi2=${chiArray[0]}\n`;
-    if (process.env.TRACE_DEBUG_FINALVEC_FILE) {
-      require('fs').appendFileSync(process.env.TRACE_DEBUG_FINALVEC_FILE, iterMsg);
+    if (getEnv('TRACE_DEBUG_FINALVEC_FILE')) {
+      require('fs').appendFileSync(getEnv('TRACE_DEBUG_FINALVEC_FILE'), iterMsg);
     } else {
       console.error(iterMsg.trim());
     }

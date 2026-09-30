@@ -47,6 +47,15 @@ const { fdSin }                         = require('./fdlibm.js');
 const TRACE_DEBUG = typeof process !== 'undefined' && process.env && process.env.TRACE_DEBUG === '1';
 let traceCallCounter = 0;
 
+// BUG FIX (2026-09-30, Dan): `process` doesn't exist in a real DCP worker
+// sandbox -- see GalaxyFit.js's identical fix/comment. Used below for the
+// idum-override block, which (unlike this file's other process.env checks)
+// wasn't nested inside a TRACE_DEBUG guard and threw "process is not
+// defined" on every real dispatch, confirmed directly.
+function getEnv(name) {
+  return (typeof process !== 'undefined' && process.env) ? process.env[name] : undefined;
+}
+
 // Investigative-only: sum an array in plain JS double precision (no f32
 // rounding), paired against Fortran's PrintStageChecksum (FullModelComparison.f).
 function sumArrayDouble(arr) {
@@ -186,8 +195,8 @@ function tiltedRingModelComparison(testParams, state) {
   // ring_CalcNumParticles (no direct access to `state`) can file-log
   // particle counts for the one realization under investigation, keyed by
   // this same evalCount, for a direct Fortran/JS nParticles comparison.
-  global.__TRACE_REALIZATION_INDEX = state.realizationIndex;
-  global.__TRACE_EVAL_COUNT = evalCount;
+  globalThis.__TRACE_REALIZATION_INDEX = state.realizationIndex;
+  globalThis.__TRACE_EVAL_COUNT = evalCount;
   const {
     pvModel, modelTiltedRing, modelDC, observedDC, observedBeam,
     trFittingOptions, rng, linearLogSDSwitch = 0, paramToTiltedRing,
@@ -210,17 +219,17 @@ function tiltedRingModelComparison(testParams, state) {
   // EVERY realization's worker would apply the override once ITS OWN
   // evalCount reached the target range, not just the one being
   // investigated.
-  const idumOverrideRealizationIndex = process.env.JS_OVERRIDE_REALIZATION_INDEX != null
-    ? parseInt(process.env.JS_OVERRIDE_REALIZATION_INDEX, 10) : null;
+  const idumOverrideRealizationIndex = getEnv('JS_OVERRIDE_REALIZATION_INDEX') != null
+    ? parseInt(getEnv('JS_OVERRIDE_REALIZATION_INDEX'), 10) : null;
   const idumOverrideScopeOk = (idumOverrideRealizationIndex == null
     || realizationIndex === idumOverrideRealizationIndex)
     // pass-2-only: pass 1 shares realizationIndex and can pass through the
     // same evalCount range naturally -- see GalaxyFit.js's matching comment.
     && state._simplexOverrideActive === true;
-  if (process.env.JS_IDUM_OVERRIDE_SEQUENCE_PATH && idumOverrideScopeOk) {
+  if (getEnv('JS_IDUM_OVERRIDE_SEQUENCE_PATH') && idumOverrideScopeOk) {
     if (!tiltedRingModelComparison._idumSeq) {
       tiltedRingModelComparison._idumSeq = require('fs')
-        .readFileSync(process.env.JS_IDUM_OVERRIDE_SEQUENCE_PATH, 'utf8')
+        .readFileSync(getEnv('JS_IDUM_OVERRIDE_SEQUENCE_PATH'), 'utf8')
         .trim().split('\n').map(Number);
     }
     // Anchor dynamically to the FIRST call seen once the flag is active,
@@ -369,7 +378,7 @@ function tiltedRingModelComparison(testParams, state) {
   // pixel-by-pixel diff against Fortran's matching PreConvModel.fits
   // (FitOutput.f). Matches Fortran's TRACE_DUMP_PRECONV gate.
   if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
-    global.__PRECONV_FLUX_SNAPSHOT = Float32Array.from(modelDC.flux);
+    globalThis.__PRECONV_FLUX_SNAPSHOT = Float32Array.from(modelDC.flux);
   }
 
   // Step 7: beam convolution
@@ -384,7 +393,7 @@ function tiltedRingModelComparison(testParams, state) {
   // step) introduces the divergence vs. the scalar rescale after it.
   // Matches Fortran's PostConvPreScaleModel.fits dump.
   if (typeof process !== 'undefined' && process.env && process.env.TRACE_DUMP_PRECONV) {
-    global.__POSTCONV_PRESCALE_FLUX_SNAPSHOT = Float32Array.from(modelDC.flux);
+    globalThis.__POSTCONV_PRESCALE_FLUX_SNAPSHOT = Float32Array.from(modelDC.flux);
   }
 
   // Step 8: compare cubes

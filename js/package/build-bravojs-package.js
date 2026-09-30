@@ -177,8 +177,8 @@ for (const relPath of FILES) {
 manifestFiles['initialFitEntry.js'] = 'initialFitEntry.js';
 
 const packageDcp = {
-  name: '3kidnas-test2',
-  version: '0.9.1',
+  name: '3kidnas-test4',
+  version: '0.9.4',
   files: manifestFiles,
 };
 fs.writeFileSync(path.join(OUT_ROOT, 'package.dcp'), JSON.stringify(packageDcp, null, 4) + '\n');
