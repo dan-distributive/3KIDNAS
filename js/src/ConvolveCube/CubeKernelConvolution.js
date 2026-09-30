@@ -53,7 +53,17 @@ const { flatIndxCalc } = require('../ObjectDefinitions/DataCube.js');
 // versions call FFTW's own 2D planner directly (one fftw_execute per
 // transform) and are verified round-trip-correct + matching the composed
 // path exactly (see FFTW3WasmRank2.js's self-test).
-const { rdft2R2cSyncNative: rdft2R2cSync, rdft2C2rSyncNative: rdft2C2rSync, warmUp } = require('./FFTW3WasmRank2.js');
+// Fortran-matched variants (rdft2R2cSyncFortranMatched/
+// rdft2C2rSyncFortranMatched), NOT the plain native ones -- see
+// FFTW3WasmRank2.js's header on those two functions and
+// JS_FORTRAN_PARITY_BISECTION_LEDGER.md's "ROOT CAUSE" section for why:
+// Fortran's own FFTW calls implicitly transpose their input (column-major
+// array passed untransposed into a C API), producing a real, few-ULP
+// different floating-point result from a straightforward row-major call --
+// these wrappers reproduce that exact computation instead of the
+// "obviously correct" one. Both require SQUARE transforms (see their own
+// header); this project's PaddedSize is currently always square (64x64).
+const { rdft2R2cSyncFortranMatched: rdft2R2cSync, rdft2C2rSyncFortranMatched: rdft2C2rSync, warmUp } = require('./FFTW3WasmRank2.js');
 
 
 // ---------------------------------------------------------------------------

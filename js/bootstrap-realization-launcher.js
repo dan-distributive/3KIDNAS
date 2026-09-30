@@ -603,10 +603,24 @@ async function runBootstrapRealization(realizationIndex, payload) {
     const n = fitBeam.nRadialCells;
     const kSz = 2 * n + 1;
     fitBeam.kernel = new Float32Array(kSz * kSz);
-    // Fortran's exact (unrounded) padded size -- real fftw3wasm handles any
-    // size natively, no next-power-of-2 fallback needed.
-    fitBeam.paddedSize[0] = 2 * n + 1 + bootstrapCube.dh.nPixels[0];
-    fitBeam.paddedSize[1] = 2 * n + 1 + bootstrapCube.dh.nPixels[1];
+    // BUG FIX (2026-09-29, Dan): this used to compute the "exact (unrounded)
+    // padded size" dynamically (2*n+1+nPixels[dim] per dimension) on the
+    // assumption that Fortran does the same -- WRONG. Fortran's own
+    // Allocate_Beam2D (src/ObjectDefinitions/Beam.f) hardcodes
+    // PaddedSize=64x64 UNCONDITIONALLY (a "TEMP TEST... revert after" that
+    // was never reverted -- confirmed still live in the currently-compiled
+    // native binaries, Programs/BootStrapSampler + SingleGalaxyFitter,
+    // rebuilt after that source change). For a real test case
+    // (nPixels=[43,44], nRadialCells=6) the dynamic formula gives JS
+    // paddedSize=[56,57] while Fortran actually uses [64,64] -- a
+    // genuinely different FFT transform size, not just a rounding
+    // difference (see JS_FORTRAN_PARITY_BISECTION_LEDGER.md's "SECOND BUG"
+    // section). Matching Fortran's ACTUAL behavior here, not its
+    // "intended" one -- if nRadialCells+nPixels ever exceeds 64, Fortran's
+    // own hardcode would already be broken (kernel/data wouldn't fit),
+    // which is Fortran's bug to fix, not something to work around here.
+    fitBeam.paddedSize[0] = 64;
+    fitBeam.paddedSize[1] = 64;
     fitBeam.complexSize[0] = Math.trunc(fitBeam.paddedSize[0] / 2) + 1;
     fitBeam.complexSize[1] = fitBeam.paddedSize[1];
     fitBeam.complexKernelCreated = false;
