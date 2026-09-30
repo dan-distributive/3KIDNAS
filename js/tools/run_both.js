@@ -52,7 +52,7 @@ node run_both.js \
  *
  */
 'use strict';
-const { spawn, execSync } = require('node:child_process');
+const { spawn, execSync, exec } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -80,6 +80,65 @@ function getPerformanceCoreCount() {
     return Number.isFinite(n) && n > 0 ? n : null;
   } catch (e) {
     return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// writeAndOpenHtmlReport
+//
+// run_both_report.html (this same directory) is a static viewer template
+// -- normally you'd drag a *_report.json onto it by hand. This writes a
+// fresh copy of that template with the just-produced `report` baked in as
+// a <script id="embedded-report-data" type="application/json"> (inserted
+// right after the EMBEDDED_REPORT_DATA_MARKER comment near the end of the
+// file, replacing whatever a prior run left there), so opening the file
+// shows results immediately -- no fetch(), so it works from a plain
+// file:// open too, not just over HTTP. Then auto-opens it in the
+// default browser.
+//
+// Overwrites run_both_report.html in place (not a timestamped copy) --
+// deliberate: this is a dev tool's "latest run" view, same spirit as the
+// JSON report defaulting to one fixed filename unless --json says
+// otherwise. Never throws: a report-viewing convenience failing (missing
+// template, no GUI to open a browser on a headless box, etc.) shouldn't
+// fail the run or its exit code.
+// ---------------------------------------------------------------------------
+function writeAndOpenHtmlReport(report) {
+  try {
+    const templatePath = path.join(__dirname, 'run_both_report.html');
+    let html = fs.readFileSync(templatePath, 'utf8');
+
+    const marker = '<!-- EMBEDDED_REPORT_DATA_MARKER';
+    const markerIdx = html.indexOf(marker);
+    if (markerIdx === -1) {
+      console.log('[run_both] WARNING: run_both_report.html has no EMBEDDED_REPORT_DATA_MARKER -- skipping HTML report');
+      return;
+    }
+    const markerEndIdx = html.indexOf('-->', markerIdx) + '-->'.length;
+
+    // Strip any embedded-data script tag a PRIOR run of this function left
+    // right after the marker, so re-running against the same file is
+    // idempotent instead of stacking duplicate script tags.
+    const afterMarker = html.slice(markerEndIdx);
+    const staleScriptMatch = afterMarker.match(/^\s*<script id="embedded-report-data"[^>]*>[\s\S]*?<\/script>/);
+    const afterMarkerClean = staleScriptMatch ? afterMarker.slice(staleScriptMatch[0].length) : afterMarker;
+
+    const dataScript = `\n<script id="embedded-report-data" type="application/json">${
+      JSON.stringify(report).replace(/</g, '\\u003c')
+    }</script>`;
+    html = html.slice(0, markerEndIdx) + dataScript + afterMarkerClean;
+
+    fs.writeFileSync(templatePath, html);
+    console.log(`[run_both] wrote HTML report to ${templatePath}`);
+
+    const openCmd = process.platform === 'darwin' ? 'open'
+      : process.platform === 'win32' ? 'start ""'
+      : 'xdg-open';
+    exec(`${openCmd} ${JSON.stringify(templatePath)}`, (err) => {
+      if (err) console.log(`[run_both] could not auto-open the HTML report (${err.message}) -- open it manually: ${templatePath}`);
+    });
+  } catch (e) {
+    console.log(`[run_both] WARNING: failed to write/open the HTML report: ${e.message}`);
   }
 }
 
@@ -546,6 +605,8 @@ async function main() {
   };
   fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2));
   console.log(`\n[run_both] wrote report to ${jsonPath}`);
+
+  writeAndOpenHtmlReport(report);
 
   const ranOk = (skipFortran || (results.fortranLocal && results.fortranLocal.code === 0))
     && (skipJsDcp || (results[jsLegKey] && results[jsLegKey].code === 0));

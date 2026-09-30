@@ -1389,7 +1389,33 @@
   ['dragover', 'drop'].forEach(function (evt) {
     window.addEventListener(evt, function (e) { e.preventDefault(); });
   });
+
+  // ---------------------------------------------------------------------
+  // Auto-load: run_both.js writes a fresh copy of THIS file with the run's
+  // report JSON baked into the #embedded-report-data script tag below (see
+  // its own header comment), so opening this file (file:// or http://,
+  // either works -- no fetch(), no CORS issue) immediately shows the
+  // results, no drag-and-drop needed. Falls through to the normal
+  // dropzone UI untouched when no embedded data is present (e.g. this
+  // template opened directly from a fresh git checkout).
+  // ---------------------------------------------------------------------
+  var embeddedDataEl = document.getElementById('embedded-report-data');
+  if (embeddedDataEl && embeddedDataEl.textContent.trim()) {
+    try {
+      var embedded = JSON.parse(embeddedDataEl.textContent);
+      if (embedded && typeof embedded === 'object' && embedded.runs) render(embedded);
+    } catch (e) {
+      parseErrorEl.textContent = 'Could not parse the embedded report data: ' + e.message;
+      parseErrorEl.style.display = 'block';
+    }
+  }
 })();
 </script>
+<!-- EMBEDDED_REPORT_DATA_MARKER -- run_both.js finds this exact comment and
+     inserts a <script id="embedded-report-data" type="application/json">
+     right after it, replacing whatever it finds there on a prior run's
+     output. Left empty (this comment, nothing else) in the git-tracked
+     template -- opening the template as-is falls through to the ordinary
+     drag-and-drop UI above. -->
 </body>
 </html>
