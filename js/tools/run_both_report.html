@@ -308,10 +308,16 @@
   }
   .gbp-frame { fill: none; stroke: var(--border); stroke-width: 1; }
   .gbp-axis-label { fill: var(--muted); font-size: 9.5px; }
-  .gbp-dot { opacity: 0.55; }
-  .gbp-dot.fortranLocal { fill: #9ca3af; }
-  .gbp-dot.jsLocal { fill: #b98a2e; }
-  .gbp-dot.jsDcp { fill: var(--accent); }
+  /* Open circle (fortran-local) vs cross (every JS leg) -- see
+     gbpDrawScatter's comment. Stroke widths chosen to read as roughly
+     equal "ink weight" at their respective sizes: the circle's outline
+     covers less of its own bounding box per unit stroke-width than the
+     cross's two straight arms do, so the circle gets a touch thicker. */
+  .gbp-dot-circle { fill: none; stroke-width: 1.15; opacity: 0.85; }
+  .gbp-dot-cross { fill: none; stroke-width: 1.05; stroke-linecap: round; opacity: 0.85; }
+  .gbp-dot-circle.fortranLocal, .gbp-dot-cross.fortranLocal { stroke: #9ca3af; }
+  .gbp-dot-circle.jsLocal, .gbp-dot-cross.jsLocal { stroke: #b98a2e; }
+  .gbp-dot-circle.jsDcp, .gbp-dot-cross.jsDcp { stroke: var(--accent); }
   .gbp-mean { stroke: var(--surface); stroke-width: 1; }
   .gbp-mean.fortranLocal { fill: #9ca3af; }
   .gbp-mean.jsLocal { fill: #b98a2e; }
@@ -483,6 +489,15 @@
   var GBP_PROFILE_WIDTH = Math.floor((GBP_CORNER_WIDTH - GBP_SIDE_GAP) / 2);
   var SVGNS = 'http://www.w3.org/2000/svg';
 
+  // Per-realization scatter marker sizing -- see gbpDrawScatter's own
+  // comment for why fortran-local is an open circle and every JS leg is a
+  // cross. Cross bounding diameter (2*GBP_CROSS_HALF) intentionally a bit
+  // larger than the circle's (2*GBP_CIRCLE_R): when the two coincide, the
+  // cross's arms poke out past the circle's outline instead of hiding
+  // fully inside it.
+  var GBP_CIRCLE_R = 2.5;
+  var GBP_CROSS_HALF = 3.1;
+
   function gbpEl(tag, attrs) {
     var e = document.createElementNS(SVGNS, tag);
     for (var k in attrs) e.setAttribute(k, attrs[k]);
@@ -634,7 +649,22 @@
         var yv = yKey === 'POSITIONANGLE' ? gbpAdjustPA(r[yKey], paRefY) : r[yKey];
         if (!isFinite(xv) || !isFinite(yv)) return;
         var px = sx.map(xv) * cell, py = cell - sy.map(yv) * cell;
-        g.appendChild(gbpEl('circle', { cx: px, cy: py, r: 2.4, class: 'gbp-dot ' + d.key }));
+        // Shape-coded by leg, not just color: overlapping same-color-ish
+        // filled dots made it hard to see AT A GLANCE that two independent
+        // datasets sit on top of each other when they agree almost exactly
+        // (the actual common case here). fortran-local draws as an open
+        // (unfilled, outlined) circle; every JS leg draws as a cross,
+        // slightly larger in bounding diameter than the circle (GBP_CROSS_HALF
+        // *2 vs GBP_CIRCLE_R*2) -- when the two agree, you see a circle
+        // with a cross centered inside it, not a single merged blob.
+        if (d.key === 'fortranLocal') {
+          g.appendChild(gbpEl('circle', { cx: px, cy: py, r: GBP_CIRCLE_R, class: 'gbp-dot-circle ' + d.key }));
+        } else {
+          var gcs = GBP_CROSS_HALF;
+          var crossD = 'M' + (px - gcs) + ',' + (py - gcs) + 'L' + (px + gcs) + ',' + (py + gcs)
+            + 'M' + (px - gcs) + ',' + (py + gcs) + 'L' + (px + gcs) + ',' + (py - gcs);
+          g.appendChild(gbpEl('path', { d: crossD, class: 'gbp-dot-cross ' + d.key }));
+        }
       });
       var mx = gbpMean(d.rows.map(function (r) { return xKey === 'POSITIONANGLE' ? gbpAdjustPA(r[xKey], paRefX) : r[xKey]; }));
       var my = gbpMean(d.rows.map(function (r) { return yKey === 'POSITIONANGLE' ? gbpAdjustPA(r[yKey], paRefY) : r[yKey]; }));
