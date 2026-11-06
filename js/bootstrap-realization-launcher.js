@@ -957,13 +957,19 @@ async function estimateGeometry(inputSetElement, payload) {
 // genuinely fresh galaxy with zero Fortran involvement.
 // -----------------------------------------------------------------------
 async function runInitialFit(realizationIndex, payload) {
-  // realizationIndex is unused -- there's only ever one anchor fit, no per-
-  // slice index to act on -- but compute.for(inputSet, workFn, extraArgs)
-  // always calls workFn(element, ...extraArgs), so the parameter list has
-  // to match that shape (same as runBootstrapRealization's) for the real-
-  // DCP dispatch below to bind payload correctly instead of accidentally
-  // binding the inputSet element to it.
+  // compute.for(inputSet, workFn, extraArgs) calls workFn(element, ...extraArgs).
+  // A single-galaxy fit passes a number here and everything in payload. A
+  // multi-galaxy job (catalogue.html) passes one galaxy per slice instead:
+  // { galaxyId, observedCubeRawFitsB64, observedMaskRawFitsB64 }, fetched by URL,
+  // with the shared fitting options in payload and per-galaxy PA/Inc in
+  // payload.galaxies[galaxyId].
+  if (realizationIndex && typeof realizationIndex === 'object') {
+    const perGalaxy = (payload.galaxies && payload.galaxies[realizationIndex.galaxyId]) || {};
+    payload = Object.assign({}, payload, realizationIndex, perGalaxy);
+    delete payload.galaxies;
+  }
   const report = {};
+  if (payload.galaxyId) report.galaxyId = payload.galaxyId;
   const tEntry = Date.now();
   const timings = {
     resampleMs: null, sofiaMs: null, fixtureFitMs: null,
