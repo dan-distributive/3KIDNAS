@@ -96,6 +96,13 @@
   .status-pill.ok { background: var(--ok-bg); color: var(--ok); }
   .status-pill.warn { background: var(--warn-bg); color: var(--warn); }
   .status-pill.err { background: var(--err-bg); color: var(--err); }
+  .seg { display:inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+  .seg label { display:flex; align-items:center; gap: 6px; padding: 6px 12px; font-size: 13px; font-weight: 500; cursor: pointer; margin: 0; color: var(--ink); }
+  .seg label + label { border-left: 1px solid var(--border-strong); }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label:has(input:checked) { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+  .seg label:has(input:disabled) { opacity: 0.45; cursor: not-allowed; }
+  .seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
   .status-pill .dot { width:7px; height:7px; border-radius:50%; background: currentColor; }
 
   /* Sky map */
@@ -153,19 +160,33 @@
   .fanout-stage svg.fanout { display:block; width: 100%; }
   .fanout-empty[hidden] { display: none; }
   .fanout-empty { position:absolute; inset: 0; display:flex; align-items:center; justify-content:center; color: var(--space-muted); font-size: 13px; pointer-events: none; text-align: center; padding: 20px; }
-  .fanout-foot { display:grid; grid-template-columns: 1fr 340px; gap: 0; border-top: 1px solid #1b2338; }
-  @media (max-width: 900px) { .fanout-foot { grid-template-columns: 1fr; } }
-  .throughput { padding: 12px 22px 16px; }
-  .throughput h3, .detail h3 { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--space-muted); margin: 0 0 6px; font-weight: 600; }
-  .detail { padding: 12px 18px 16px; border-left: 1px solid #1b2338; min-height: 140px; }
+  .fanout-tools { display:flex; align-items:flex-start; gap: 18px; }
+  .fo-btn { background: transparent; color: var(--space-muted); border: 1px solid #2a3654; padding: 5px 9px; font-size: 12px; display:inline-flex; align-items:center; gap: 6px; }
+  .fo-btn:hover { color: var(--space-ink); border-color: #3b4a70; }
+  .fo-btn svg { width: 14px; height: 14px; }
+  section.card.fanout-card:fullscreen { overflow-y: auto; border-radius: 0; border: 0; margin: 0; max-width: none; }
+  section.card.fanout-card:fullscreen .fanout-head .card-sub { display: none; }
+  .fanout-foot { display:grid; grid-template-columns: 1fr; border-top: 1px solid #1b2338; }
+  .fanout-foot .plot { display: none; padding: 12px 18px 16px; min-width: 0; }
+  .fanout-foot.with-plots { grid-template-columns: 1fr 1fr 300px; }
+  .fanout-foot.with-plots .plot { display: block; }
+  .fanout-foot.with-plots .plot + .plot { border-left: 1px solid #1b2338; }
+  @media (max-width: 1100px) {
+    .fanout-foot.with-plots { grid-template-columns: 1fr 1fr; }
+    .fanout-foot.with-plots .detail { grid-column: 1 / -1; border-left: 0; border-top: 1px solid #1b2338; }
+  }
+  @media (max-width: 700px) {
+    .fanout-foot.with-plots { grid-template-columns: 1fr; }
+    .fanout-foot.with-plots .plot + .plot { border-left: 0; border-top: 1px solid #1b2338; }
+  }
+  .plot h3, .detail h3 { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--space-muted); margin: 0 0 6px; font-weight: 600; }
+  .detail { padding: 12px 18px 16px; min-height: 140px; min-width: 0; }
+  .fanout-foot.with-plots .detail { border-left: 1px solid #1b2338; }
   .detail .dname { font-weight: 700; font-size: 13.5px; }
   .detail .dsub { color: var(--space-muted); font-size: 11.5px; margin-bottom: 8px; }
   .detail table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .detail td { padding: 3px 0; border-bottom: 1px solid #1b2338; }
   .detail td:last-child { text-align: right; font-family: ui-monospace, Menlo, monospace; }
-  .detail-plots { display:grid; grid-template-columns: 1fr 1fr; gap: 0 22px; padding: 4px 22px 18px; border-top: 1px solid #1b2338; }
-  @media (max-width: 900px) { .detail-plots { grid-template-columns: 1fr; } }
-  .detail-plots h3 { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--space-muted); margin: 12px 0 4px; font-weight: 600; }
   .tooltip { position: absolute; pointer-events: none; background: rgba(13,19,34,0.94); border: 1px solid #2a3654; border-radius: 8px; padding: 8px 10px; font-size: 11.5px; color: var(--space-ink); max-width: 260px; opacity: 0; transition: opacity 120ms; z-index: 5; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
   .tooltip .tname { font-weight: 700; margin-bottom: 2px; }
   .tooltip .trow { color: var(--space-muted); }
@@ -230,19 +251,23 @@
     </section>
 
     <section class="card">
-      <h2>Results storage</h2>
-      <p class="card-sub">Workers post each fit and realization to dcp.network, so results survive closing the tab
-        and the catalogue shows what is already done. Without it, results come back through DCP to this browser tab: download them before you close it.</p>
-      <div class="row" style="align-items:center; margin-bottom: 12px">
-        <span class="status-pill" id="storagePill"><span class="dot"></span>checking…</span>
-        <a class="muted" style="font-size:12px" id="resultsLink" href="#" target="_blank" rel="noopener">browse stored results</a>
+      <h2>Results</h2>
+      <div class="seg" role="radiogroup" aria-label="Where results go">
+        <label><input type="radio" name="resultsMode" value="local" id="resultsLocalInput" checked> This browser</label>
+        <label><input type="radio" name="resultsMode" value="remote" id="resultsRemoteInput"> dcp.network</label>
       </div>
-      <div class="field">
-        <label for="uploadKeyInput">Upload key</label>
-        <input type="password" id="uploadKeyInput" placeholder="content of ~/3kidnas-results/token on dcp.network">
+      <p class="card-sub" id="resultsModeHelp"></p>
+      <div id="remoteControls" hidden>
+        <div class="row" style="align-items:center; margin-bottom: 12px">
+          <span class="status-pill" id="storagePill"><span class="dot"></span>checking…</span>
+          <a class="muted" style="font-size:12px" id="resultsLink" href="#" target="_blank" rel="noopener">browse stored results</a>
+        </div>
+        <div class="field">
+          <label for="uploadKeyInput">Upload key</label>
+          <input type="password" id="uploadKeyInput" placeholder="content of ~/3kidnas-results/token on dcp.network">
+        </div>
+        <label class="check"><input type="checkbox" id="reuseFitsInput" checked> Reuse stored initial fits (go straight to bootstrap)</label>
       </div>
-      <label class="check"><input type="checkbox" id="useStorageInput"> Store results on dcp.network</label>
-      <label class="check" style="margin-top:8px"><input type="checkbox" id="reuseFitsInput" checked> Reuse stored initial fits (go straight to bootstrap)</label>
     </section>
   </div>
 
@@ -328,7 +353,12 @@
         <p class="card-sub">Centre: the initial-fit job. Ring: one galaxy per slice, drawn at its estimated
           position angle and inclination. Outer fans: each galaxy's bootstrap realizations. Scroll to zoom, click a galaxy.</p>
       </div>
-      <div class="stats" id="stats"></div>
+      <div class="fanout-tools">
+        <div class="stats" id="stats"></div>
+        <button type="button" class="fo-btn" id="fullscreenBtn" title="Fullscreen (Esc to leave)" aria-label="Fullscreen">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>
+        </button>
+      </div>
     </div>
     <div class="fanout-stage" id="fanoutStage">
       <svg class="fanout" id="fanoutSvg"></svg>
@@ -336,24 +366,18 @@
       <div class="tooltip" id="fanoutTip"></div>
     </div>
     <div class="legend-row" id="fanoutLegend"></div>
-    <div class="fanout-foot">
-      <div class="throughput">
-        <h3>Slices completed per 10 s</h3>
-        <svg id="throughputSvg" style="width:100%; height:110px; display:block"></svg>
+    <div class="fanout-foot" id="fanoutFoot">
+      <div class="plot">
+        <h3>Rotation curve: best fit and realizations</h3>
+        <svg id="rotCurveSvg" style="width:100%; height:220px; display:block"></svg>
+      </div>
+      <div class="plot">
+        <h3>Inclination vs position angle</h3>
+        <svg id="geoCloudSvg" style="width:100%; height:220px; display:block"></svg>
       </div>
       <div class="detail" id="detail">
         <h3>Galaxy</h3>
         <div class="dsub">Click a galaxy in the fan-out or the table.</div>
-      </div>
-    </div>
-    <div class="detail-plots" id="detailPlots" hidden>
-      <div>
-        <h3>Rotation curve: best fit and every realization</h3>
-        <svg id="rotCurveSvg" style="width:100%; height:220px; display:block"></svg>
-      </div>
-      <div>
-        <h3>Inclination vs position angle across realizations</h3>
-        <svg id="geoCloudSvg" style="width:100%; height:220px; display:block"></svg>
       </div>
     </div>
   </section>
@@ -371,7 +395,7 @@
 <script src="src/PipelineConfig/defaultFittingOptions.js?v=a7abfe651b"></script>
 <script src="src/PayloadBuilder/buildFitPayloads.js?v=0ad909aea2"></script>
 <script src="bootstrap-realization-launcher.js?v=3a1be182e7"></script>
-<script src="catalogue/fanout.js?v=2b497a12d6"></script>
-<script src="catalogue/app.js?v=972fbf7385"></script>
+<script src="catalogue/fanout.js?v=1f45bd3d3a"></script>
+<script src="catalogue/app.js?v=f27b3d4568"></script>
 </body>
 </html>

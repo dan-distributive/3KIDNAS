@@ -111,6 +111,7 @@ function fmtValErr(val, err) {
 const API_KEY_STORAGE_KEY = 'galaxy-fit:apiKey';
 const COMPUTE_GROUPS_STORAGE_KEY = 'galaxy-fit:computeGroups';
 const UPLOAD_KEY_STORAGE_KEY = 'galaxy-catalogue:uploadKey';
+const RESULTS_MODE_STORAGE_KEY = 'galaxy-catalogue:resultsMode';
 
 function stored(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch (e) { return fallback; } }
 function store(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* private window */ } }
@@ -177,31 +178,39 @@ function setStoragePill(kind, text) {
   pill.className = 'status-pill ' + kind;
   pill.replaceChildren(el('span', { class: 'dot' }), text);
 }
+const RESULTS_MODE_HELP = {
+  local: 'Results come back through DCP to this tab. Download them before you close it.',
+  remote: 'Workers post each fit and realization to dcp.network; the replies still drive this page. '
+    + 'Results survive closing the tab and the table shows what is already done.',
+};
+function resultsMode() { return $('resultsRemoteInput').checked ? 'remote' : 'local'; }
 function refreshStorageControls() {
-  const useInput = $('useStorageInput');
-  useInput.disabled = !storageReachable || !uploadKeyInput.value.trim();
-  if (useInput.disabled) useInput.checked = false;
+  const mode = resultsMode();
+  $('resultsModeHelp').textContent = RESULTS_MODE_HELP[mode];
+  $('remoteControls').hidden = mode !== 'remote';
   $('reuseFitsInput').disabled = !storedIndex;
 }
-uploadKeyInput.addEventListener('change', () => {
-  store(UPLOAD_KEY_STORAGE_KEY, uploadKeyInput.value.trim());
-  refreshStorageControls();
-  if (!$('useStorageInput').disabled) $('useStorageInput').checked = true;
-});
+for (const input of [$('resultsLocalInput'), $('resultsRemoteInput')]) {
+  input.addEventListener('change', () => { store(RESULTS_MODE_STORAGE_KEY, resultsMode()); refreshStorageControls(); });
+}
+if (stored(RESULTS_MODE_STORAGE_KEY, 'local') === 'remote' && !SIMULATE) $('resultsRemoteInput').checked = true;
+$('resultsRemoteInput').disabled = SIMULATE;
+uploadKeyInput.addEventListener('change', () => store(UPLOAD_KEY_STORAGE_KEY, uploadKeyInput.value.trim()));
 async function probeStorage() {
-  if (SIMULATE) { setStoragePill('warn', 'simulation: results stay in this tab'); return; }
+  refreshStorageControls();
+  if (SIMULATE) return;
   try {
     const res = await fetch(new URL('ping', UPLOAD_BASE), { cache: 'no-store' });
     storageReachable = res.ok;
   } catch (e) { storageReachable = false; }
   setStoragePill(storageReachable ? 'ok' : 'warn', storageReachable ? 'upload endpoint reachable' : 'upload endpoint not set up yet');
-  refreshStorageControls();
-  if (!$('useStorageInput').disabled) $('useStorageInput').checked = true;
 }
+// null means results come back to this tab. Remote without a key is refused at deploy time.
 function storageConfig() {
-  if (SIMULATE || !$('useStorageInput').checked) return null;
+  if (SIMULATE || resultsMode() !== 'remote') return null;
   const key = uploadKeyInput.value.trim();
-  return key ? { url: new URL(key, UPLOAD_BASE) } : null;
+  if (!key) throw new Error('Results are set to dcp.network but the upload key is empty');
+  return { url: new URL(key, UPLOAD_BASE) };
 }
 
 // ---------------------------------------------------------------------------
@@ -1029,7 +1038,7 @@ async function renderDetail(id) {
     el('table', {}, el('tbody', {}, ...rows)),
     linkLine,
   );
-  $('detailPlots').hidden = false;
+  $('fanoutFoot').classList.add('with-plots');
   Fanout.drawRotationCurves($('rotCurveSvg'), fit, reports);
   Fanout.drawGeoCloud($('geoCloudSvg'), fit, reports);
 }
@@ -1039,8 +1048,13 @@ async function renderDetail(id) {
 // ---------------------------------------------------------------------------
 fanout = Fanout.create({
   svgEl: $('fanoutSvg'), stageEl: $('fanoutStage'), tipEl: $('fanoutTip'), emptyEl: $('fanoutEmpty'),
-  statsEl: $('stats'), legendEl: $('fanoutLegend'), throughputEl: $('throughputSvg'),
+  statsEl: $('stats'), legendEl: $('fanoutLegend'),
   onSelect: (id) => showDetail(id),
+});
+$('fullscreenBtn').addEventListener('click', () => {
+  const card = $('fullscreenBtn').closest('.fanout-card');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else card.requestFullscreen().catch((e) => logLine('fullscreen refused: ' + (e.message || e), 'err'));
 });
 $('simBanner').hidden = !SIMULATE;
 renderHead();

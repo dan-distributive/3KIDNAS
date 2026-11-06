@@ -33,7 +33,7 @@ const Fanout = (() => {
   // Angle 0 points up, increasing clockwise.
   function polar(angle, radius) { return [radius * Math.sin(angle), -radius * Math.cos(angle)]; }
 
-  function create({ svgEl, stageEl, tipEl, emptyEl, statsEl, legendEl, throughputEl, onSelect }) {
+  function create({ svgEl, stageEl, tipEl, emptyEl, statsEl, legendEl, onSelect }) {
     const svg = d3.select(svgEl);
     const defs = svg.append('defs');
     const sky = svg.append('g').attr('class', 'sky');
@@ -50,7 +50,7 @@ const Fanout = (() => {
     let W = 0, H = 0, M = 0, R1 = 0, RB0 = 0, RBmax = 0;
     let galaxies = [], byId = new Map(), states = new Map();
     let selected = null, nodeSize = 8, arcMode = false;
-    let startedAt = null, completions = [], running = false;
+    let startedAt = null, running = false;
     let zoomK = 1;
 
     // ---------------------------------------------------------------- defs
@@ -87,7 +87,11 @@ const Fanout = (() => {
     // ---------------------------------------------------------------- layout
     function resize() {
       W = stageEl.clientWidth || 900;
-      H = Math.max(440, Math.min(820, Math.round(W * 0.68)));
+      // Fit the viewport, leaving room for the card's header and legend; fullscreen gets the lot.
+      const head = stageEl.parentElement.querySelector('.fanout-head');
+      const chrome = (head ? head.offsetHeight : 0) + legendEl.offsetHeight + 8;
+      const avail = window.innerHeight - chrome - (document.fullscreenElement ? 0 : 32);
+      H = Math.max(360, Math.min(Math.round(W * 0.68), avail));
       svg.attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
       M = Math.min(W, H) / 2;
       R1 = M * 0.44;
@@ -365,43 +369,6 @@ const Fanout = (() => {
     }
     renderLegend();
 
-    // ---------------------------------------------------------------- throughput
-    const tp = d3.select(throughputEl);
-    function renderThroughput() {
-      const w = throughputEl.clientWidth || 600, h = 110, m = { l: 28, r: 18, t: 8, b: 18 };
-      tp.attr('viewBox', `0 0 ${w} ${h}`);
-      tp.selectAll('*').remove();
-      if (!startedAt) return;
-      const binMs = 10000;
-      const nBins = Math.max(6, Math.ceil((Date.now() - startedAt) / binMs));
-      const bins = new Array(nBins).fill(0);
-      for (const t of completions) bins[Math.min(nBins - 1, Math.floor((t - startedAt) / binMs))]++;
-      const x = d3.scaleLinear().domain([0, nBins - 1]).range([m.l, w - m.r]);
-      const y = d3.scaleLinear().domain([0, Math.max(4, d3.max(bins))]).nice().range([h - m.b, m.t]);
-      const grad = tp.append('defs').append('linearGradient').attr('id', 'fo-tp').attr('x1', 0).attr('x2', 0).attr('y1', 0).attr('y2', 1);
-      grad.append('stop').attr('offset', '0%').attr('stop-color', cssColor('--s-done')).attr('stop-opacity', 0.55);
-      grad.append('stop').attr('offset', '100%').attr('stop-color', cssColor('--s-boot')).attr('stop-opacity', 0.02);
-      tp.append('g').attr('transform', `translate(${m.l},0)`)
-        .call(d3.axisLeft(y).ticks(3).tickSize(-(w - m.l - m.r)))
-        .call((g) => g.select('.domain').remove())
-        .call((g) => g.selectAll('line').attr('stroke', '#ffffff').attr('stroke-opacity', 0.06))
-        .call((g) => g.selectAll('text').attr('fill', cssColor('--space-muted')).attr('font-size', 9));
-      tp.append('g').attr('transform', `translate(0,${h - m.b})`)
-        .call(d3.axisBottom(x).ticks(Math.min(8, nBins)).tickFormat((d) => `${Math.round((d * binMs) / 60000 * 10) / 10}m`).tickSize(0))
-        .call((g) => g.select('.domain').attr('stroke', '#ffffff').attr('stroke-opacity', 0.1))
-        .call((g) => g.selectAll('text').attr('fill', cssColor('--space-muted')).attr('font-size', 9).attr('dy', '1em'));
-      const area = d3.area().x((d, i) => x(i)).y0(h - m.b).y1((d) => y(d)).curve(d3.curveMonotoneX);
-      const line = d3.line().x((d, i) => x(i)).y((d) => y(d)).curve(d3.curveMonotoneX);
-      tp.append('path').datum(bins).attr('d', area).attr('fill', 'url(#fo-tp)');
-      tp.append('path').datum(bins).attr('d', line).attr('fill', 'none').attr('stroke', cssColor('--s-done')).attr('stroke-width', 1.5);
-    }
-    let tpTimer = null;
-    function scheduleThroughput() {
-      if (tpTimer) return;
-      tpTimer = setTimeout(() => { tpTimer = null; renderThroughput(); }, 800);
-    }
-    setInterval(() => { if (running) renderThroughput(); }, 10000);
-
     // ---------------------------------------------------------------- particles
     function particleAlong(pathD, { color, r = 2.2, duration = 900, reverse = true }) {
       const path = gParticles.append('path').attr('d', pathD).attr('fill', 'none').attr('stroke', 'none');
@@ -461,6 +428,7 @@ const Fanout = (() => {
     }
 
     window.addEventListener('resize', () => { clearTimeout(resize.t); resize.t = setTimeout(resize, 150); });
+    document.addEventListener('fullscreenchange', () => { svg.call(zoom.transform, d3.zoomIdentity); resize(); });
 
     return {
       setGalaxies(list, stateMap) {
@@ -479,18 +447,15 @@ const Fanout = (() => {
       update: scheduleRender,
       setRunning(on) {
         running = on;
-        if (on && !startedAt) { startedAt = Date.now(); completions = []; }
+        if (on && !startedAt) startedAt = Date.now();
         scheduleRender();
-        renderThroughput();
       },
-      resetClock() { startedAt = null; completions = []; renderThroughput(); },
+      resetClock() { startedAt = null; },
       dispatched() {
         for (const g of galaxies) particleAlong(spokePath(g), { color: cssColor('--s-fitting'), reverse: false, duration: 1100, r: 1.6 });
       },
       fitLanded(id, ok) {
         const g = byId.get(id);
-        completions.push(Date.now());
-        scheduleThroughput();
         if (!g) return;
         const color = ok ? cssColor('--s-fit') : cssColor('--s-failed');
         particleAlong(spokePath(g), { color, duration: 1000, r: 2.6 });
@@ -499,8 +464,6 @@ const Fanout = (() => {
       },
       realizationLanded(id, k, ok) {
         const g = byId.get(id);
-        completions.push(Date.now());
-        scheduleThroughput();
         if (!g) return;
         const d = (g.dots || [])[k];
         const color = ok ? cssColor('--s-done') : cssColor('--s-failed');
