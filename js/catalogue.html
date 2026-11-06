@@ -34,7 +34,7 @@
     font-family: ui-sans-serif, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
     line-height:1.5;
   }
-  main { max-width: 1280px; margin: 0 auto; padding: 40px 24px 96px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 40px 24px 96px; }
   code, .mono, .tabular, input { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
 
   h1 { font-size: 22px; margin: 0 0 4px; }
@@ -55,8 +55,6 @@
     border-radius:50%; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight:700;
   }
   .card-sub { color: var(--muted); font-size: 12.5px; margin: 0 0 16px; }
-  .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
 
   label { display:block; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
   .field { margin-bottom: 14px; }
@@ -79,9 +77,6 @@
   button.small { padding: 6px 12px; font-size: 12.5px; }
   button.danger { background: var(--err); color: #fff; }
 
-  .account-grid { display:grid; grid-template-columns: minmax(0, 560px) minmax(0, 480px) 130px; gap: 0 20px; align-items: start; }
-  @media (max-width: 1000px) { .account-grid { grid-template-columns: minmax(0, 1fr) 130px; } .account-grid .groups-field { grid-column: 1 / -1; grid-row: 2; } }
-  @media (max-width: 560px) { .account-grid { grid-template-columns: minmax(0, 1fr); } .account-grid .groups-field { grid-row: auto; } }
   .compute-group-row { display:flex; gap: 8px; align-items: center; }
   .compute-group-row input { flex: 1; min-width: 0; }
   .compute-group-row .remove-group-btn {
@@ -228,20 +223,19 @@
       <summary><h2>DCP account</h2></summary>
       <p class="card-sub">Shared with the single-galaxy app on this site. Workers need
         <code>https://people.distributive.network</code> (galaxy data) in their <code>allowOrigins</code>.</p>
-      <div class="account-grid">
       <div class="field">
         <label for="apiKeyInput">API key (identity)</label>
         <input type="text" id="apiKeyInput" placeholder="0x… (leave blank to use the wallet picker instead)">
       </div>
-      <div class="field groups-field">
+      <div class="field">
         <label>Compute group(s)</label>
         <div id="computeGroupRows" style="display:flex; flex-direction:column; gap:8px; margin-top:4px"></div>
         <button id="addComputeGroupBtn" type="button" class="secondary small" style="margin-top:8px">+ Add another group</button>
+        <p class="card-sub" style="margin:6px 0 0">Leave joinKey blank for the public group.</p>
       </div>
       <div class="field">
         <label for="slicePaymentOfferInput">Slice payment offer</label>
-        <input type="number" id="slicePaymentOfferInput" value="1.000" min="0" step="0.001">
-      </div>
+        <input type="number" id="slicePaymentOfferInput" value="1.000" min="0" step="0.001" style="max-width:160px">
       </div>
     </details>
   </section>
