@@ -860,7 +860,8 @@ function onRealization(g, value, sliceNumber) {
 async function bootstrapFitted() {
   const list = selectedGalaxies().filter((g) => {
     const s = storedEntry(g.id);
-    return fitCache.has(g.id) || (s && s.fit && s.fit.FITAchieved);
+    const f = fitCache.get(g.id);
+    return f ? Boolean(f.FITAchieved) : Boolean(s && s.fit && s.fit.FITAchieved);
   });
   if (!list.length) { logLine('none of the selected galaxies has a converged fit to bootstrap from', 'err'); return; }
   startRun(list);
