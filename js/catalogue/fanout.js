@@ -502,13 +502,14 @@ const Fanout = (() => {
   }
   const finiteArr = (a) => Array.isArray(a) ? a.map(Number).filter(Number.isFinite) : [];
 
-  function drawRotationCurves(svgEl, fit, reports) {
+  // Best fit with per-ring error bars over the realizations, like BootstrapBoxPlot.py.
+  function drawRotationCurves(svgEl, fit, reports, vrotErr = []) {
     const f = plotFrame(svgEl, 220);
     const curves = reports.filter((r) => r && !r.sofiaFailed && Array.isArray(r.R) && Array.isArray(r.VROT))
       .map((r) => r.R.map((R, i) => [Number(R), Number(r.VROT[i])]).filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b)));
     const best = fit && Array.isArray(fit.R) && Array.isArray(fit.VROT)
-      ? fit.R.map((R, i) => [Number(R), Number(fit.VROT[i])]).filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b)) : [];
-    const pts = curves.flat().concat(best);
+      ? fit.R.map((R, i) => [Number(R), Number(fit.VROT[i]), Number(vrotErr[i])]).filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b)) : [];
+    const pts = curves.flat().concat(best.map(([r, v, e]) => [r, Number.isFinite(e) ? v + e : v]));
     if (!pts.length) {
       f.svg.append('text').attr('x', f.w / 2).attr('y', f.h / 2).attr('text-anchor', 'middle').attr('fill', cssColor('--space-muted')).attr('font-size', 11).text('No rotation curve yet');
       return;
@@ -520,6 +521,14 @@ const Fanout = (() => {
     f.svg.append('g').selectAll('path').data(curves).join('path').attr('d', line).attr('fill', 'none')
       .attr('stroke', cssColor('--s-done')).attr('stroke-opacity', Math.max(0.08, Math.min(0.5, 6 / Math.max(1, curves.length)))).attr('stroke-width', 1);
     if (best.length) {
+      const bars = f.svg.append('g').selectAll('g').data(best.filter((p) => Number.isFinite(p[2]))).join('g')
+        .attr('stroke', '#ffffff').attr('stroke-width', 1.4);
+      bars.append('line').attr('x1', (p) => x(p[0])).attr('x2', (p) => x(p[0]))
+        .attr('y1', (p) => y(Math.max(0, p[1] - p[2]))).attr('y2', (p) => y(p[1] + p[2]));
+      for (const sign of [-1, 1]) {
+        bars.append('line').attr('x1', (p) => x(p[0]) - 4).attr('x2', (p) => x(p[0]) + 4)
+          .attr('y1', (p) => y(Math.max(0, p[1] + sign * p[2]))).attr('y2', (p) => y(Math.max(0, p[1] + sign * p[2])));
+      }
       f.svg.append('path').datum(best).attr('d', line).attr('fill', 'none').attr('stroke', '#ffffff').attr('stroke-width', 2.2);
       f.svg.append('g').selectAll('circle').data(best).join('circle').attr('cx', (p) => x(p[0])).attr('cy', (p) => y(p[1])).attr('r', 3)
         .attr('fill', '#ffffff');

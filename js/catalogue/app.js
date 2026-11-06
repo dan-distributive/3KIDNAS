@@ -91,8 +91,10 @@ class Limiter {
 }
 
 // Median + 1.4825*MAD combined with the (median - best fit) offset, as index.html and
-// Bootstrap_Error_Analysis.BootsrapErrors_ForParam do.
-function medianMadUncertainty(values, bestFitVal) {
+// Bootstrap_Error_Analysis.BootsrapErrors_ForParam do. The reported value stays the best fit.
+// wrap: position angles are unwrapped to within 180 deg of the best fit first.
+function medianMadUncertainty(values, bestFitVal, wrap) {
+  if (wrap) values = values.map((v) => (v - bestFitVal > 180 ? v - 360 : v - bestFitVal < -180 ? v + 360 : v));
   const median = (arr) => { const n = arr.length; return n % 2 ? arr[(n - 1) / 2] : (arr[n / 2 - 1] + arr[n / 2]) / 2; };
   const med = median(values.slice().sort((a, b) => a - b));
   const mad = median(values.map((v) => Math.abs(v - med)).sort((a, b) => a - b));
@@ -956,14 +958,15 @@ async function renderDetail(id) {
   if (!fit && ((st && st.fitUrl) || (s && s.fit)) && !SIMULATE) { try { fit = await getFit(id); } catch (e) { fit = null; } }
   const reports = await realizationReports(id);
   if (focusedId !== id) return;
-  const ok = reports.filter((r) => r && !r.sofiaFailed);
+  // Bootstrap_Error_Analysis only sees realizations that produced a model.
+  const ok = reports.filter((r) => r && !r.sofiaFailed && r.FITAchieved !== false);
   const row = (k, v) => el('tr', {}, el('td', { text: k }), el('td', { text: v }));
   const param = (label, key, d) => {
     const best = fit ? Number(first(fit[key])) : NaN;
     if (ok.length >= 3 && Number.isFinite(best)) {
       const values = ok.map((r) => Number(first(r[key]))).filter(Number.isFinite);
-      const { median, err } = medianMadUncertainty(values, best);
-      return row(label, fmtValErr(median, err));
+      const { err } = medianMadUncertainty(values, best, key === 'POSITIONANGLE');
+      return row(label, fmtValErr(best, err));
     }
     return row(label, Number.isFinite(best) ? best.toFixed(d) : '–');
   };
@@ -991,7 +994,12 @@ async function renderDetail(id) {
     linkLine,
   );
   $('fanoutFoot').classList.add('with-plots');
-  Fanout.drawRotationCurves($('rotCurveSvg'), fit, reports);
+  // Per-ring VROT_ERR, as BootsrapErrors_ForParam computes it for the error bars.
+  const vrotErr = fit && Array.isArray(fit.VROT) && ok.length >= 3 ? fit.VROT.map((v, i) => {
+    const values = ok.map((r) => Number((r.VROT || [])[i])).filter(Number.isFinite);
+    return values.length >= 3 ? medianMadUncertainty(values, Number(v)).err : NaN;
+  }) : [];
+  Fanout.drawRotationCurves($('rotCurveSvg'), fit, ok, vrotErr);
   Fanout.drawGeoCloud($('geoCloudSvg'), fit, reports);
 }
 
