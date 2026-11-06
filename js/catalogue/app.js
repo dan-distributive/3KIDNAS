@@ -693,6 +693,7 @@ function setRunButtons() {
   $('bootstrapNowBtn').disabled = running() || !selection.size;
   $('stopBtn').disabled = !running();
   $('clearSelectionBtn').disabled = running();
+  $('downloadBtn').disabled = !run;
 }
 
 function touch(id) { fanout.update(); refreshStatuses(); if (focusedId === id) scheduleDetail(); }
@@ -931,6 +932,28 @@ function stopAll() {
 $('deployBtn').addEventListener('click', () => deploy().catch((e) => logLine(e.message || String(e), 'err')));
 $('bootstrapNowBtn').addEventListener('click', () => bootstrapFitted().catch((e) => logLine(e.message || String(e), 'err')));
 $('stopBtn').addEventListener('click', stopAll);
+
+// Everything this tab holds for the run's galaxies: the only copy when results are not stored.
+async function downloadResults() {
+  if (!run) return;
+  const out = { created: new Date().toISOString(), dataset: DATASET_BASE.href, galaxies: {} };
+  for (const g of run.list) {
+    const st = states.get(g.id);
+    let fit = fitCache.get(g.id) || null;
+    if (!fit && run.storage && st.fitUrl) { try { fit = await getFit(g.id); } catch (e) { fit = null; } }
+    out.galaxies[g.id] = {
+      status: st.status, start: startGeometry(g), error: st.error || null,
+      initialFit: fit, realizations: run.storage ? await realizationReports(g.id) : [...(reportCache.get(g.id) || new Map()).values()],
+    };
+  }
+  const blob = new Blob([JSON.stringify(out)], { type: 'application/json' });
+  const a = el('a', { href: URL.createObjectURL(blob), download: `wallaby-fits-${new Date().toISOString().slice(0, 19).replace(/:/g, '')}.json` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+$('downloadBtn').addEventListener('click', () => downloadResults().catch((e) => logLine('download failed: ' + (e.message || e), 'err')));
 
 // dcp-client can reject inside its own event handling (for example a result it cannot
 // decode); log it and keep the run going rather than leave an uncaught error.

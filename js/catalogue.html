@@ -232,7 +232,7 @@
     <section class="card">
       <h2>Results storage</h2>
       <p class="card-sub">Workers post each fit and realization to dcp.network, so results survive closing the tab
-        and the catalogue shows what is already done. Without it, results come back through DCP to this tab only.</p>
+        and the catalogue shows what is already done. Without it, results come back through DCP to this browser tab: download them before you close it.</p>
       <div class="row" style="align-items:center; margin-bottom: 12px">
         <span class="status-pill" id="storagePill"><span class="dot"></span>checking…</span>
         <a class="muted" style="font-size:12px" id="resultsLink" href="#" target="_blank" rel="noopener">browse stored results</a>
@@ -316,6 +316,7 @@
       <button id="deployBtn" type="button" disabled>Deploy</button>
       <button id="bootstrapNowBtn" type="button" class="secondary" disabled>Bootstrap fitted galaxies</button>
       <button id="stopBtn" type="button" class="danger" disabled>Stop all jobs</button>
+      <button id="downloadBtn" type="button" class="secondary" disabled>Download results</button>
     </div>
     <div class="log" id="runLog" hidden></div>
   </section>
