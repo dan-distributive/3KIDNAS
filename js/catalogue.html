@@ -78,7 +78,8 @@
   button.danger { background: var(--err); color: #fff; }
 
   .compute-group-row { display:flex; gap: 8px; align-items: center; }
-  .compute-group-row input { flex: 1; min-width: 0; }
+  .compute-group-row input { flex: 0 1 calc(33.333% - 8px); min-width: 0; }
+  @media (max-width: 600px) { .compute-group-row input { flex: 1; } }
   .compute-group-row .remove-group-btn {
     flex: 0 0 auto; background: transparent; border: none; color: var(--muted);
     cursor: pointer; font-size: 18px; line-height: 1; padding: 4px 8px;
