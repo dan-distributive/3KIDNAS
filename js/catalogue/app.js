@@ -12,9 +12,9 @@
 // Result events are not trusted to be complete or unique: each galaxy is handled once, and
 // when a job finishes its exec() results are reconciled against what was handled.
 //
-// With results storage on, workers POST results to tools/results-receiver.py on this server
-// and the job results are short acknowledgements; the page reads fits and realizations back
-// from RESULTS_BASE. ?simulate swaps DCP for a local fake with the same interface.
+// Results come back to this tab. With ?store=<upload key>, workers instead POST them to
+// tools/results-receiver.py on dcp.network and the job results are short acknowledgements; the
+// page reads fits and realizations back from RESULTS_BASE. ?simulate swaps DCP for a local fake with the same interface.
 // =============================================================================
 
 const PEOPLE = 'https://people.distributive.network';
@@ -25,6 +25,7 @@ const DATASET_BASE = new URL(query.get('dataset') || (onPeople ? '../wallaby/' :
 // Results live on dcp.network for now (tools/results-receiver.py behind nginx there).
 const RESULTS_BASE = new URL(query.get('results') || 'https://dcp.network/3kidnas-results/');
 const UPLOAD_BASE = new URL(query.get('upload') || 'https://dcp.network/3kidnas-upload/');
+const STORE_KEY = SIMULATE ? '' : (query.get('store') || '');
 const TABLE_PAGE = 300;
 
 const $ = (id) => document.getElementById(id);
@@ -110,8 +111,6 @@ function fmtValErr(val, err) {
 // ---------------------------------------------------------------------------
 const API_KEY_STORAGE_KEY = 'galaxy-fit:apiKey';
 const COMPUTE_GROUPS_STORAGE_KEY = 'galaxy-fit:computeGroups';
-const UPLOAD_KEY_STORAGE_KEY = 'galaxy-catalogue:uploadKey';
-const RESULTS_MODE_STORAGE_KEY = 'galaxy-catalogue:resultsMode';
 
 function stored(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch (e) { return fallback; } }
 function store(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* private window */ } }
@@ -165,53 +164,7 @@ function getSlicePaymentOffer() {
   return Number.isFinite(v) && v >= 0 ? v : 1;
 }
 
-// ---------------------------------------------------------------------------
-// Results storage
-// ---------------------------------------------------------------------------
-const uploadKeyInput = $('uploadKeyInput');
-uploadKeyInput.value = stored(UPLOAD_KEY_STORAGE_KEY, '');
-let storageReachable = false;
-$('resultsLink').href = new URL('index.json', RESULTS_BASE).href;
-
-function setStoragePill(kind, text) {
-  const pill = $('storagePill');
-  pill.className = 'status-pill ' + kind;
-  pill.replaceChildren(el('span', { class: 'dot' }), text);
-}
-const RESULTS_MODE_HELP = {
-  local: 'Results come back through DCP to this tab. Download them before you close it.',
-  remote: 'Workers post each fit and realization to dcp.network; the replies still drive this page. '
-    + 'Results survive closing the tab and the table shows what is already done.',
-};
-function resultsMode() { return $('resultsRemoteInput').checked ? 'remote' : 'local'; }
-function refreshStorageControls() {
-  const mode = resultsMode();
-  $('resultsModeHelp').textContent = RESULTS_MODE_HELP[mode];
-  $('remoteControls').hidden = mode !== 'remote';
-  $('reuseFitsInput').disabled = !storedIndex;
-}
-for (const input of [$('resultsLocalInput'), $('resultsRemoteInput')]) {
-  input.addEventListener('change', () => { store(RESULTS_MODE_STORAGE_KEY, resultsMode()); refreshStorageControls(); });
-}
-if (stored(RESULTS_MODE_STORAGE_KEY, 'local') === 'remote' && !SIMULATE) $('resultsRemoteInput').checked = true;
-$('resultsRemoteInput').disabled = SIMULATE;
-uploadKeyInput.addEventListener('change', () => store(UPLOAD_KEY_STORAGE_KEY, uploadKeyInput.value.trim()));
-async function probeStorage() {
-  refreshStorageControls();
-  if (SIMULATE) return;
-  try {
-    const res = await fetch(new URL('ping', UPLOAD_BASE), { cache: 'no-store' });
-    storageReachable = res.ok;
-  } catch (e) { storageReachable = false; }
-  setStoragePill(storageReachable ? 'ok' : 'warn', storageReachable ? 'upload endpoint reachable' : 'upload endpoint not set up yet');
-}
-// null means results come back to this tab. Remote without a key is refused at deploy time.
-function storageConfig() {
-  if (SIMULATE || resultsMode() !== 'remote') return null;
-  const key = uploadKeyInput.value.trim();
-  if (!key) throw new Error('Results are set to dcp.network but the upload key is empty');
-  return { url: new URL(key, UPLOAD_BASE) };
-}
+function storageConfig() { return STORE_KEY ? { url: new URL(STORE_KEY, UPLOAD_BASE) } : null; }
 
 // ---------------------------------------------------------------------------
 // Catalogue + per-galaxy state
@@ -247,8 +200,7 @@ async function loadCatalogue() {
   const meta = await fetchJson(new URL('catalogue.json', DATASET_BASE));
   galaxies = meta.galaxies.map((g) => Object.assign(g, { short: g.id.replace('WALLABY_', '') }));
   for (const g of galaxies) byId.set(g.id, g);
-  try { storedIndex = await fetchJson(new URL('index.json', RESULTS_BASE)); } catch (e) { storedIndex = null; }
-  refreshStorageControls();
+  if (STORE_KEY) { try { storedIndex = await fetchJson(new URL('index.json', RESULTS_BASE)); } catch (e) { storedIndex = null; } }
   const fields = [...new Set(galaxies.map((g) => g.field))];
   $('catalogueSummary').textContent = `${galaxies.length.toLocaleString()} galaxies in ${fields.length} fields `
     + `(${meta.releases.length} releases), built ${new Date(meta.created).toLocaleDateString()}. `
@@ -736,15 +688,15 @@ function maybeFinish() {
 }
 
 async function refreshIndex() {
-  if (SIMULATE) return;
-  try { storedIndex = await fetchJson(new URL('index.json', RESULTS_BASE)); refreshStorageControls(); refreshStatuses(); } catch (e) { /* not set up */ }
+  if (!STORE_KEY) return;
+  try { storedIndex = await fetchJson(new URL('index.json', RESULTS_BASE)); refreshStatuses(); } catch (e) { /* not set up */ }
 }
 
 async function deploy() {
   const list = selectedGalaxies();
   if (!list.length || running()) return;
   startRun(list);
-  const reuse = $('reuseFitsInput').checked && !$('reuseFitsInput').disabled;
+  const reuse = Boolean(storedIndex);
   const toFit = [];
   for (const g of list) {
     const s = storedEntry(g.id);
@@ -1058,7 +1010,6 @@ $('fullscreenBtn').addEventListener('click', () => {
 });
 $('simBanner').hidden = !SIMULATE;
 renderHead();
-probeStorage();
 loadCatalogue().then(() => selectionChanged()).catch((e) => {
   $('catalogueSummary').textContent = 'Could not load the catalogue: ' + (e.message || e);
 });

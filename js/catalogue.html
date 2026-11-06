@@ -96,13 +96,6 @@
   .status-pill.ok { background: var(--ok-bg); color: var(--ok); }
   .status-pill.warn { background: var(--warn-bg); color: var(--warn); }
   .status-pill.err { background: var(--err-bg); color: var(--err); }
-  .seg { display:inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
-  .seg label { display:flex; align-items:center; gap: 6px; padding: 6px 12px; font-size: 13px; font-weight: 500; cursor: pointer; margin: 0; color: var(--ink); }
-  .seg label + label { border-left: 1px solid var(--border-strong); }
-  .seg input { position: absolute; opacity: 0; pointer-events: none; }
-  .seg label:has(input:checked) { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
-  .seg label:has(input:disabled) { opacity: 0.45; cursor: not-allowed; }
-  .seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
   .status-pill .dot { width:7px; height:7px; border-radius:50%; background: currentColor; }
 
   /* Sky map */
@@ -160,7 +153,9 @@
   .fanout-stage svg.fanout { display:block; width: 100%; }
   .fanout-empty[hidden] { display: none; }
   .fanout-empty { position:absolute; inset: 0; display:flex; align-items:center; justify-content:center; color: var(--space-muted); font-size: 13px; pointer-events: none; text-align: center; padding: 20px; }
-  .fanout-tools { display:flex; align-items:flex-start; gap: 18px; }
+  .fanout-card { position: relative; }
+  .fanout-head { padding-right: 64px; }
+  #fullscreenBtn { position: absolute; top: 14px; right: 14px; z-index: 6; }
   .fo-btn { background: transparent; color: var(--space-muted); border: 1px solid #2a3654; padding: 5px 9px; font-size: 12px; display:inline-flex; align-items:center; gap: 6px; }
   .fo-btn:hover { color: var(--space-ink); border-color: #3b4a70; }
   .fo-btn svg { width: 14px; height: 14px; }
@@ -225,51 +220,28 @@
     so you can see the flow and the visualization. Remove <code>?simulate</code> from the address to deploy for real.
   </div>
 
-  <div class="grid-2">
-    <section class="card">
-      <details class="collapse" id="accountDetails" open>
-        <summary><h2>DCP account</h2></summary>
-        <p class="card-sub">Shared with the single-galaxy app on this site. Workers need
-          <code>https://people.distributive.network</code> (galaxy data) and <code>https://dcp.network</code>
-          (results) in their <code>allowOrigins</code>.</p>
-        <div class="field">
-          <label for="apiKeyInput">API key (identity)</label>
-          <input type="text" id="apiKeyInput" placeholder="0x… (leave blank to use the wallet picker instead)">
-        </div>
-        <div class="field">
-          <label>Compute group(s)</label>
-          <div id="computeGroupRows" style="display:flex; flex-direction:column; gap:8px; margin-top:4px"></div>
-          <button id="addComputeGroupBtn" type="button" class="secondary small" style="margin-top:8px">+ Add another group</button>
-        </div>
-        <div class="row">
-          <div class="field">
-            <label for="slicePaymentOfferInput">Slice payment offer</label>
-            <input type="number" id="slicePaymentOfferInput" value="1.000" min="0" step="0.001">
-          </div>
-        </div>
-      </details>
-    </section>
-
-    <section class="card">
-      <h2>Results</h2>
-      <div class="seg" role="radiogroup" aria-label="Where results go">
-        <label><input type="radio" name="resultsMode" value="local" id="resultsLocalInput" checked> This browser</label>
-        <label><input type="radio" name="resultsMode" value="remote" id="resultsRemoteInput"> dcp.network</label>
+  <section class="card">
+    <details class="collapse" id="accountDetails" open>
+      <summary><h2>DCP account</h2></summary>
+      <p class="card-sub">Shared with the single-galaxy app on this site. Workers need
+        <code>https://people.distributive.network</code> (galaxy data) in their <code>allowOrigins</code>.</p>
+      <div class="field">
+        <label for="apiKeyInput">API key (identity)</label>
+        <input type="text" id="apiKeyInput" placeholder="0x… (leave blank to use the wallet picker instead)">
       </div>
-      <p class="card-sub" id="resultsModeHelp"></p>
-      <div id="remoteControls" hidden>
-        <div class="row" style="align-items:center; margin-bottom: 12px">
-          <span class="status-pill" id="storagePill"><span class="dot"></span>checking…</span>
-          <a class="muted" style="font-size:12px" id="resultsLink" href="#" target="_blank" rel="noopener">browse stored results</a>
-        </div>
-        <div class="field">
-          <label for="uploadKeyInput">Upload key</label>
-          <input type="password" id="uploadKeyInput" placeholder="content of ~/3kidnas-results/token on dcp.network">
-        </div>
-        <label class="check"><input type="checkbox" id="reuseFitsInput" checked> Reuse stored initial fits (go straight to bootstrap)</label>
+      <div class="field">
+        <label>Compute group(s)</label>
+        <div id="computeGroupRows" style="display:flex; flex-direction:column; gap:8px; margin-top:4px"></div>
+        <button id="addComputeGroupBtn" type="button" class="secondary small" style="margin-top:8px">+ Add another group</button>
       </div>
-    </section>
-  </div>
+      <div class="row">
+        <div class="field">
+          <label for="slicePaymentOfferInput">Slice payment offer</label>
+          <input type="number" id="slicePaymentOfferInput" value="1.000" min="0" step="0.001">
+        </div>
+      </div>
+    </details>
+  </section>
 
   <section class="card">
     <h2><span class="step-num">1</span>Choose galaxies</h2>
@@ -353,13 +325,11 @@
         <p class="card-sub">Centre: the initial-fit job. Ring: one galaxy per slice, drawn at its estimated
           position angle and inclination. Outer fans: each galaxy's bootstrap realizations. Scroll to zoom, click a galaxy.</p>
       </div>
-      <div class="fanout-tools">
-        <div class="stats" id="stats"></div>
-        <button type="button" class="fo-btn" id="fullscreenBtn" title="Fullscreen (Esc to leave)" aria-label="Fullscreen">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>
-        </button>
-      </div>
+      <div class="stats" id="stats"></div>
     </div>
+    <button type="button" class="fo-btn" id="fullscreenBtn" title="Fullscreen (Esc to leave)" aria-label="Fullscreen">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>
+    </button>
     <div class="fanout-stage" id="fanoutStage">
       <svg class="fanout" id="fanoutSvg"></svg>
       <div class="fanout-empty" id="fanoutEmpty">Select galaxies above to see their fan-out.</div>
@@ -396,6 +366,6 @@
 <script src="src/PayloadBuilder/buildFitPayloads.js?v=0ad909aea2"></script>
 <script src="bootstrap-realization-launcher.js?v=3a1be182e7"></script>
 <script src="catalogue/fanout.js?v=1f45bd3d3a"></script>
-<script src="catalogue/app.js?v=f27b3d4568"></script>
+<script src="catalogue/app.js?v=cf6715c5d3"></script>
 </body>
 </html>
