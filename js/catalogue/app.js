@@ -577,7 +577,9 @@ const RealBackend = {
   name: 'DCP',
   async deployInitialFits(list, h, storage) {
     await ensureIdentity();
-    const urls = list.map((g) => new URL(g.file, DATASET_BASE));
+    // A RemoteDataSet makes workers fetch each URL as the slice datum; a plain array of URL
+    // objects from the browser client is uploaded by value instead.
+    const urls = new dcp.compute.RemoteDataSet(list.map((g) => new URL(g.file, DATASET_BASE).href));
     const job = dcp.compute.for(urls, runInitialFit, [sharedInitialFitArg(list)]);
     job.requires(window.INITIAL_FIT_ONLY_MODULES);
     job.computeGroups = getComputeGroups();

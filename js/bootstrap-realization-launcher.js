@@ -963,6 +963,12 @@ async function runInitialFit(realizationIndex, payload) {
   // { galaxyId, observedCubeRawFitsB64, observedMaskRawFitsB64 }, fetched by URL,
   // with the shared fitting options in payload and per-galaxy PA/Inc in
   // payload.galaxies[galaxyId].
+  if (payload && payload.galaxies && !(realizationIndex && typeof realizationIndex === 'object' && realizationIndex.galaxyId)) {
+    const got = realizationIndex && typeof realizationIndex === 'object'
+      ? 'an object with keys ' + Object.keys(realizationIndex).slice(0, 5).join(', ')
+      : typeof realizationIndex + ' ' + String(realizationIndex).slice(0, 80);
+    return { FITAchieved: false, error: `runInitialFit: expected one galaxy per slice ({ galaxyId, observedCubeRawFitsB64, ... }), got ${got}` };
+  }
   if (realizationIndex && typeof realizationIndex === 'object') {
     const perGalaxy = (payload.galaxies && payload.galaxies[realizationIndex.galaxyId]) || {};
     payload = Object.assign({}, payload, realizationIndex, perGalaxy);
