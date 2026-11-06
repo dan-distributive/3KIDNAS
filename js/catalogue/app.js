@@ -22,8 +22,9 @@ const query = new URLSearchParams(location.search);
 const SIMULATE = query.has('simulate');
 const onPeople = location.origin === PEOPLE;
 const DATASET_BASE = new URL(query.get('dataset') || (onPeople ? '../wallaby/' : PEOPLE + '/dandesjardins/wallaby/'), location.href);
-const RESULTS_BASE = new URL(query.get('results') || (onPeople ? '../3kidnas-results/' : PEOPLE + '/dandesjardins/3kidnas-results/'), location.href);
-const UPLOAD_BASE = new URL(query.get('upload') || PEOPLE + '/dandesjardins-upload/3kidnas/');
+// Results live on dcp.network for now (tools/results-receiver.py behind nginx there).
+const RESULTS_BASE = new URL(query.get('results') || 'https://dcp.network/3kidnas-results/');
+const UPLOAD_BASE = new URL(query.get('upload') || 'https://dcp.network/3kidnas-upload/');
 const DCP_CLIENT_URL = 'https://scheduler.distributed.computer/dcp-client/dcp-client.js';
 const TABLE_PAGE = 300;
 
@@ -525,10 +526,21 @@ function loadScript(src) {
     document.head.append(s);
   });
 }
+// dcp-client.js is a loader: `dcp` appears some time after its script loads, announced by
+// a 'dcpclientready' event.
+async function loadDcpClient() {
+  if (typeof dcp !== 'undefined') return;
+  const ready = new Promise((resolve, reject) => {
+    window.addEventListener('dcpclientready', () => resolve(), { once: true });
+    setTimeout(() => (typeof dcp === 'undefined' ? reject(new Error('dcp-client did not load within 30 s; see the browser console')) : resolve()), 30000);
+  });
+  await loadScript(DCP_CLIENT_URL);
+  if (typeof dcp === 'undefined') await ready;
+}
 function ensureIdentity() {
   if (!identityReady) {
     identityReady = (async () => {
-      if (typeof dcp === 'undefined') await loadScript(DCP_CLIENT_URL);
+      await loadDcpClient();
       if (!dcp.identity.check()) await dcp.identity.set(apiKeyInput.value.trim());
       await dcp.wallet.add(await dcp.wallet.get());
     })().catch((error) => { identityReady = null; throw error; });

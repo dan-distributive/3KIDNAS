@@ -209,8 +209,8 @@
       <details class="collapse" id="accountDetails" open>
         <summary><h2>DCP account</h2></summary>
         <p class="card-sub">Shared with the single-galaxy app on this site. Workers need
-          <code id="originHint">https://people.distributive.network</code> in their <code>allowOrigins</code>
-          (fetch data and send results).</p>
+          <code>https://people.distributive.network</code> (galaxy data) and <code>https://dcp.network</code>
+          (results) in their <code>allowOrigins</code>.</p>
         <div class="field">
           <label for="apiKeyInput">API key (identity)</label>
           <input type="text" id="apiKeyInput" placeholder="0x… (leave blank to use the wallet picker instead)">
@@ -231,7 +231,7 @@
 
     <section class="card">
       <h2>Results storage</h2>
-      <p class="card-sub">Workers post each fit and realization to this server, so results survive closing the tab
+      <p class="card-sub">Workers post each fit and realization to dcp.network, so results survive closing the tab
         and the catalogue shows what is already done. Without it, results come back through DCP to this tab only.</p>
       <div class="row" style="align-items:center; margin-bottom: 12px">
         <span class="status-pill" id="storagePill"><span class="dot"></span>checking…</span>
@@ -239,9 +239,9 @@
       </div>
       <div class="field">
         <label for="uploadKeyInput">Upload key</label>
-        <input type="password" id="uploadKeyInput" placeholder="content of ~/3kidnas-results/token on people">
+        <input type="password" id="uploadKeyInput" placeholder="content of ~/3kidnas-results/token on dcp.network">
       </div>
-      <label class="check"><input type="checkbox" id="useStorageInput"> Store results on this server</label>
+      <label class="check"><input type="checkbox" id="useStorageInput"> Store results on dcp.network</label>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="reuseFitsInput" checked> Reuse stored initial fits (go straight to bootstrap)</label>
     </section>
   </div>
