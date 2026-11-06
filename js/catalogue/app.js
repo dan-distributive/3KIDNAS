@@ -25,7 +25,6 @@ const DATASET_BASE = new URL(query.get('dataset') || (onPeople ? '../wallaby/' :
 // Results live on dcp.network for now (tools/results-receiver.py behind nginx there).
 const RESULTS_BASE = new URL(query.get('results') || 'https://dcp.network/3kidnas-results/');
 const UPLOAD_BASE = new URL(query.get('upload') || 'https://dcp.network/3kidnas-upload/');
-const DCP_CLIENT_URL = 'https://scheduler.distributed.computer/dcp-client/dcp-client.js';
 const TABLE_PAGE = 300;
 
 const $ = (id) => document.getElementById(id);
@@ -518,25 +517,15 @@ function vizGalaxy(g) {
 // Backends: real DCP, or a simulation with the same interface
 // ---------------------------------------------------------------------------
 let identityReady = null;
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const s = el('script', { src });
-    s.onload = resolve;
-    s.onerror = () => reject(new Error('could not load ' + src));
-    document.head.append(s);
-  });
-}
-// dcp-client.js is a loader: `dcp` appears some time after its script loads, announced by
-// a 'dcpclientready' event.
-async function loadDcpClient() {
-  if (typeof dcp !== 'undefined') return;
-  const ready = new Promise((resolve, reject) => {
-    window.addEventListener('dcpclientready', () => resolve(), { once: true });
-    setTimeout(() => (typeof dcp === 'undefined' ? reject(new Error('dcp-client did not load within 30 s; see the browser console')) : resolve()), 30000);
-  });
-  await loadScript(DCP_CLIENT_URL);
-  if (typeof dcp === 'undefined') await ready;
-}
+// dcp-client.js (a script tag in catalogue.html) is a loader: `dcp` appears some time after
+// it runs, announced by a 'dcpclientready' event.
+const dcpReady = new Promise((resolve, reject) => {
+  if (typeof dcp !== 'undefined') { resolve(); return; }
+  window.addEventListener('dcpclientready', () => resolve(), { once: true });
+  setTimeout(() => (typeof dcp === 'undefined' ? reject(new Error('dcp-client did not load; see the browser console')) : resolve()), 30000);
+});
+dcpReady.catch(() => {});
+function loadDcpClient() { return dcpReady; }
 function ensureIdentity() {
   if (!identityReady) {
     identityReady = (async () => {

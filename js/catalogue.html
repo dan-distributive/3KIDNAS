@@ -362,6 +362,9 @@
     Dispatched with your own DCP identity.</footer>
 </main>
 
+<!-- dcp-client's loader uses document.write, so it must be a parser-time script tag, not
+     injected later. -->
+<script src="https://scheduler.distributed.computer/dcp-client/dcp-client.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <!-- runInitialFit / runBootstrapRealization are defined here as globals; compute.for() ships
      their source to workers, never runs them in this page. -->
