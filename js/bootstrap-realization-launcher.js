@@ -1898,6 +1898,24 @@ async function runInitialFit(realizationIndex, payload) {
       nRingsPerBeam,
     };
 
+    // Catalogue runs: build this galaxy's bootstrap-job payload here, where the cube and the
+    // fit already are, so the dispatching browser never downloads either. The builder
+    // (buildFitPayloads.js) arrives as source in the shared argument.
+    if (payload.bootstrapBuilder) {
+      try {
+        const mod = { exports: {} };
+        new Function('module', payload.bootstrapBuilder.source)(mod);
+        report.bootstrapPayload = mod.exports.buildBootstrapPayload({
+          initialFitResult: report,
+          cubeBytes: Uint8Array.from(atob(payload.observedCubeRawFitsB64), (c) => c.charCodeAt(0)),
+          sofiaParTemplateText: payload.bootstrapBuilder.sofiaParTemplate, bootstrapSeed: 0,
+          options: payload.bootstrapBuilder.options,
+        });
+      } catch (e) {
+        report.bootstrapPayloadError = (e && e.message) || String(e);
+      }
+    }
+
     timings.totalMs = Date.now() - tEntry;
     report.timings = timings;
   } catch (e) {

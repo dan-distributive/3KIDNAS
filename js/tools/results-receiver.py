@@ -6,8 +6,10 @@ Workers POST one application/x-www-form-urlencoded form per slice (DCP remote re
 the job's params plus contentType, element and content). The job params say what it is:
 
   kind=fit                 content is a runInitialFit report carrying galaxyId
-                           -> galaxies/<id>/initial-fit.json; a new fit deletes that galaxy's
-                              old bootstraps, since they were measured against the old fit
+                           -> galaxies/<id>/initial-fit.json, and its bootstrapPayload (built by
+                              the worker) -> galaxies/<id>/bootstrap-payload.json, which is all
+                              the page fetches to launch the bootstrap job; a new fit deletes
+                              that galaxy's old bootstraps, so a rerun overwrites
   kind=bootstrap&galaxyId  content is a runBootstrapRealization report
                            -> one line appended to galaxies/<id>/bootstrap.ndjson (a retried
                               slice can add a second line for the same realizationIndex;
@@ -88,9 +90,9 @@ def append_line(path, value):
         f.write(json.dumps(value, separators=(',', ':')) + '\n')
 
 
-def log_event(kind, gid, k, report, nbytes):
+def log_event(kind, gid, k, report, nbytes, run=None):
     t = report.get('timings') or report.get('Timing') or {}
-    event = {'t': now_ms(), 'kind': kind, 'galaxyId': gid, 'k': k, 'bytes': nbytes,
+    event = {'t': now_ms(), 'run': run, 'kind': kind, 'galaxyId': gid, 'k': k, 'bytes': nbytes,
              'totalMs': t.get('totalMs') if isinstance(t, dict) else None,
              'ok': not report.get('sofiaFailed') if kind == 'bootstrap' else bool(report.get('FITAchieved'))}
     with log_lock:
@@ -150,11 +152,15 @@ def index_writer():
         write_json(os.path.join(STORE, 'index.json'), snapshot)
 
 
-def store_fit(report, nbytes):
+def store_fit(report, nbytes, run=None):
     gid = report.get('galaxyId')
     if not isinstance(gid, str) or not GALAXY_RE.match(gid):
         raise ValueError('bad galaxyId')
     folder = os.path.join(STORE, 'galaxies', gid)
+    bs_payload = report.pop('bootstrapPayload', None)
+    if bs_payload is not None:
+        write_json(os.path.join(folder, 'bootstrap-payload.json.incoming'), bs_payload)
+        del bs_payload
     write_json(os.path.join(folder, 'initial-fit.json.incoming'), report)
     with lock:
         shutil.rmtree(os.path.join(folder, 'bootstrap'), ignore_errors=True)
@@ -163,17 +169,28 @@ def store_fit(report, nbytes):
         except FileNotFoundError:
             pass
         os.replace(os.path.join(folder, 'initial-fit.json.incoming'), os.path.join(folder, 'initial-fit.json'))
+        has_payload = os.path.exists(os.path.join(folder, 'bootstrap-payload.json.incoming'))
+        if has_payload:
+            os.replace(os.path.join(folder, 'bootstrap-payload.json.incoming'), os.path.join(folder, 'bootstrap-payload.json'))
+        else:
+            try:
+                os.remove(os.path.join(folder, 'bootstrap-payload.json'))
+            except FileNotFoundError:
+                pass
         summary = {k: first(report.get(k)) for k in FIT_SUMMARY}
         summary['at'] = now()
         index['galaxies'][gid] = {'fit': summary, 'bootstraps': 0, '_seen': set()}
     dirty.set()
-    log_event('fit', gid, None, report, nbytes)
-    return {'stored': True, 'kind': 'fit', 'galaxyId': gid, 'FITAchieved': bool(report.get('FITAchieved')),
-            'error': str(report.get('error') or '')[:300] or None,
-            'url': f'galaxies/{gid}/initial-fit.json'}
+    log_event('fit', gid, None, report, nbytes, run)
+    ack = {'stored': True, 'kind': 'fit', 'galaxyId': gid, 'FITAchieved': bool(report.get('FITAchieved')),
+           'error': str(report.get('error') or report.get('bootstrapPayloadError') or '')[:300] or None,
+           'url': f'galaxies/{gid}/initial-fit.json',
+           'payloadUrl': f'galaxies/{gid}/bootstrap-payload.json' if has_payload else None}
+    ack.update({k: first(report.get(k)) for k in ('INCLINATION', 'POSITIONANGLE', 'VSYS')})
+    return ack
 
 
-def store_bootstrap(gid, report, nbytes):
+def store_bootstrap(gid, report, nbytes, run=None):
     if not isinstance(gid, str) or not GALAXY_RE.match(gid):
         raise ValueError('bad galaxyId')
     n = report.get('realizationIndex')
@@ -185,7 +202,7 @@ def store_bootstrap(gid, report, nbytes):
         entry.setdefault('_seen', set()).add(n)
         entry['bootstraps'] = len(entry['_seen'])
     dirty.set()
-    log_event('bootstrap', gid, n, report, nbytes)
+    log_event('bootstrap', gid, n, report, nbytes, run)
     # The reply is the slice result, so it carries what the page needs to draw the dot.
     return {'stored': True, 'kind': 'bootstrap', 'galaxyId': gid, 'realizationIndex': n,
             'sofiaFailed': bool(report.get('sofiaFailed')), 'converged': report.get('converged'),
@@ -252,11 +269,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(400, {'error': 'slice failed', 'detail': form.get('error', [''])[0][:300]})
             report = json.loads(form['content'][0])
             form_gid = form.get('galaxyId', [''])[0]
+            form_run = form.get('run', [''])[0][:40] or None
             del form
             if kind == 'fit':
-                ack = store_fit(report, length)
+                ack = store_fit(report, length, form_run)
             elif kind == 'bootstrap':
-                ack = store_bootstrap(form_gid, report, length)
+                ack = store_bootstrap(form_gid, report, length, form_run)
             else:
                 return self.reply(400, {'error': 'unknown kind'})
             self.reply(200, ack)

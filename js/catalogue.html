@@ -319,7 +319,8 @@
   <section class="card">
     <h2><span class="step-num">2</span>Fit and bootstrap</h2>
     <p class="card-sub">One initial-fit job for the whole selection, then one bootstrap job per galaxy as its fit
-      converges. Keep this tab open while it runs: it is what launches each bootstrap job.</p>
+      converges. Deploy starts over and overwrites earlier results for these galaxies; Resume bootstraps fills in
+      what an interrupted run left out. Keep this tab open while it runs: it is what launches each bootstrap job.</p>
     <div class="row">
       <div class="field">
         <label for="nBootstrapsInput">Realizations per galaxy</label>
@@ -340,7 +341,7 @@
     <p class="estimate" id="estimate"></p>
     <div class="row" style="gap:10px">
       <button id="deployBtn" type="button" disabled>Deploy</button>
-      <button id="bootstrapNowBtn" type="button" class="secondary" disabled>Bootstrap fitted galaxies</button>
+      <button id="bootstrapNowBtn" type="button" class="secondary" disabled title="Launch only the realizations still missing for galaxies that already have a fit">Resume bootstraps</button>
       <button id="stopBtn" type="button" class="danger" disabled>Stop all jobs</button>
       <button id="downloadBtn" type="button" class="secondary" disabled>Download results</button>
     </div>
@@ -393,8 +394,8 @@
      their source to workers, never runs them in this page. -->
 <script src="src/PipelineConfig/defaultFittingOptions.js?v=a7abfe651b"></script>
 <script src="src/PayloadBuilder/buildFitPayloads.js?v=0ad909aea2"></script>
-<script src="bootstrap-realization-launcher.js?v=3a1be182e7"></script>
-<script src="catalogue/fanout.js?v=713e04ec0b"></script>
-<script src="catalogue/app.js?v=362f04f056"></script>
+<script src="bootstrap-realization-launcher.js?v=5bb7565d2b"></script>
+<script src="catalogue/fanout.js?v=676ed9c975"></script>
+<script src="catalogue/app.js?v=c0168f4cde"></script>
 </body>
 </html>

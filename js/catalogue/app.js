@@ -198,7 +198,7 @@ function storageConfig() {
   if (!remoteMode()) return null;
   const key = $('uploadKeyInput').value.trim();
   if (!key) throw new Error('Results are set to Remote but the upload key is empty: run tools/new-upload-key.sh and paste it');
-  return { url: new URL(key, UPLOAD_BASE) };
+  return { url: new URL(key, UPLOAD_BASE), run: new Date().toISOString() };
 }
 
 // ---------------------------------------------------------------------------
@@ -549,7 +549,8 @@ async function getSofiaParTemplate() {
 // Shared argument of the initial-fit job: the fitting options (built the same way as a
 // single-galaxy payload, minus the per-galaxy fields the slices carry) and each galaxy's
 // starting PA/Inc.
-function sharedInitialFitArg(list) {
+let builderSource = null;
+async function sharedInitialFitArg(list) {
   const shared = BuildFitPayloads.buildInitialFitPayload({
     cubeBytes: new Uint8Array(1), maskBytes: new Uint8Array(1), paEstDeg: 0, incEstDeg: 0,
     options: DefaultFittingOptions.defaultFittingOptions(),
@@ -560,6 +561,14 @@ function sharedInitialFitArg(list) {
     const geo = startGeometry(g);
     shared.galaxies[g.id] = { paEstDeg: geo.pa, incEstDeg: geo.inc };
   }
+  // Each fit slice also builds its galaxy's bootstrap payload (see runInitialFit), so this tab
+  // fetches ~1 MB per galaxy instead of the fit and the cube.
+  if (!builderSource) {
+    const res = await fetch(document.querySelector('script[src*="buildFitPayloads.js"]').src);
+    if (!res.ok) throw new Error('could not load buildFitPayloads.js');
+    builderSource = await res.text();
+  }
+  shared.bootstrapBuilder = { source: builderSource, sofiaParTemplate: await getSofiaParTemplate(), options: DefaultFittingOptions.defaultFittingOptions() };
   return shared;
 }
 
@@ -579,27 +588,21 @@ const RealBackend = {
     // A RemoteDataSet makes workers fetch each URL as the slice datum; a plain array of URL
     // objects from the browser client is uploaded by value instead.
     const urls = new dcp.compute.RemoteDataSet(list.map((g) => new URL(g.file, DATASET_BASE).href));
-    const job = dcp.compute.for(urls, runInitialFit, [sharedInitialFitArg(list)]);
+    const job = dcp.compute.for(urls, runInitialFit, [await sharedInitialFitArg(list)]);
     job.requires(window.INITIAL_FIT_ONLY_MODULES);
     job.computeGroups = getComputeGroups();
     job.public = { name: `🌌 WALLABY initial fits (${list.length})`, description: '3KIDNAS catalogue run', link: 'https://www.candiapl.ca/' };
-    if (storage) job.setResultStorage(storage.url, { kind: 'fit', contentType: 'application/json' });
+    if (storage) job.setResultStorage(storage.url, { kind: 'fit', run: storage.run, contentType: 'application/json' });
     wireJob(job, h);
     return { cancel: () => job.cancel(), done: job.exec(getSlicePaymentOffer()) };
   },
-  async deployBootstrap(g, fit, indices, h, storage) {
+  async deployBootstrap(g, payload, indices, h, storage) {
     await ensureIdentity();
-    const datum = await fetchJson(new URL(g.file, DATASET_BASE));
-    const payload = BuildFitPayloads.buildBootstrapPayload({
-      initialFitResult: fit, cubeBytes: b64ToBytes(datum.observedCubeRawFitsB64),
-      sofiaParTemplateText: await getSofiaParTemplate(), bootstrapSeed: 0,
-      options: DefaultFittingOptions.defaultFittingOptions(),
-    });
     const job = dcp.compute.for(indices, runBootstrapRealization, [payload]);
     job.requires(window.BOOTSTRAP_ONLY_MODULES);
     job.computeGroups = getComputeGroups();
     job.public = { name: `🌌 ${g.name} (bootstrap)`, description: '3KIDNAS catalogue run', link: 'https://www.candiapl.ca/' };
-    if (storage) job.setResultStorage(storage.url, { kind: 'bootstrap', galaxyId: g.id, contentType: 'application/json' });
+    if (storage) job.setResultStorage(storage.url, { kind: 'bootstrap', galaxyId: g.id, run: storage.run, contentType: 'application/json' });
     wireJob(job, h);
     return { cancel: () => job.cancel(), done: job.exec(getSlicePaymentOffer()) };
   },
@@ -673,15 +676,15 @@ const SimBackend = (() => {
     async deployInitialFits(list, h, storage) {
       return runJob(list.length, (i) => {
         const f = fakeFit(list[i]);
-        if (storage) return post(storage, { kind: 'fit' }, f);
+        if (storage) return post(storage, { kind: 'fit', run: storage.run }, f);
         fitCache.set(list[i].id, f);
         return f;
       }, h, () => (2500 + Math.random() * 9000) * speed, Math.min(list.length, 16 / Math.sqrt(speed)));
     },
-    async deployBootstrap(g, fit, indices, h, storage) {
+    async deployBootstrap(g, payload, indices, h, storage) {
       return runJob(indices.length, (i) => {
-        const r = fakeRealization(fit, indices[i]);
-        return storage ? post(storage, { kind: 'bootstrap', galaxyId: g.id }, r) : r;
+        const r = fakeRealization(payload.simFit, indices[i]);
+        return storage ? post(storage, { kind: 'bootstrap', galaxyId: g.id, run: storage.run }, r) : r;
       }, h, () => (1200 + Math.random() * 5000) * speed, 10);
     },
     stopAll() { for (const t of timers) clearTimeout(t); timers.clear(); },
@@ -781,29 +784,10 @@ async function deploy() {
   if (!list.length || running()) return;
   const nBoot = Math.max(1, parseInt($('nBootstrapsInput').value, 10) || 50);
   checkLocalSize(list, nBoot);
-  if (remoteMode()) await refreshIndex();
+  // Deploy always starts over: each new fit replaces the stored one and deletes its old
+  // realizations, so a rerun overwrites rather than adds. Bootstrap fitted galaxies is resume.
   startRun(list);
-  const reuse = Boolean(storedIndex);
-  const toFit = [];
-  let complete = 0;
-  for (const g of list) {
-    const s = storedEntry(g.id);
-    if (reuse && s && s.fit && s.fit.FITAchieved) {
-      const st = states.get(g.id);
-      st.fitSummary = summaryOf(s.fit);
-      run.handledFits.add(g.id);
-      if (storedCount(s) >= run.nBoot) {
-        st.status = 'done'; st.nBoot = run.nBoot; complete++;
-        st.done = new Set(Array.from({ length: run.nBoot }, (_, k) => k)); st.failed = new Set(); st.notes = new Map();
-        continue;
-      }
-      st.status = 'fit';
-      if (run.auto) enqueueBootstrap(g);
-    } else toFit.push(g);
-  }
-  if (toFit.length < list.length) logLine(`${list.length - toFit.length} galaxies reuse their stored initial fit, ${complete} of them already have ${run.nBoot} realizations`);
-  if (toFit.length) await deployFits(toFit);
-  else maybeFinish();
+  await deployFits(list);
   touch();
 }
 
@@ -865,7 +849,7 @@ function onFitResult(value, sliceNumber, list) {
   else fitCache.set(id, value);
   st.status = ok ? 'fit' : 'fit-failed';
   if (!ok) st.error = value.error || 'did not converge';
-  if (!value.stored && ok) st.fitSummary = summaryOf(value);
+  if (ok) st.fitSummary = summaryOf(value);  // the stored ack carries the same three values
   fanout.fitLanded(id, ok);
   logLine(`${g.name}: ${ok ? 'fit converged' : 'fit failed: ' + String(st.error).split('\n')[0]}`, ok ? 'ok' : 'err');
   if (ok && run.auto) enqueueBootstrap(g);
@@ -877,6 +861,24 @@ async function getFit(id) {
   const st = states.get(id);
   const url = new URL((st && st.fitUrl) || `galaxies/${id}/initial-fit.json`, RESULTS_BASE);
   return fetchJson(url);
+}
+
+// The bootstrap job's argument. Fit workers build it (see sharedInitialFitArg); fits stored
+// before that, or ones whose build failed, are built here from the fit and the cube instead.
+async function getBootstrapPayload(g) {
+  if (SIMULATE) return { simFit: await getFit(g.id) };
+  const local = fitCache.get(g.id);
+  if (local && local.bootstrapPayload) return local.bootstrapPayload;
+  if (!local) {
+    try { return await fetchJson(new URL(`galaxies/${g.id}/bootstrap-payload.json`, RESULTS_BASE)); } catch (e) { /* build it below */ }
+  }
+  const fit = local || await getFit(g.id);
+  const datum = await fetchJson(new URL(g.file, DATASET_BASE));
+  return BuildFitPayloads.buildBootstrapPayload({
+    initialFitResult: fit, cubeBytes: b64ToBytes(datum.observedCubeRawFitsB64),
+    sofiaParTemplateText: await getSofiaParTemplate(), bootstrapSeed: 0,
+    options: DefaultFittingOptions.defaultFittingOptions(),
+  });
 }
 
 function enqueueBootstrap(g) {
@@ -892,19 +894,19 @@ function enqueueBootstrap(g) {
     const release = () => { if (!released) { released = true; run.limiter.release(); } };
     const freeSlot = () => { if (!slotFreed) { slotFreed = true; run.jobSlots.release(); } };
     try {
-      const fit = await getFit(g.id);
-      st.fitSummary = summaryOf(fit);
+      const payload = await getBootstrapPayload(g);
+      if (!st.fitSummary) { const s = storedEntry(g.id); if (s && s.fit) st.fitSummary = summaryOf(s.fit); }
       st.nBoot = run.nBoot;
       st.done = new Set(); st.failed = new Set(); st.notes = new Map(); st.inFlight = 0;
       // Resume: realizations already stored are not run again.
-      const have = run.storage && storedCount(storedEntry(g.id)) ? await storedRealizations(g.id) : new Map();
+      const have = run.resume && run.storage && storedCount(storedEntry(g.id)) ? await storedRealizations(g.id) : new Map();
       for (const [k, r] of have) if (k < run.nBoot) (r.sofiaFailed ? st.failed : st.done).add(k);
       const indices = Array.from({ length: run.nBoot }, (_, k) => k).filter((k) => !have.has(k));
       st.status = 'bootstrapping';
       reportCache.set(g.id, new Map());
       fanout.relayout(g.id);
       touch(g.id);
-      const handle = await backend.deployBootstrap(g, fit, indices, {
+      const handle = await backend.deployBootstrap(g, payload, indices, {
         accepted: (id) => { logLine(`${g.name}: bootstrap job ${id} accepted`); release(); },
         status: (ev) => {
           if (ev && Number.isFinite(ev.distributed) && Number.isFinite(ev.computed)) st.inFlight = Math.max(0, ev.distributed - ev.computed);
@@ -971,8 +973,21 @@ async function bootstrapFitted() {
   if (!list.length) { logLine('none of the selected galaxies has a converged fit to bootstrap from', 'err'); return; }
   checkLocalSize(list, Math.max(1, parseInt($('nBootstrapsInput').value, 10) || 50));
   startRun(list);
-  for (const g of list) { states.get(g.id).status = 'fit'; run.handledFits.add(g.id); }
-  for (const g of list) enqueueBootstrap(g);
+  let complete = 0;
+  run.resume = true;
+  for (const g of list) {
+    const st = states.get(g.id);
+    run.handledFits.add(g.id);
+    if (run.storage && storedCount(storedEntry(g.id)) >= run.nBoot) {
+      st.status = 'done'; st.nBoot = run.nBoot; complete++;
+      st.done = new Set(Array.from({ length: run.nBoot }, (_, k) => k)); st.failed = new Set(); st.notes = new Map();
+      continue;
+    }
+    st.status = 'fit';
+    enqueueBootstrap(g);
+  }
+  if (complete) logLine(`${complete} galaxies already have ${run.nBoot} stored realizations; the rest get only the ones they are missing`);
+  maybeFinish();
   touch();
 }
 
@@ -998,6 +1013,19 @@ $('stopBtn').addEventListener('click', stopAll);
 async function downloadResults() {
   if (!run) return;
   const out = { created: new Date().toISOString(), dataset: DATASET_BASE.href, galaxies: {} };
+  if (run.storage) {
+    // Remote: everything is already on the results host; pulling it through this tab would be
+    // tens of GB for a big run. Save where it is instead.
+    out.results = RESULTS_BASE.href;
+    for (const g of run.list) {
+      const st = states.get(g.id);
+      out.galaxies[g.id] = {
+        status: st.status, error: st.error || null, realizations: st.done ? st.done.size : 0, failed: st.failed ? st.failed.size : 0,
+        fit: `${RESULTS_BASE.href}galaxies/${g.id}/initial-fit.json`, bootstrap: `${RESULTS_BASE.href}galaxies/${g.id}/bootstrap.ndjson`,
+      };
+    }
+    return saveJson(out, 'wallaby-run-manifest');
+  }
   for (const g of run.list) {
     const st = states.get(g.id);
     let fit = fitCache.get(g.id) || null;
@@ -1007,8 +1035,11 @@ async function downloadResults() {
       initialFit: fit, realizations: run.storage ? await realizationReports(g.id) : [...(reportCache.get(g.id) || new Map()).values()],
     };
   }
+  saveJson(out, 'wallaby-fits');
+}
+function saveJson(out, name) {
   const blob = new Blob([JSON.stringify(out)], { type: 'application/json' });
-  const a = el('a', { href: URL.createObjectURL(blob), download: `wallaby-fits-${new Date().toISOString().slice(0, 19).replace(/:/g, '')}.json` });
+  const a = el('a', { href: URL.createObjectURL(blob), download: `${name}-${new Date().toISOString().slice(0, 19).replace(/:/g, '')}.json` });
   document.body.append(a);
   a.click();
   a.remove();

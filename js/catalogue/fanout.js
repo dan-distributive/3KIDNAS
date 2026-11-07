@@ -472,7 +472,8 @@ const Fanout = (() => {
       setRunning(on) {
         running = on;
         if (on && !startedAt) startedAt = Date.now();
-        scheduleRender();
+        if (on) scheduleRender();
+        else render();  // the final state, without the big-run delay
       },
       resetClock() { startedAt = null; },
       dispatched() {
