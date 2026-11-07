@@ -98,6 +98,37 @@ node run_both.js \
 ```
 
 ---
+WALLABY catalogue (many galaxies on DCP)
+
+js/catalogue.html runs the same JS pipeline over the whole WALLABY catalogue
+from a browser: pick galaxies on a sky map or in the table, and they go out as
+one DCP job of initial fits (one slice per galaxy). As each fit lands, that
+galaxy's own bootstrap job is deployed. Each fit worker also builds its galaxy's
+bootstrap payload, so the dispatching browser only handles ~1 MB per galaxy.
+Hosted at https://people.distributive.network/dandesjardins/3KIDNAS/catalogue.html
+
+- Dataset: not in this repo. js/tools/build-wallaby-dataset.py builds it (on
+  the host that serves it) from the WALLABY source releases: catalogue.json
+  plus one JSON per galaxy (cube and mask, spectral axis converted from
+  frequency to optical velocity). Workers fetch each galaxy straight from that
+  host, so it must allow their origin (CORS).
+- Results: Local returns results through DCP to the tab (fine for a few
+  hundred galaxies; Download saves them). Remote has workers post each result
+  to js/tools/results-receiver.py behind nginx, which stores
+  galaxies/<id>/initial-fit.json, bootstrap-payload.json and bootstrap.ndjson,
+  plus events.ndjson (one line per result, with arrival time and worker
+  timings, for throughput analysis). Deploy refits and overwrites a galaxy's
+  stored results; Resume bootstraps launches only missing realizations.
+- Upload key: js/tools/new-upload-key.sh installs a fresh key on the results
+  host over ssh and copies it to the clipboard; paste it into the page once
+  (it is remembered). The previous two keys stay valid for running jobs.
+- Dry runs: catalogue.html?simulate fakes DCP. Add
+  &simSpeed=0.01&upload=<receiver URL>&results=<results URL> to push a
+  full-catalogue simulated run through a local receiver.
+- Deploying page changes: run js/tools/stamp-catalogue.py first, so browsers
+  fetch the new scripts instead of cached ones.
+
+---
 Known Bugs
 1) There is a known issue with linux vs Mac architechtures.  To adjust the code for linux:  
     a) Change line 161 in src/Inputs/DataCubeInput.f from "integer\*8 nInts(3)" to "integer nInts(3)"
