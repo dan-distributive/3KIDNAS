@@ -222,7 +222,9 @@ const Fanout = (() => {
         .attr('class', (d) => 'dot' + (dotState(d) === 'running' ? ' running' : ''))
         .attr('fill', (d) => ({ done: cssColor('--s-done'), failed: cssColor('--s-failed'), running: cssColor('--s-boot') }[dotState(d)] || '#ffffff'))
         .attr('fill-opacity', (d) => (dotState(d) === 'pending' ? 0.13 : 1))
-        .attr('filter', (d) => (dotState(d) === 'done' ? 'url(#fo-glow)' : null));
+        .attr('filter', (d) => (dotState(d) === 'done' ? 'url(#fo-glow)' : null))
+        .on('mouseenter mousemove', (ev, d) => showDotTip(ev, d, dotState(d)))
+        .on('mouseleave', () => tip.style('opacity', 0));
 
       // Arc mode: a progress ring per galaxy instead of individual dots.
       const arcData = arcMode ? galaxies.filter((g) => (states.get(g.id) || {}).nBoot) : [];
@@ -316,13 +318,13 @@ const Fanout = (() => {
 
     // ---------------------------------------------------------------- stats
     function tally() {
-      const c = { total: galaxies.length, queued: 0, fitting: 0, fit: 0, bootstrapping: 0, done: 0, failed: 0, fitDone: 0, real: 0, realTotal: 0 };
+      const c = { total: galaxies.length, queued: 0, fitting: 0, fit: 0, bootstrapping: 0, done: 0, failed: 0, fitDone: 0, real: 0, realTotal: 0, realFailed: 0 };
       for (const g of galaxies) {
         const st = states.get(g.id) || { status: 'queued' };
         if (st.status === 'fit-failed' || st.status === 'bs-failed') c.failed++;
         else if (c[st.status] !== undefined) c[st.status]++;
         if (!['queued', 'fitting', 'stopped'].includes(st.status)) c.fitDone++;
-        if (st.nBoot) { c.realTotal += st.nBoot; c.real += doneCount(st); }
+        if (st.nBoot) { c.realTotal += st.nBoot; c.real += doneCount(st); c.realFailed += st.failed ? st.failed.size : 0; }
       }
       return c;
     }
@@ -336,8 +338,9 @@ const Fanout = (() => {
         ['Fitted', c.fit, '--s-fit'],
         ['Bootstrapping', c.bootstrapping, '--s-boot'],
         ['Done', c.done, '--s-done'],
-        ['Failed', c.failed, '--s-failed'],
+        ['Galaxies failed', c.failed, '--s-failed'],
         ['Realizations', c.realTotal ? `${c.real}/${c.realTotal}` : '0', null],
+        ['Realizations failed', c.realFailed, '--s-failed'],
         ['Elapsed', startedAt ? `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}` : '–', null],
       ];
       d3.select(statsEl).selectAll('div.stat').data(items).join((e) => {
@@ -396,6 +399,20 @@ const Fanout = (() => {
     }
 
     // ---------------------------------------------------------------- tooltip
+    function placeTip(ev) {
+      const [mx, my] = d3.pointer(ev, stageEl);
+      const left = Math.min(mx + 14, (stageEl.clientWidth || W) - 270);
+      tip.style('left', left + 'px').style('top', (my + 14) + 'px').style('opacity', 1);
+    }
+    function showDotTip(ev, d, state) {
+      const st = states.get(d.g.id) || {};
+      const note = st.notes && st.notes.get(d.k);
+      tip.selectAll('*').remove();
+      tip.append('div').attr('class', 'tname').text(`${d.g.name} · realization ${d.k + 1}`);
+      tip.append('div').attr('class', 'trow').text({ done: 'done', failed: 'failed', running: 'running' }[state] || 'waiting');
+      if (note) tip.append('div').attr('class', 'trow').text(note);
+      placeTip(ev);
+    }
     function showTip(ev, g) {
       const st = states.get(g.id) || { status: 'queued' };
       const [mx, my] = d3.pointer(ev, stageEl);
@@ -407,7 +424,7 @@ const Fanout = (() => {
         `status: ${STATUS_LABEL[st.status] || st.status}`,
       ];
       if (st.fitSummary) rows.push(`fit: PA ${st.fitSummary.pa}° · inc ${st.fitSummary.inc}° · Vsys ${st.fitSummary.vsys}`);
-      if (st.nBoot) rows.push(`realizations ${doneCount(st)}/${st.nBoot}`);
+      if (st.nBoot) rows.push(`realizations ${doneCount(st)}/${st.nBoot}` + (st.failed && st.failed.size ? `, ${st.failed.size} failed` : ''));
       if (st.error) rows.push(`error: ${String(st.error).slice(0, 120)}`);
       for (const r of rows) tip.append('div').attr('class', 'trow').text(r);
       const left = Math.min(mx + 14, (stageEl.clientWidth || W) - 270);

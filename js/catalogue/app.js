@@ -802,7 +802,7 @@ function enqueueBootstrap(g) {
       const fit = await getFit(g.id);
       st.fitSummary = summaryOf(fit);
       st.nBoot = run.nBoot;
-      st.done = new Set(); st.failed = new Set(); st.inFlight = 0;
+      st.done = new Set(); st.failed = new Set(); st.notes = new Map(); st.inFlight = 0;
       st.status = 'bootstrapping';
       reportCache.set(g.id, new Map());
       fanout.relayout(g.id);
@@ -824,7 +824,7 @@ function enqueueBootstrap(g) {
         st.inFlight = 0;
         st.status = st.done.size ? 'done' : 'bs-failed';
         fanout.galaxyDone(g.id);
-        logLine(`${g.name}: ${st.done.size}/${st.nBoot} realizations converged`, st.done.size ? 'ok' : 'err');
+        logLine(`${g.name}: ${st.done.size}/${st.nBoot} realizations usable` + (st.failed.size ? `, ${st.failed.size} failed` : ''), st.done.size ? 'ok' : 'err');
         touch(g.id);
       }, (error) => {
         st.inFlight = 0;
@@ -850,8 +850,14 @@ function onRealization(g, value, sliceNumber) {
   const k = Number.isInteger(value.realizationIndex) ? value.realizationIndex : sliceNumber - 1;
   const st = states.get(g.id);
   if (!st || !Number.isInteger(k) || k < 0 || k >= st.nBoot || st.done.has(k) || st.failed.has(k)) return;
-  const ok = !value.sofiaFailed && value.converged !== false;
+  // A fit that hit the iteration limit still yields a model, which 3KIDNAS keeps; only a
+  // realization with no model (SoFiA found nothing, or an error) is a failure.
+  const ok = !value.sofiaFailed;
   (ok ? st.done : st.failed).add(k);
+  const note = value.error ? 'error: ' + String(value.error).split('\n')[0].slice(0, 140)
+    : !ok ? 'SoFiA found no source in this noisy cube'
+    : value.converged === false ? 'fit hit the iteration limit (kept, as in 3KIDNAS)' : '';
+  if (note && st.notes) st.notes.set(k, note);
   if (!value.stored) reportCache.get(g.id).set(k, value);
   fanout.realizationLanded(g.id, k, ok);
   touch(g.id);
@@ -979,7 +985,7 @@ async function renderDetail(id) {
     param('Inclination (deg)', 'INCLINATION', 1),
     param('Vsys (km/s)', 'VSYS', 1),
     param('Vdisp (km/s)', 'VDISP', 1),
-    row('Realizations', reports.length ? `${ok.length} converged of ${reports.length}` : '–'),
+    row('Realizations', reports.length ? `${ok.length} usable of ${reports.length}` : '–'),
   ];
   if (st && st.error) rows.push(row('Error', String(st.error).split('\n')[0].slice(0, 120)));
   const links = [];
