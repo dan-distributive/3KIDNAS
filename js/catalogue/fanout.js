@@ -33,6 +33,8 @@ const Fanout = (() => {
   // Angle 0 points up, increasing clockwise.
   function polar(angle, radius) { return [radius * Math.sin(angle), -radius * Math.cos(angle)]; }
 
+  const BIG_RUN = 300;
+
   function create({ svgEl, stageEl, tipEl, emptyEl, statsEl, legendEl, onSelect }) {
     const svg = d3.select(svgEl);
     const defs = svg.append('defs');
@@ -374,6 +376,7 @@ const Fanout = (() => {
 
     // ---------------------------------------------------------------- particles
     function particleAlong(pathD, { color, r = 2.2, duration = 900, reverse = true }) {
+      if (galaxies.length > BIG_RUN) return;
       const path = gParticles.append('path').attr('d', pathD).attr('fill', 'none').attr('stroke', 'none');
       const node = path.node();
       const len = node.getTotalLength();
@@ -393,6 +396,7 @@ const Fanout = (() => {
         .on('end', () => tail.remove());
     }
     function burst(x, y, color) {
+      if (galaxies.length > BIG_RUN) return;
       const ring = gParticles.append('circle').attr('cx', x).attr('cy', y).attr('r', nodeSize)
         .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('opacity', 0.9);
       ring.transition().duration(900).ease(d3.easeCubicOut).attr('r', nodeSize * 4).attr('opacity', 0).remove();
@@ -436,7 +440,10 @@ const Fanout = (() => {
     function scheduleRender() {
       if (renderQueued) return;
       renderQueued = true;
-      requestAnimationFrame(() => { renderQueued = false; render(); });
+      // Thousands of galaxies make a full render expensive, and results can arrive hundreds
+      // a second, so big runs redraw at most once a second.
+      if (galaxies.length > BIG_RUN) setTimeout(() => requestAnimationFrame(() => { renderQueued = false; render(); }), 1000);
+      else requestAnimationFrame(() => { renderQueued = false; render(); });
     }
 
     function select(id) {

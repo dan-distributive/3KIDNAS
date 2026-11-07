@@ -85,6 +85,14 @@
   #apiKeyInput { width: var(--api-w); max-width: 100%; }
   .compute-group-row input { flex: 0 1 var(--half-w); min-width: 0; }
   #slicePaymentOfferInput { width: var(--half-w); max-width: 100%; }
+  #uploadKeyInput { width: var(--api-w); max-width: 100%; }
+  .pay-results { display:flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .seg { display:inline-flex; border: 1px solid var(--border-strong); border-radius: 7px; overflow: hidden; }
+  .seg label { display:flex; align-items:center; padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer; margin: 0; color: var(--ink); }
+  .seg label + label { border-left: 1px solid var(--border-strong); }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label:has(input:checked) { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+  .seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
   .compute-group-row .remove-group-btn {
     flex: 0 0 auto; background: transparent; border: none; color: var(--muted);
     cursor: pointer; font-size: 18px; line-height: 1; padding: 4px 8px;
@@ -239,9 +247,23 @@
         <button id="addComputeGroupBtn" type="button" class="secondary small" style="margin-top:8px">+ Add another group</button>
         <p class="card-sub" style="margin:6px 0 0">Leave joinKey blank for the public group.</p>
       </div>
-      <div class="field">
-        <label for="slicePaymentOfferInput">Slice payment offer</label>
-        <input type="number" id="slicePaymentOfferInput" value="1.000" min="0" step="0.001">
+      <div class="pay-results">
+        <div class="field">
+          <label for="slicePaymentOfferInput">Slice payment offer</label>
+          <input type="number" id="slicePaymentOfferInput" value="1.000" min="0" step="0.001">
+        </div>
+        <div class="field">
+          <label>Results</label>
+          <div class="seg" role="radiogroup" aria-label="Where results go">
+            <label><input type="radio" name="resultsMode" value="local" id="resultsLocalInput" checked> Local</label>
+            <label><input type="radio" name="resultsMode" value="remote" id="resultsRemoteInput"> Remote</label>
+          </div>
+        </div>
+      </div>
+      <p class="card-sub" id="resultsHelp" style="margin:-4px 0 10px"></p>
+      <div class="field" id="uploadKeyField" hidden>
+        <label for="uploadKeyInput">Upload key</label>
+        <input type="password" id="uploadKeyInput" placeholder="run tools/new-upload-key.sh, then paste">
       </div>
     </details>
   </section>
@@ -307,6 +329,10 @@
         <label for="deployConcurrencyInput">Bootstrap deploys at once</label>
         <input type="number" id="deployConcurrencyInput" value="3" min="1" max="20" step="1">
       </div>
+      <div class="field">
+        <label for="maxJobsInput">Bootstrap jobs running at once</label>
+        <input type="number" id="maxJobsInput" value="100" min="1" max="5000" step="1">
+      </div>
       <div class="field" style="flex:2">
         <label class="check"><input type="checkbox" id="autoBootstrapInput" checked> Start each galaxy's bootstrap as soon as its fit lands</label>
       </div>
@@ -368,7 +394,7 @@
 <script src="src/PipelineConfig/defaultFittingOptions.js?v=a7abfe651b"></script>
 <script src="src/PayloadBuilder/buildFitPayloads.js?v=0ad909aea2"></script>
 <script src="bootstrap-realization-launcher.js?v=3a1be182e7"></script>
-<script src="catalogue/fanout.js?v=6128327961"></script>
-<script src="catalogue/app.js?v=afc6924adb"></script>
+<script src="catalogue/fanout.js?v=713e04ec0b"></script>
+<script src="catalogue/app.js?v=362f04f056"></script>
 </body>
 </html>

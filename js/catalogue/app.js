@@ -25,7 +25,6 @@ const DATASET_BASE = new URL(query.get('dataset') || (onPeople ? '../wallaby/' :
 // Results live on dcp.network for now (tools/results-receiver.py behind nginx there).
 const RESULTS_BASE = new URL(query.get('results') || 'https://dcp.network/3kidnas-results/');
 const UPLOAD_BASE = new URL(query.get('upload') || 'https://dcp.network/3kidnas-upload/');
-const STORE_KEY = SIMULATE ? '' : (query.get('store') || '');
 const TABLE_PAGE = 300;
 
 const $ = (id) => document.getElementById(id);
@@ -50,6 +49,7 @@ function logLine(text, kind) {
   const log = $('runLog');
   log.hidden = false;
   log.append(el('div', { class: 'line' + (kind ? ' ' + kind : ''), text: `${new Date().toLocaleTimeString()}  ${text}` }));
+  while (log.childElementCount > 500) log.firstChild.remove();
   log.scrollTop = log.scrollHeight;
 }
 
@@ -166,7 +166,40 @@ function getSlicePaymentOffer() {
   return Number.isFinite(v) && v >= 0 ? v : 1;
 }
 
-function storageConfig() { return STORE_KEY ? { url: new URL(STORE_KEY, UPLOAD_BASE) } : null; }
+// Results: Local comes back through DCP to this tab; Remote has workers post to the
+// receiver on dcp.network with an upload key minted by tools/new-upload-key.sh (ssh).
+// Simulation can use Remote only with ?upload= and ?results= pointing at a local receiver.
+const UPLOAD_KEY_STORAGE_KEY = 'galaxy-catalogue:uploadKey';
+const RESULTS_MODE_STORAGE_KEY = 'galaxy-catalogue:resultsMode';
+const REMOTE_ALLOWED = !SIMULATE || (query.has('upload') && query.has('results'));
+const RESULTS_HELP = {
+  local: 'Results come back to this tab. Fine for a few hundred galaxies; download them before closing.',
+  remote: 'Workers post results to dcp.network, so they survive the tab and a run can resume. Needed for big runs.',
+};
+function remoteMode() { return $('resultsRemoteInput').checked; }
+function refreshResultsControls() {
+  $('resultsHelp').textContent = RESULTS_HELP[remoteMode() ? 'remote' : 'local'];
+  $('uploadKeyField').hidden = !remoteMode();
+}
+$('uploadKeyInput').value = stored(UPLOAD_KEY_STORAGE_KEY, '');
+$('uploadKeyInput').addEventListener('change', () => store(UPLOAD_KEY_STORAGE_KEY, $('uploadKeyInput').value.trim()));
+$('resultsRemoteInput').disabled = !REMOTE_ALLOWED;
+if (REMOTE_ALLOWED && stored(RESULTS_MODE_STORAGE_KEY, 'local') === 'remote') $('resultsRemoteInput').checked = true;
+for (const input of [$('resultsLocalInput'), $('resultsRemoteInput')]) {
+  input.addEventListener('change', () => {
+    store(RESULTS_MODE_STORAGE_KEY, remoteMode() ? 'remote' : 'local');
+    refreshResultsControls();
+    refreshIndex();
+    if (fanout) selectionChanged();
+  });
+}
+refreshResultsControls();
+function storageConfig() {
+  if (!remoteMode()) return null;
+  const key = $('uploadKeyInput').value.trim();
+  if (!key) throw new Error('Results are set to Remote but the upload key is empty: run tools/new-upload-key.sh and paste it');
+  return { url: new URL(key, UPLOAD_BASE) };
+}
 
 // ---------------------------------------------------------------------------
 // Catalogue + per-galaxy state
@@ -185,6 +218,7 @@ function startGeometry(g) {
   return { pa: Number.isFinite(o.pa) ? o.pa : g.paEst, inc: Number.isFinite(o.inc) ? o.inc : g.incEst };
 }
 
+function storedCount(s) { return s ? (Array.isArray(s.bootstraps) ? s.bootstraps.length : Number(s.bootstraps) || 0) : 0; }
 function storedEntry(id) { return storedIndex && storedIndex.galaxies ? storedIndex.galaxies[id] : null; }
 
 // One status for the table, from this run if the galaxy is in it, else from storage.
@@ -194,7 +228,7 @@ function tableStatus(id) {
   const s = storedEntry(id);
   if (!s || !s.fit) return st ? 'queued' : 'none';
   if (!s.fit.FITAchieved) return 'fit-failed';
-  const n = (s.bootstraps || []).length;
+  const n = storedCount(s);
   return n === 0 ? 'fit' : 'stored:' + n;
 }
 
@@ -202,7 +236,7 @@ async function loadCatalogue() {
   const meta = await fetchJson(new URL('catalogue.json', DATASET_BASE));
   galaxies = meta.galaxies.map((g) => Object.assign(g, { short: g.id.replace('WALLABY_', '') }));
   for (const g of galaxies) byId.set(g.id, g);
-  if (STORE_KEY) { try { storedIndex = await fetchJson(new URL('index.json', RESULTS_BASE)); } catch (e) { storedIndex = null; } }
+  await refreshIndex();
   const fields = [...new Set(galaxies.map((g) => g.field))];
   $('catalogueSummary').textContent = `${galaxies.length.toLocaleString()} galaxies in ${fields.length} fields `
     + `(${meta.releases.length} releases), built ${new Date(meta.created).toLocaleDateString()}. `
@@ -454,8 +488,10 @@ function selectionChanged() {
     n ? 'This deploys ' : 'Select galaxies to deploy.',
     ...(n ? [el('strong', { text: `1 initial-fit job (${n} slice${n > 1 ? 's' : ''})` }), ' and up to ',
       el('strong', { text: `${n} bootstrap job${n > 1 ? 's' : ''} (${(n * b).toLocaleString()} slices)` }),
-      `. Each slice takes about 15 s on a laptop-class worker, so about ${Math.round((n * (b + 1) * 15) / 60).toLocaleString()} worker-minutes in all.`,
-      n > 200 ? ' That is a lot of jobs for one tab: consider a smaller selection first.' : ''] : []),
+      `. Each slice takes about 15 s on a laptop-class worker, so about ${Math.round((n * (b + 1) * 15) / 60).toLocaleString()} worker-minutes in all, `,
+      `at most ${(n * (b + 1) * getSlicePaymentOffer()).toLocaleString()} compute credits at your offer, `,
+      `and about ${(resultBytes(selectedGalaxies(), b) / 1e9).toFixed(1)} GB of results`,
+      !remoteMode() && resultBytes(selectedGalaxies(), b) > LOCAL_RESULTS_LIMIT ? ' (too much for Local: use Remote).' : '.'] : []),
   );
   $('deployBtn').disabled = !n || running();
   $('bootstrapNowBtn').disabled = !n || running();
@@ -551,7 +587,7 @@ const RealBackend = {
     wireJob(job, h);
     return { cancel: () => job.cancel(), done: job.exec(getSlicePaymentOffer()) };
   },
-  async deployBootstrap(g, fit, nBoot, h, storage) {
+  async deployBootstrap(g, fit, indices, h, storage) {
     await ensureIdentity();
     const datum = await fetchJson(new URL(g.file, DATASET_BASE));
     const payload = BuildFitPayloads.buildBootstrapPayload({
@@ -559,7 +595,7 @@ const RealBackend = {
       sofiaParTemplateText: await getSofiaParTemplate(), bootstrapSeed: 0,
       options: DefaultFittingOptions.defaultFittingOptions(),
     });
-    const job = dcp.compute.for(Array.from({ length: nBoot }, (_, i) => i), runBootstrapRealization, [payload]);
+    const job = dcp.compute.for(indices, runBootstrapRealization, [payload]);
     job.requires(window.BOOTSTRAP_ONLY_MODULES);
     job.computeGroups = getComputeGroups();
     job.public = { name: `🌌 ${g.name} (bootstrap)`, description: '3KIDNAS catalogue run', link: 'https://www.candiapl.ca/' };
@@ -596,21 +632,24 @@ const SimBackend = (() => {
       R: fit.R, VROT: fit.VROT.map((v) => v * s * (1 + gauss() * 0.03)),
     };
   }
+  // ?simSpeed=0.01 runs the simulation 100 times faster, for full-catalogue dry runs.
+  const speed = Math.max(0.001, Number(query.get('simSpeed')) || 1);
   function runJob(n, makeResult, h, perSlice, workers) {
     let cancelled = false, nextSlice = 0, computed = 0;
     const results = new Array(n);
     let resolveDone, rejectDone;
     const done = new Promise((res, rej) => { resolveDone = res; rejectDone = rej; });
-    later(700 + Math.random() * 900, () => {
+    later((700 + Math.random() * 900) * Math.min(1, speed * 10), () => {
       if (cancelled) return;
       h.accepted && h.accepted('sim-' + Math.random().toString(36).slice(2, 10));
       const startOne = () => {
         if (cancelled || nextSlice >= n) return;
         const i = nextSlice++;
         h.status && h.status({ total: n, distributed: nextSlice, computed });
-        later(perSlice(), () => {
+        later(perSlice(), async () => {
           if (cancelled) return;
-          results[i] = makeResult(i);
+          try { results[i] = await makeResult(i); } catch (e) { results[i] = { error: String(e.message || e) }; }
+          if (cancelled) return;
           computed++;
           h.status && h.status({ total: n, distributed: nextSlice, computed });
           h.result(results[i], i + 1);
@@ -622,13 +661,28 @@ const SimBackend = (() => {
     });
     return { cancel: () => { cancelled = true; rejectDone(new Error('cancelled')); }, done };
   }
+  // What a worker does with setResultStorage: POST the result as a form, and the reply
+  // becomes the slice result.
+  async function post(storage, params, value) {
+    const body = new URLSearchParams(Object.assign({}, params, { contentType: 'application/json', content: JSON.stringify(value) }));
+    const res = await fetch(storage.url, { method: 'POST', body });
+    return res.json();
+  }
   return {
     name: 'simulation',
-    async deployInitialFits(list, h) {
-      return runJob(list.length, (i) => { const f = fakeFit(list[i]); fitCache.set(list[i].id, f); return f; }, h, () => 2500 + Math.random() * 9000, Math.min(list.length, 16));
+    async deployInitialFits(list, h, storage) {
+      return runJob(list.length, (i) => {
+        const f = fakeFit(list[i]);
+        if (storage) return post(storage, { kind: 'fit' }, f);
+        fitCache.set(list[i].id, f);
+        return f;
+      }, h, () => (2500 + Math.random() * 9000) * speed, Math.min(list.length, 16 / Math.sqrt(speed)));
     },
-    async deployBootstrap(g, fit, nBoot, h) {
-      return runJob(nBoot, (k) => fakeRealization(fit, k), h, () => 1200 + Math.random() * 5000, 10);
+    async deployBootstrap(g, fit, indices, h, storage) {
+      return runJob(indices.length, (i) => {
+        const r = fakeRealization(fit, indices[i]);
+        return storage ? post(storage, { kind: 'bootstrap', galaxyId: g.id }, r) : r;
+      }, h, () => (1200 + Math.random() * 5000) * speed, 10);
     },
     stopAll() { for (const t of timers) clearTimeout(t); timers.clear(); },
   };
@@ -658,9 +712,11 @@ function startRun(list) {
     nBoot: Math.max(1, parseInt($('nBootstrapsInput').value, 10) || 50),
     auto: $('autoBootstrapInput').checked,
     limiter: new Limiter(Math.max(1, parseInt($('deployConcurrencyInput').value, 10) || 3)),
+    jobSlots: new Limiter(Math.max(1, parseInt($('maxJobsInput').value, 10) || 100)),
     handledFits: new Set(), bootstrapsStarted: new Set(), pending: 0,
   };
   for (const g of list) states.set(g.id, newState());
+  holdTabAwake(run);
   fanout.setGalaxies(list.map(vizGalaxy), states);
   fanout.resetClock();
   fanout.setRunning(true);
@@ -678,9 +734,22 @@ function trackJob(handle) {
   });
 }
 
+// A long run lives in this tab. A held Web Lock keeps Chrome from freezing or discarding it in
+// the background, and the wake lock keeps the screen (and so the machine) awake while visible.
+function holdTabAwake(r) {
+  const released = new Promise((resolve) => { r.releaseAwake = resolve; });
+  try { navigator.locks && navigator.locks.request('3kidnas-run', () => released); } catch (e) { /* unsupported */ }
+  const wake = () => { try { navigator.wakeLock && navigator.wakeLock.request('screen').then((l) => { r.wakeLock = l; }, () => {}); } catch (e) { /* unsupported */ } };
+  wake();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && running()) wake(); });
+}
+window.addEventListener('beforeunload', (ev) => { if (running()) { ev.preventDefault(); ev.returnValue = ''; } });
+
 function maybeFinish() {
   if (!run || run.finished || run.pending > 0) return;
   run.finished = true;
+  if (run.releaseAwake) run.releaseAwake();
+  if (run.wakeLock) run.wakeLock.release().catch(() => {});
   fanout.setRunning(false);
   setRunButtons();
   const counts = {};
@@ -690,27 +759,49 @@ function maybeFinish() {
 }
 
 async function refreshIndex() {
-  if (!STORE_KEY) return;
-  try { storedIndex = await fetchJson(new URL('index.json', RESULTS_BASE)); refreshStatuses(); } catch (e) { /* not set up */ }
+  if (!remoteMode()) { storedIndex = null; refreshStatuses(); return; }
+  try { storedIndex = await fetchJson(new URL('index.json', RESULTS_BASE)); } catch (e) { storedIndex = null; }
+  refreshStatuses();
+}
+
+// Rough bytes of results a selection produces: a fit is ~3.5x its galaxy file (it carries the
+// model cube), a realization ~1.3 kB.
+function resultBytes(list, nBoot) { return list.reduce((sum, g) => sum + 3.5 * (g.bytes || 1e6) + nBoot * 1300, 0); }
+const LOCAL_RESULTS_LIMIT = 1.5e9;
+function checkLocalSize(list, nBoot) {
+  if (remoteMode() || SIMULATE) return;
+  const bytes = resultBytes(list, nBoot);
+  if (bytes > LOCAL_RESULTS_LIMIT) {
+    throw new Error(`about ${(bytes / 1e9).toFixed(1)} GB of results is too much to hold in this tab: switch Results to Remote`);
+  }
 }
 
 async function deploy() {
   const list = selectedGalaxies();
   if (!list.length || running()) return;
+  const nBoot = Math.max(1, parseInt($('nBootstrapsInput').value, 10) || 50);
+  checkLocalSize(list, nBoot);
+  if (remoteMode()) await refreshIndex();
   startRun(list);
   const reuse = Boolean(storedIndex);
   const toFit = [];
+  let complete = 0;
   for (const g of list) {
     const s = storedEntry(g.id);
     if (reuse && s && s.fit && s.fit.FITAchieved) {
       const st = states.get(g.id);
-      st.status = 'fit';
       st.fitSummary = summaryOf(s.fit);
       run.handledFits.add(g.id);
+      if (storedCount(s) >= run.nBoot) {
+        st.status = 'done'; st.nBoot = run.nBoot; complete++;
+        st.done = new Set(Array.from({ length: run.nBoot }, (_, k) => k)); st.failed = new Set(); st.notes = new Map();
+        continue;
+      }
+      st.status = 'fit';
       if (run.auto) enqueueBootstrap(g);
     } else toFit.push(g);
   }
-  if (toFit.length < list.length) logLine(`${list.length - toFit.length} galaxies reuse their stored initial fit`);
+  if (toFit.length < list.length) logLine(`${list.length - toFit.length} galaxies reuse their stored initial fit, ${complete} of them already have ${run.nBoot} realizations`);
   if (toFit.length) await deployFits(toFit);
   else maybeFinish();
   touch();
@@ -769,6 +860,7 @@ function onFitResult(value, sliceNumber, list) {
   const g = byId.get(id);
   const st = states.get(id);
   const ok = Boolean(value.FITAchieved);
+  // Stored fits are fetched again when needed: holding thousands of them would exhaust the tab.
   if (value.stored) st.fitUrl = value.url;
   else fitCache.set(id, value);
   st.status = ok ? 'fit' : 'fit-failed';
@@ -784,9 +876,7 @@ async function getFit(id) {
   if (fitCache.has(id)) return fitCache.get(id);
   const st = states.get(id);
   const url = new URL((st && st.fitUrl) || `galaxies/${id}/initial-fit.json`, RESULTS_BASE);
-  const fit = await fetchJson(url);
-  fitCache.set(id, fit);
-  return fit;
+  return fetchJson(url);
 }
 
 function enqueueBootstrap(g) {
@@ -795,19 +885,26 @@ function enqueueBootstrap(g) {
   const st = states.get(g.id);
   run.pending++;  // held until this bootstrap's job is deployed (or fails to)
   (async () => {
+    await run.jobSlots.acquire();
+    if (run.finished || st.status === 'stopped') { run.jobSlots.release(); run.pending--; maybeFinish(); return; }
     await run.limiter.acquire();
-    let released = false;
+    let released = false, slotFreed = false;
     const release = () => { if (!released) { released = true; run.limiter.release(); } };
+    const freeSlot = () => { if (!slotFreed) { slotFreed = true; run.jobSlots.release(); } };
     try {
       const fit = await getFit(g.id);
       st.fitSummary = summaryOf(fit);
       st.nBoot = run.nBoot;
       st.done = new Set(); st.failed = new Set(); st.notes = new Map(); st.inFlight = 0;
+      // Resume: realizations already stored are not run again.
+      const have = run.storage && storedCount(storedEntry(g.id)) ? await storedRealizations(g.id) : new Map();
+      for (const [k, r] of have) if (k < run.nBoot) (r.sofiaFailed ? st.failed : st.done).add(k);
+      const indices = Array.from({ length: run.nBoot }, (_, k) => k).filter((k) => !have.has(k));
       st.status = 'bootstrapping';
       reportCache.set(g.id, new Map());
       fanout.relayout(g.id);
       touch(g.id);
-      const handle = await backend.deployBootstrap(g, fit, run.nBoot, {
+      const handle = await backend.deployBootstrap(g, fit, indices, {
         accepted: (id) => { logLine(`${g.name}: bootstrap job ${id} accepted`); release(); },
         status: (ev) => {
           if (ev && Number.isFinite(ev.distributed) && Number.isFinite(ev.computed)) st.inFlight = Math.max(0, ev.distributed - ev.computed);
@@ -831,12 +928,13 @@ function enqueueBootstrap(g) {
         st.status = 'stopped';
         logLine(`${g.name}: bootstrap job ended: ${(error && error.message) || error}`, 'err');
         touch(g.id);
-      }).finally(release);
+      }).finally(() => { release(); freeSlot(); });
     } catch (error) {
       st.status = 'bs-failed';
       st.error = error.message || String(error);
       logLine(`${g.name}: could not deploy the bootstrap: ${st.error}`, 'err');
       release();
+      freeSlot();
       touch(g.id);
     } finally {
       run.pending--;
@@ -864,12 +962,14 @@ function onRealization(g, value, sliceNumber) {
 }
 
 async function bootstrapFitted() {
+  if (remoteMode()) await refreshIndex();
   const list = selectedGalaxies().filter((g) => {
     const s = storedEntry(g.id);
     const f = fitCache.get(g.id);
     return f ? Boolean(f.FITAchieved) : Boolean(s && s.fit && s.fit.FITAchieved);
   });
   if (!list.length) { logLine('none of the selected galaxies has a converged fit to bootstrap from', 'err'); return; }
+  checkLocalSize(list, Math.max(1, parseInt($('nBootstrapsInput').value, 10) || 50));
   startRun(list);
   for (const g of list) { states.get(g.id).status = 'fit'; run.handledFits.add(g.id); }
   for (const g of list) enqueueBootstrap(g);
@@ -939,13 +1039,21 @@ async function realizationReports(id) {
   reportCache.set(id, cache);
   const st = states.get(id);
   const s = storedEntry(id);
-  const wanted = st && st.nBoot ? [...st.done, ...st.failed] : (s ? s.bootstraps || [] : []);
-  const missing = wanted.filter((k) => !cache.has(k));
-  if (missing.length && !SIMULATE) {
-    await Promise.all(missing.map((k) => fetchJson(new URL(`galaxies/${id}/bootstrap/${k}.json`, RESULTS_BASE))
-      .then((r) => cache.set(k, r)).catch(() => {})));
-  }
+  if (remoteMode() && (storedCount(s) || (st && st.done && st.done.size))) return [...(await storedRealizations(id)).values()];
   return [...cache.values()];
+}
+
+// One line per stored realization; a retried slice can repeat an index, and the last wins.
+async function storedRealizations(id) {
+  const out = new Map();
+  try {
+    const res = await fetch(new URL(`galaxies/${id}/bootstrap.ndjson`, RESULTS_BASE), { cache: 'no-store' });
+    if (!res.ok) return out;
+    for (const line of (await res.text()).split('\n')) {
+      try { const r = JSON.parse(line); if (Number.isInteger(r.realizationIndex)) out.set(r.realizationIndex, r); } catch (e) { /* partial line */ }
+    }
+  } catch (e) { /* not reachable */ }
+  return out;
 }
 
 function showDetail(id) {
