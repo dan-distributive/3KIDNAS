@@ -182,7 +182,7 @@ pricing, which may not be what you want for a real run.
 ```bash
 cd /Users/dandesjardins/DCP/3KIDNAS/3KIDNASTests/SingleGalaxyTest
 export DCP_API_KEY=0x<your identity>
-export DCP_COMPUTE_GROUP=<joinKey>[,<joinSecret>]   # optional -- omit for public compute
+export DCP_COMPUTE_GROUP=<attachKey>[,<attachSecret>]   # optional -- omit for public compute
 export DCP_SLICE_PRICE=<price>                       # optional -- omit for market rate
 python3 ../../WRKP_GalaxyFitDriver.py Sample_KIDNAS_SingleGalaxyInput_DCP_Small.py   # UseDCP=1
 ```
@@ -201,7 +201,7 @@ then diffs their per-realization results.
 ```bash
 cd /Users/dandesjardins/DCP/3KIDNAS/js/tools
 export DCP_API_KEY=0x<your identity>
-export DCP_COMPUTE_GROUP=<joinKey>[,<joinSecret>]   # optional
+export DCP_COMPUTE_GROUP=<attachKey>[,<attachSecret>]   # optional
 export DCP_SLICE_PRICE=<price>                       # optional
 node run_both.js --seed 42 --nBootstraps 5
 ```

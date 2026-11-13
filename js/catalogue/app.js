@@ -127,16 +127,16 @@ function loadStoredComputeGroups() {
     const groups = JSON.parse(stored(COMPUTE_GROUPS_STORAGE_KEY, 'null'));
     if (Array.isArray(groups) && groups.length) return groups;
   } catch (e) { /* default below */ }
-  return [{ joinKey: '', joinSecret: '' }];
+  return [{ attachKey: '', attachSecret: '' }];
 }
 function persistComputeGroups() {
-  store(COMPUTE_GROUPS_STORAGE_KEY, JSON.stringify(computeGroupRowEls.map((r) => ({ joinKey: r.keyInput.value.trim(), joinSecret: r.secretInput.value.trim() }))));
+  store(COMPUTE_GROUPS_STORAGE_KEY, JSON.stringify(computeGroupRowEls.map((r) => ({ attachKey: r.keyInput.value.trim(), attachSecret: r.secretInput.value.trim() }))));
 }
-function makeComputeGroupRow(joinKey, joinSecret) {
-  const keyInput = el('input', { type: 'text', placeholder: 'joinKey (blank = public)' });
-  keyInput.value = joinKey || '';
-  const secretInput = el('input', { type: 'password', placeholder: 'joinSecret (optional)' });
-  secretInput.value = joinSecret || '';
+function makeComputeGroupRow(attachKey, attachSecret) {
+  const keyInput = el('input', { type: 'text', placeholder: 'attachKey (blank = global)' });
+  keyInput.value = attachKey || '';
+  const secretInput = el('input', { type: 'password', placeholder: 'attachSecret (optional)' });
+  secretInput.value = attachSecret || '';
   const row = el('div', { class: 'compute-group-row' });
   const removeBtn = el('button', { type: 'button', class: 'remove-group-btn', title: 'Remove this group', text: '×' });
   keyInput.addEventListener('change', persistComputeGroups);
@@ -149,7 +149,7 @@ function makeComputeGroupRow(joinKey, joinSecret) {
   row.append(keyInput, secretInput, removeBtn);
   return { el: row, keyInput, secretInput };
 }
-computeGroupRowEls = loadStoredComputeGroups().map((g) => makeComputeGroupRow(g.joinKey, g.joinSecret));
+computeGroupRowEls = loadStoredComputeGroups().map((g) => makeComputeGroupRow(g.attachKey || g.joinKey, g.attachSecret || g.joinSecret));
 for (const r of computeGroupRowEls) $('computeGroupRows').append(r.el);
 $('addComputeGroupBtn').addEventListener('click', () => {
   const r = makeComputeGroupRow('', '');
@@ -157,9 +157,9 @@ $('addComputeGroupBtn').addEventListener('click', () => {
   $('computeGroupRows').append(r.el);
 });
 function getComputeGroups() {
-  const groups = computeGroupRowEls.map((r) => ({ joinKey: r.keyInput.value.trim(), joinSecret: r.secretInput.value.trim() })).filter((g) => g.joinKey);
-  if (!groups.length) return [{ joinKey: 'public' }];
-  return groups.map((g) => (g.joinSecret ? g : { joinKey: g.joinKey }));
+  const groups = computeGroupRowEls.map((r) => ({ attachKey: r.keyInput.value.trim(), attachSecret: r.secretInput.value.trim() })).filter((g) => g.attachKey);
+  if (!groups.length) return [{ attachKey: 'global' }];
+  return groups.map((g) => (g.attachSecret ? g : { attachKey: g.attachKey }));
 }
 function getSlicePaymentOffer() {
   const v = parseFloat($('slicePaymentOfferInput').value);

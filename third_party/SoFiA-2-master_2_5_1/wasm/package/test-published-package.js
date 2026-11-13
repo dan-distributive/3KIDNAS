@@ -78,8 +78,8 @@ async function main() {
   }
   let computeGroup;
   if (cg) {
-    const [joinKey, joinSecret] = cg.split(',');
-    computeGroup = joinSecret ? { joinKey, joinSecret } : { joinKey };
+    const [attachKey, attachSecret] = cg.split(',');
+    computeGroup = attachSecret ? { attachKey, attachSecret } : { attachKey };
   }
 
   await identity.set(apiKey);
@@ -104,7 +104,7 @@ output.overwrite     = true
 
   const job = compute.for([0], testSofia, [cubeBase64, parText]);
   job.requires(['sofia2wasm/sofia-wasm.js']);
-  job.computeGroups = computeGroup ? [computeGroup] : [{ joinKey: 'public' }];
+  job.computeGroups = computeGroup ? [computeGroup] : [{ attachKey: 'global' }];
   job.public = {
     name: 'sofia published-package test',
     description: 'Confirms the published sofia package works via job.requires()',

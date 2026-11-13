@@ -99,8 +99,8 @@ async function main() {
   }
   let computeGroup;
   if (cg) {
-    const [joinKey, joinSecret] = cg.split(',');
-    computeGroup = joinSecret ? { joinKey, joinSecret } : { joinKey };
+    const [attachKey, attachSecret] = cg.split(',');
+    computeGroup = attachSecret ? { attachKey, attachSecret } : { attachKey };
   }
 
   await identity.set(apiKey);
@@ -142,7 +142,7 @@ output.overwrite     = true
   // following duckdb-wasm.js's precedent in the Edequity project).
   job.requires(['./sofia-wasm']);
 
-  job.computeGroups = computeGroup ? [computeGroup] : [{ joinKey: 'public' }];
+  job.computeGroups = computeGroup ? [computeGroup] : [{ attachKey: 'global' }];
 
   job.public = {
     name: '🔭 SoFiA-2 wasm worker test',

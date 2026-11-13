@@ -79,8 +79,8 @@ async function main() {
   }
   let computeGroup;
   if (cg) {
-    const [joinKey, joinSecret] = cg.split(',');
-    computeGroup = joinSecret ? { joinKey, joinSecret } : { joinKey };
+    const [attachKey, attachSecret] = cg.split(',');
+    computeGroup = attachSecret ? { attachKey, attachSecret } : { attachKey };
   }
 
   await identity.set(apiKey);
@@ -93,7 +93,7 @@ async function main() {
 
   const job = compute.for([{ cubeBase64 }], testCfitsio, []);
   job.requires(['cfitsio4wasm/cfitsio-wasm.js']);
-  job.computeGroups = computeGroup ? [computeGroup] : [{ joinKey: 'public' }];
+  job.computeGroups = computeGroup ? [computeGroup] : [{ attachKey: 'global' }];
   job.public = {
     name: 'cfitsio4wasm published-package test',
     description: 'Confirms the published cfitsio4wasm package works via job.requires()',

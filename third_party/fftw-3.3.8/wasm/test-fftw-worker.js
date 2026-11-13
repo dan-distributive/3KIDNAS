@@ -117,8 +117,8 @@ async function main() {
   }
   let computeGroup;
   if (cg) {
-    const [joinKey, joinSecret] = cg.split(',');
-    computeGroup = joinSecret ? { joinKey, joinSecret } : { joinKey };
+    const [attachKey, attachSecret] = cg.split(',');
+    computeGroup = attachSecret ? { attachKey, attachSecret } : { attachKey };
   }
 
   await identity.set(apiKey);
@@ -142,7 +142,7 @@ async function main() {
   // mechanism documented in sofia-wasm.js / duckdb-wasm.js).
   job.requires(['./fftw-wasm']);
 
-  job.computeGroups = computeGroup ? [computeGroup] : [{ joinKey: 'public' }];
+  job.computeGroups = computeGroup ? [computeGroup] : [{ attachKey: 'global' }];
 
   job.public = {
     name: '\u{1F30A} FFTW3 wasm worker test',

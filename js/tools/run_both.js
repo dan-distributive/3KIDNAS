@@ -28,7 +28,7 @@
  *   node run_both.js --seed <idum> [--nBootstraps N]
  *     [--objName NAME [--cube PATH] [--mask PATH] --pa DEG --inc DEG]
  *     [--apiKey 0x... | --local]
- *     [--computeGroups joinKey[,joinSecret][:joinKey[,joinSecret]...]]
+ *     [--computeGroups attachKey[,attachSecret][:attachKey[,attachSecret]...]]
  *     [--slicePrice N] [--skip-fortran] [--skip-js-dcp]
  *     [--skip-wipe] [--json PATH]
  *

@@ -299,7 +299,7 @@
   }
 
   // ---------------------------------------------------------------------
-  // Compute-group rows: dynamic joinKey/joinSecret pairs, "as many as
+  // Compute-group rows: dynamic attachKey/attachSecret pairs, "as many as
   // desired" -- add/remove rows, at least one always stays on screen.
   // ---------------------------------------------------------------------
   function addGroupRow(key, secret) {
@@ -325,9 +325,9 @@
       var key = row.querySelector('.cg-key').value.trim();
       var secret = row.querySelector('.cg-secret').value.trim();
       if (!key) return;
-      groups.push(secret ? { joinKey: key, joinSecret: secret } : { joinKey: key });
+      groups.push(secret ? { attachKey: key, attachSecret: secret } : { attachKey: key });
     });
-    return groups.length ? groups : [{ joinKey: 'public' }];
+    return groups.length ? groups : [{ attachKey: 'global' }];
   }
 
   // ---------------------------------------------------------------------

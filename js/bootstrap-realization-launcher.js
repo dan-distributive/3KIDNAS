@@ -2142,9 +2142,9 @@ if (typeof module === 'undefined' && typeof globalThis !== 'undefined') {
   globalThis.BOOTSTRAP_ONLY_MODULES = BOOTSTRAP_ONLY_MODULES;
 }
 
-// Parses --computeGroups=joinKey[,joinSecret][:joinKey[,joinSecret]...] into
-// the array of {joinKey, joinSecret} objects job.computeGroups expects --
-// ':' between groups, ',' between a group's own joinKey/joinSecret. ':' was
+// Parses --computeGroups=attachKey[,attachSecret][:attachKey[,attachSecret]...] into
+// the array of {attachKey, attachSecret} objects job.computeGroups expects --
+// ':' between groups, ',' between a group's own attachKey/attachSecret. ':' was
 // chosen over ';' specifically because ';' is a shell command separator --
 // unquoted, it silently splits `--computeGroups a,b;c,d` into multiple shell
 // commands instead of one argument (hit directly: a real dispatch ran with
@@ -2153,8 +2153,8 @@ if (typeof module === 'undefined' && typeof globalThis !== 'undefined') {
 // Falls back to the public group when no flag is given.
 function parseComputeGroups(flagValue) {
   return (flagValue || 'public').split(':').map((g) => g.trim()).filter(Boolean).map((group) => {
-    const [joinKey, joinSecret] = group.split(',').map((s) => s.trim());
-    return joinSecret ? { joinKey, joinSecret } : { joinKey };
+    const [attachKey, attachSecret] = group.split(',').map((s) => s.trim());
+    return attachSecret ? { attachKey, attachSecret } : { attachKey };
   });
 }
 

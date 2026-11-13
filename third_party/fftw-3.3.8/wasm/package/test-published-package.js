@@ -123,8 +123,8 @@ async function main() {
   }
   let computeGroup;
   if (cg) {
-    const [joinKey, joinSecret] = cg.split(',');
-    computeGroup = joinSecret ? { joinKey, joinSecret } : { joinKey };
+    const [attachKey, attachSecret] = cg.split(',');
+    computeGroup = attachSecret ? { attachKey, attachSecret } : { attachKey };
   }
 
   await identity.set(apiKey);
@@ -136,7 +136,7 @@ async function main() {
 
   const job = compute.for([{ re, im }], testFftw, [TOLERANCE]);
   job.requires(['fftw3wasm-v3/fftw-wasm.js']);
-  job.computeGroups = computeGroup ? [computeGroup] : [{ joinKey: 'public' }];
+  job.computeGroups = computeGroup ? [computeGroup] : [{ attachKey: 'global' }];
   job.public = {
     name: 'fftw3wasm-v3 published-package test',
     description: 'Confirms the published fftw3wasm-v3 package works via job.requires()',

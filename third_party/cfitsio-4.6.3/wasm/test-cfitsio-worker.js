@@ -103,8 +103,8 @@ async function main() {
   }
   let computeGroup;
   if (cg) {
-    const [joinKey, joinSecret] = cg.split(',');
-    computeGroup = joinSecret ? { joinKey, joinSecret } : { joinKey };
+    const [attachKey, attachSecret] = cg.split(',');
+    computeGroup = attachSecret ? { attachKey, attachSecret } : { attachKey };
   }
 
   await identity.set(apiKey);
@@ -125,7 +125,7 @@ async function main() {
 
   const job = compute.for(inputSet, testCfitsio, [KEY_NAME]);
   job.requires(['./cfitsio-wasm']);
-  job.computeGroups = computeGroup ? [computeGroup] : [{ joinKey: 'public' }];
+  job.computeGroups = computeGroup ? [computeGroup] : [{ attachKey: 'global' }];
   job.public = {
     name: '\u{1F5C2}\u{FE0F} cfitsio wasm worker test',
     description: 'Confirms the cfitsio wasm build runs inside a real DCP worker (real FITS read/write, WALLABY HI cubes)',

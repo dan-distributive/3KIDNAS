@@ -186,7 +186,7 @@
       <label>Compute group(s)</label>
       <div id="computeGroupRows" style="display:flex; flex-direction:column; gap:8px; margin-top:4px"></div>
       <button id="addComputeGroupBtn" type="button" class="secondary" style="margin-top:8px">+ Add another group</button>
-      <p class="card-sub" style="margin:6px 0 0">Leave joinKey blank for the public group. Not specifying one deploys to Global (public).</p>
+      <p class="card-sub" style="margin:6px 0 0">Leave attachKey blank for the global group. Not specifying one deploys to Global (public).</p>
     </div>
 
     <div class="field">
@@ -387,7 +387,7 @@ function getApiKey() {
   return apiKeyInput.value.trim();
 }
 
-// Compute group rows: one {joinKey, joinSecret} pair per row. A blank key
+// Compute group rows: one {attachKey, attachSecret} pair per row. A blank key
 // means "public group" -- at least one row is always present so there's
 // always something to fill in; the row's own × either removes it (if
 // there's more than one) or just clears it.
@@ -399,30 +399,30 @@ function loadStoredComputeGroups() {
     const stored = JSON.parse(localStorage.getItem(COMPUTE_GROUPS_STORAGE_KEY) || 'null');
     if (Array.isArray(stored) && stored.length) return stored;
   } catch (e) { /* fall through to default */ }
-  return [{ joinKey: '', joinSecret: '' }];
+  return [{ attachKey: '', attachSecret: '' }];
 }
 
 function persistComputeGroups() {
   const groups = computeGroupRowEls.map((row) => ({
-    joinKey: row.keyInput.value.trim(),
-    joinSecret: row.secretInput.value.trim(),
+    attachKey: row.keyInput.value.trim(),
+    attachSecret: row.secretInput.value.trim(),
   }));
   localStorage.setItem(COMPUTE_GROUPS_STORAGE_KEY, JSON.stringify(groups));
 }
 
-function makeComputeGroupRow(joinKey, joinSecret) {
+function makeComputeGroupRow(attachKey, attachSecret) {
   const row = document.createElement('div');
   row.className = 'compute-group-row';
 
   const keyInput = document.createElement('input');
   keyInput.type = 'text';
-  keyInput.placeholder = 'joinKey (blank = public)';
-  keyInput.value = joinKey || '';
+  keyInput.placeholder = 'attachKey (blank = global)';
+  keyInput.value = attachKey || '';
 
   const secretInput = document.createElement('input');
   secretInput.type = 'password';
-  secretInput.placeholder = 'joinSecret (optional)';
-  secretInput.value = joinSecret || '';
+  secretInput.placeholder = 'attachSecret (optional)';
+  secretInput.value = attachSecret || '';
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
@@ -449,7 +449,7 @@ function makeComputeGroupRow(joinKey, joinSecret) {
 
 function renderComputeGroupRows(groups) {
   computeGroupRowsEl.innerHTML = '';
-  computeGroupRowEls = groups.map((g) => makeComputeGroupRow(g.joinKey, g.joinSecret));
+  computeGroupRowEls = groups.map((g) => makeComputeGroupRow(g.attachKey || g.joinKey, g.attachSecret || g.joinSecret));
   for (const row of computeGroupRowEls) computeGroupRowsEl.appendChild(row.el);
 }
 renderComputeGroupRows(loadStoredComputeGroups());
@@ -460,14 +460,14 @@ document.getElementById('addComputeGroupBtn').addEventListener('click', () => {
   computeGroupRowsEl.appendChild(row.el);
 });
 
-// job.computeGroups' own shape: [{joinKey, joinSecret?}, ...], defaulting
+// job.computeGroups' own shape: [{attachKey, attachSecret?}, ...], defaulting
 // to the public group when nothing's configured.
 function getComputeGroups() {
   const groups = computeGroupRowEls
-    .map((row) => ({ joinKey: row.keyInput.value.trim(), joinSecret: row.secretInput.value.trim() }))
-    .filter((g) => g.joinKey);
-  if (!groups.length) return [{ joinKey: 'public' }];
-  return groups.map((g) => (g.joinSecret ? g : { joinKey: g.joinKey }));
+    .map((row) => ({ attachKey: row.keyInput.value.trim(), attachSecret: row.secretInput.value.trim() }))
+    .filter((g) => g.attachKey);
+  if (!groups.length) return [{ attachKey: 'global' }];
+  return groups.map((g) => (g.attachSecret ? g : { attachKey: g.attachKey }));
 }
 
 function getSlicePaymentOffer() {
@@ -488,12 +488,12 @@ function getSlicePaymentOffer() {
 const joinClusterQrCode = new QRCode(document.getElementById('qrcode'), { width: 192, height: 192 });
 function updateJoinClusterQrCode() {
   const groups = getComputeGroups();
-  if (groups.length === 1 && groups[0].joinKey === 'public') {
+  if (groups.length === 1 && groups[0].attachKey === 'global') {
     joinClusterQrCode.makeCode('https://dcp.live');
     return;
   }
   const first = groups[0];
-  const raw = first.joinSecret ? `${first.joinKey},${first.joinSecret}` : first.joinKey;
+  const raw = first.attachSecret ? `${first.attachKey},${first.attachSecret}` : first.attachKey;
   joinClusterQrCode.makeCode(`https://dcp.live/?computeGroups=${encodeURIComponent(raw)}`);
 }
 
